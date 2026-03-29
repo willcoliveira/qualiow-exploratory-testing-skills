@@ -44,3 +44,6 @@ On every page during discovery:
 3. Carry forward: site map summary, risk ranking, list of what's missing
 
 **Log your reasoning:** "I expected a payment method selector in checkout because this is e-commerce, but it's missing. I'll flag this as a medium bug."
+
+**Update progress:** Set discovery phase complete in progress.json with pages_explored count. Append to session-log.md:
+`[<timestamp>] [PHASE] Discovery complete — <N> pages mapped, <N> console errors, <N> missing checklist items, <N> bugs so far`

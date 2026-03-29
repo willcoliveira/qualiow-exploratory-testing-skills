@@ -107,3 +107,6 @@ Save to `output/sessions/<session-dir>/charter.md`:
 ```
 
 Start trace: `playwright-cli tracing-start`
+
+**Update progress:** Set charter phase complete in progress.json. Append to session-log.md:
+`[<timestamp>] [PHASE] Charter complete — risk ranking defined, <N> journeys planned, heuristics: <selected>`

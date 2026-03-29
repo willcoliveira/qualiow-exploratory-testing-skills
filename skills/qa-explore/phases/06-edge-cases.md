@@ -64,3 +64,6 @@ playwright-cli resize 1280 720  # restore
 ## After Edge Cases
 
 Write to `phase-4-edge-cases.md`.
+
+**Update progress:** Set edge_cases phase complete in progress.json. Append to session-log.md:
+`[<timestamp>] [PHASE] Edge cases complete — <N> input attacks, <N> security checks, <N> a11y checks, <N> bugs so far`

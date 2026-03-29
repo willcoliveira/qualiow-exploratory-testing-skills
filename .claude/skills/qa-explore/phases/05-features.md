@@ -50,3 +50,6 @@ If you notice an inconsistency (e.g., "Bill Pay validates but Transfer doesn't")
 ## After Feature Testing
 
 Write to `phase-3-feature-testing.md`. Include reasoning for each test.
+
+**Update progress:** Set features phase complete in progress.json. Append to session-log.md:
+`[<timestamp>] [PHASE] Features complete — <N> P0 features tested, <N> P1 features tested, <N> inconsistencies found, <N> bugs so far`

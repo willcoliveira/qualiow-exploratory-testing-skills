@@ -78,6 +78,85 @@ Document what was tested and what was not:
 | [feature] | P1 | Partial | 1 bug | [notes] |
 | [feature] | P2 | No | -- | Time ran out |
 
+## Session Stats
+
+Write `output/sessions/<session-dir>/stats.json` with session metrics:
+
+```json
+{
+  "session_id": "<session-dir>",
+  "target": "<target_url>",
+  "domain": "<domain>",
+  "started_at": "<from progress.json>",
+  "completed_at": "<ISO timestamp now>",
+  "duration_min": "<calculated>",
+  "phases_completed": "<count of phases with status=complete>",
+  "total_phases": 8,
+  "bugs": {
+    "total": "<count>",
+    "critical": "<count>",
+    "high": "<count>",
+    "medium": "<count>",
+    "low": "<count>"
+  },
+  "coverage": {
+    "pages_explored": "<count>",
+    "checklist_total": "<from domain config>",
+    "checklist_verified": "<count checked>",
+    "checklist_percentage": "<calculated>",
+    "data_integrity_checks": "<count>",
+    "data_integrity_passed": "<count>",
+    "personas_tested": ["<list>"],
+    "purchase_flows_tested": ["<list>"]
+  },
+  "evidence": {
+    "screenshots": "<count>",
+    "console_errors_found": "<count>",
+    "network_failures_found": "<count>"
+  },
+  "areas_not_tested": ["<list with reasons>"],
+  "blocked_by": "<if something blocked testing, note it>"
+}
+```
+
+Also append a **stats summary** at the bottom of `session-report.md`:
+
+```markdown
+---
+
+## Session Stats
+
+| Metric | Value |
+|--------|-------|
+| Duration | <X> min |
+| Phases completed | <N>/8 |
+| Bugs found | <N> (Critical: <N>, High: <N>, Medium: <N>, Low: <N>) |
+| Pages explored | <N> |
+| Screenshots taken | <N> |
+| Console errors found | <N> |
+
+### Coverage
+
+| Area | Risk | Tested | Depth | Bugs | Notes |
+|------|------|--------|-------|------|-------|
+| <area> | P0 | Yes | Deep | <N> | <notes> |
+| <area> | P1 | Partial | Shallow | <N> | <blocked by...> |
+| <area> | P2 | No | — | — | Time ran out |
+
+### Checklist Coverage
+<N>/<N> items verified (<X>%)
+
+### Data Integrity
+<N>/<N> checks passed
+
+### Not Tested (and why)
+- <area>: <reason>
+```
+
+## Update progress.json — Final
+
+Set status to "complete", current_phase to "reporting", all phases to their final status.
+
 ## Update Indexes
 
 Append to `output/sessions/INDEX.md` and `output/bugs/all-bugs.md`.

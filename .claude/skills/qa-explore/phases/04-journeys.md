@@ -46,3 +46,6 @@ Do things change? Are order IDs unique? Are timestamps correct?
 1. Write findings to `phase-2-user-journeys.md`
 2. Include data integrity results
 3. Note any cross-feature inconsistencies
+
+**Update progress:** Set journeys phase complete in progress.json. Append to session-log.md:
+`[<timestamp>] [PHASE] Journeys complete — <N> journeys tested, <N>/<N> data integrity checks passed, <N> bugs so far`

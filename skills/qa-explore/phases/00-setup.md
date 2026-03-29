@@ -53,3 +53,44 @@ Keep brief summaries only -- don't fill context with full entries.
 ## Step 4: Create Session Directory
 
 Create `output/sessions/<YYYY-MM-DD-HHmm-target>/` with: `charter.md`, `session-log.md`, `screenshots/`, `bugs/`
+
+## Step 5: Initialize Progress Tracking
+
+Write `output/sessions/<session-dir>/progress.json`:
+```json
+{
+  "session_id": "<session-dir>",
+  "target": "<target_url>",
+  "domain": "<domain>",
+  "started_at": "<ISO timestamp>",
+  "status": "in_progress",
+  "current_phase": "setup",
+  "phases": {
+    "setup": { "status": "complete", "timestamp": "<now>" },
+    "auth": { "status": "pending" },
+    "charter": { "status": "pending" },
+    "discovery": { "status": "pending" },
+    "journeys": { "status": "pending" },
+    "features": { "status": "pending" },
+    "edge_cases": { "status": "pending" },
+    "reporting": { "status": "pending" }
+  },
+  "bugs_found": 0,
+  "pages_explored": 0,
+  "screenshots_taken": 0,
+  "console_errors": 0
+}
+```
+
+Append to `session-log.md`:
+```
+[<timestamp>] [PHASE] Setup complete — session initialized
+```
+
+**IMPORTANT: After EVERY phase completion, update progress.json and append to session-log.md.** This is how the user monitors session progress. Use this pattern at the end of each phase:
+
+```
+# Update progress.json — set current phase complete, next phase as current
+# Append to session-log.md:
+[<timestamp>] [PHASE] <phase_name> complete — <pages> pages, <bugs> bugs, <key finding summary>
+```

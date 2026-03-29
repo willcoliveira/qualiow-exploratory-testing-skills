@@ -29,3 +29,6 @@ If login fails:
 2. Verify credentials are correct
 3. Check for MFA requirements
 4. Log the failure and attempt alternative auth strategy if available
+
+**Update progress:** Set auth phase complete (or failed) in progress.json. Append to session-log.md:
+`[<timestamp>] [PHASE] Auth complete — strategy: <strategy>, result: <success/failed>, user: <redacted>`
