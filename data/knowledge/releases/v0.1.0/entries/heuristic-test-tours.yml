@@ -1,0 +1,253 @@
+id: heuristic-test-tours
+version: "0.1.0"
+type: heuristic
+name: "Whittaker's Test Tours"
+description: >
+  12 exploration strategies modeled as city tours. Each tour provides a
+  different motivation and focus for exploring the application, ensuring
+  diverse coverage without rigid test scripts. Mix and match tours across
+  sessions for maximum discovery.
+author: "James Whittaker"
+source: "Exploratory Software Testing"
+tags: [exploration, how-to-explore, tours, eet]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    Think of the application as a city you are visiting. Different tours take
+    you through different neighborhoods with different goals. A tourist follows
+    the guidebook; a local knows the back alleys. Use these tours to structure
+    your exploration while keeping it creative and thorough.
+
+  tours:
+    - name: Guidebook Tour
+      description: >
+        Follow the official documentation, user guides, tutorials, and marketing
+        materials. Do exactly what they say and verify every claim. This is the
+        tourist experience — does the guided path work flawlessly?
+      strategy:
+        - "Open the product's documentation, help center, or getting-started guide."
+        - "Follow every step literally — do not improvise or take shortcuts."
+        - "Verify every screenshot, example, and expected outcome matches reality."
+        - "Check that all links in docs are valid and point to the right place."
+        - "Try every code sample or configuration example verbatim."
+      when_to_use:
+        - "Early in testing to validate the documented happy path."
+        - "After a major release or documentation update."
+        - "When onboarding to a new product — this is your first tour."
+      oracle: "Claims — the product must match its own documentation."
+
+    - name: Money Tour
+      description: >
+        Focus on the features that generate revenue or deliver the core value
+        proposition. These are the features the company cannot afford to have
+        broken — the ones that justify the product's price tag.
+      strategy:
+        - "Identify the product's top 3-5 revenue-generating features."
+        - "Test each one end-to-end as a paying customer would."
+        - "Test the purchase, subscription, upgrade, and payment flows."
+        - "Verify pricing is displayed correctly and calculated accurately."
+        - "Test the billing cycle, invoices, receipts, and refund processes."
+      when_to_use:
+        - "Every release — these features must always work."
+        - "Before a pricing change or billing system update."
+        - "When the business team reports revenue anomalies."
+      oracle: "Purpose — if these break, the product fails its reason to exist."
+
+    - name: Landmark Tour
+      description: >
+        Identify key landmarks (major features or pages) and navigate between
+        them, testing transitions and navigation. Like a tourist visiting all
+        the famous monuments — but paying attention to the roads between them.
+      strategy:
+        - "List 8-10 key pages or features (landmarks) of the application."
+        - "Visit each landmark and verify it renders correctly."
+        - "Navigate between landmarks using different paths (menu, breadcrumbs, direct URL, back button)."
+        - "Check that navigation state is preserved correctly (selected items, scroll position, filters)."
+        - "Verify deep links work — can you reach any landmark directly via URL?"
+      when_to_use:
+        - "When testing navigation, routing, or information architecture changes."
+        - "After restructuring the sitemap or menu."
+        - "When users report difficulty finding features."
+      oracle: "Product — navigation should be internally consistent."
+
+    - name: Bad Neighborhood Tour
+      description: >
+        Find the buggiest areas and spend extra time there. Bugs cluster — if
+        you find one bug in an area, look harder because there are likely more.
+        This is the tour of the rough parts of town.
+      strategy:
+        - "Start with areas that had bugs in the past (check bug tracker history)."
+        - "Focus on recently changed code (check the git log)."
+        - "Test complex features with many edge cases."
+        - "Revisit features built under time pressure or by junior developers."
+        - "When you find a bug, test everything nearby — same page, same form, same API."
+      when_to_use:
+        - "Mid-session when you have found your first bugs and want to find more."
+        - "When regression testing — focus on historically buggy areas."
+        - "When time is limited and you want maximum bug yield."
+      oracle: "History — areas that broke before will break again."
+
+    - name: Intellectual Tour
+      description: >
+        Seek out the hardest, most complex features and try to break them with
+        sophisticated test cases. Challenge the product with the most difficult
+        inputs and scenarios you can think of.
+      strategy:
+        - "Find the most complex algorithm or calculation in the product."
+        - "Test with extreme inputs — very large, very small, very precise."
+        - "Test complex multi-step workflows with branching logic."
+        - "Combine features that were probably not designed to work together."
+        - "Test concurrent operations — what happens when two users edit the same thing?"
+        - "Look for race conditions in async operations."
+      when_to_use:
+        - "When testing features with complex business logic."
+        - "For high-risk areas like financial calculations, scheduling, or permissions."
+        - "When you want to challenge assumptions about data integrity."
+      oracle: "Explainable — complex features should still produce explainable results."
+
+    - name: FedEx Tour
+      description: >
+        Follow a piece of data through the entire system, from input to storage
+        to display to export. Like tracking a FedEx package — follow it through
+        every touchpoint and handoff.
+      strategy:
+        - "Create a piece of data with distinctive values (e.g., a product named 'FEDEX-TEST-001')."
+        - "Track it through creation, editing, display, search results, reports, notifications."
+        - "Verify it appears correctly in every context — list view, detail view, export, email."
+        - "Check that edits propagate everywhere — no stale data in caches or secondary views."
+        - "Delete it and verify it is gone from everywhere (or properly archived)."
+        - "Check the database directly if possible — is the stored data what you expect?"
+      when_to_use:
+        - "When testing data flow and data integrity."
+        - "After changes to data models, APIs, or storage layers."
+        - "When users report data inconsistencies or stale information."
+      oracle: "Product — data should be consistent across every view and context."
+
+    - name: Garbage Collector Tour
+      description: >
+        Find and test the features nobody cares about — the neglected, dusty
+        corners of the application. These are the least-used, least-tested,
+        least-loved features where bugs hide undiscovered.
+      strategy:
+        - "Find features not mentioned in marketing materials or documentation."
+        - "Look for admin pages, settings panels, and configuration screens."
+        - "Test import/export features, bulk operations, and advanced filters."
+        - "Check help pages, about pages, terms of service pages, and footers."
+        - "Look for legacy features that are still accessible but seem abandoned."
+        - "Test empty states — what does the app look like with no data?"
+      when_to_use:
+        - "When main features are already well-tested and you want broader coverage."
+        - "When looking for security issues — neglected features often lack proper auth checks."
+        - "When testing for completeness before a major release."
+      oracle: "Users — even rarely-used features should work for the users who need them."
+
+    - name: Museum Tour
+      description: >
+        Test legacy code and old features that are still in the product. Like
+        visiting a museum — these artifacts are old but still on display and
+        must be maintained. Regressions love to hide here.
+      strategy:
+        - "Identify the oldest features in the product."
+        - "Test features that have not been updated in the last 3+ releases."
+        - "Check that old features work with new data formats and new user roles."
+        - "Verify backwards compatibility — can old URLs, API versions, and data formats still be used?"
+        - "Test migration paths — what happens to old data in the new system?"
+      when_to_use:
+        - "After a major refactoring, framework upgrade, or migration."
+        - "When the product has significant technical debt."
+        - "When long-time users report that something 'used to work.'"
+      oracle: "History — old features should still behave as they always have."
+
+    - name: Rained-Out Tour
+      description: >
+        Start a task and then abandon it partway through. Like a tourist whose
+        plans are rained out — what happens when you cancel, close the tab, go
+        back, or lose connectivity mid-workflow?
+      strategy:
+        - "Start filling a form and navigate away without saving."
+        - "Begin a multi-step wizard and close the browser tab at each step."
+        - "Start an upload and cancel it midway."
+        - "Begin checkout, then hit the back button repeatedly."
+        - "Disconnect the network during a save operation."
+        - "Close a modal without completing its action."
+        - "Let a session time out during an unsaved operation."
+      when_to_use:
+        - "When testing state management and data persistence."
+        - "When testing error recovery and resilience."
+        - "When looking for data corruption or orphaned records."
+      oracle: "Users — users abandon tasks all the time; the product should handle it gracefully."
+
+    - name: Couch Potato Tour
+      description: >
+        Do as little as possible. Accept every default, skip every optional
+        field, take every shortcut. What is the laziest possible path through
+        the application? Does the product still work?
+      strategy:
+        - "Create an account with only the required fields."
+        - "Accept all default settings without changing anything."
+        - "Skip every optional step in wizards."
+        - "Leave optional fields blank everywhere."
+        - "Use the shortest possible valid input for every required field."
+        - "Never scroll down — only interact with what is above the fold."
+      when_to_use:
+        - "When testing defaults and minimal configurations."
+        - "When testing the first-time user experience."
+        - "When verifying that required vs. optional is correctly implemented."
+      oracle: "Users — the laziest path should still produce a usable outcome."
+
+    - name: Obsessive-Compulsive Tour
+      description: >
+        Repeat the same action over and over. Enter the same data twice. Click
+        the same button rapidly. Undo and redo. Do everything twice or ten times
+        to see if the product handles repetition gracefully.
+      strategy:
+        - "Double-click every single-click button."
+        - "Submit the same form multiple times rapidly."
+        - "Create a duplicate record — same name, same email, same data."
+        - "Undo and redo the same action 20 times."
+        - "Refresh the page repeatedly during a loading operation."
+        - "Resize the browser window rapidly while content is loading."
+        - "Toggle the same setting on/off/on/off rapidly."
+      when_to_use:
+        - "When testing idempotency and duplicate handling."
+        - "When looking for race conditions and concurrency bugs."
+        - "When testing UI stability under rapid interaction."
+      oracle: "Explainable — repeated actions should produce consistent, predictable results."
+
+    - name: Saboteur Tour
+      description: >
+        Actively try to break the application. Inject bad data, revoke
+        permissions mid-session, kill processes, corrupt files. You are the
+        villain — what is the worst you can do?
+      strategy:
+        - "Inject SQL, XSS, and script payloads into every input field."
+        - "Manipulate hidden form fields, cookies, and localStorage."
+        - "Modify API requests in-flight using browser devtools or a proxy."
+        - "Change user role/permissions in another tab and continue operating."
+        - "Upload malicious files — .exe renamed to .jpg, SVG with embedded script."
+        - "Exhaust resources — fill disk space, use up all licenses, exceed rate limits."
+        - "Use browser devtools to modify the DOM and bypass client-side validation."
+      when_to_use:
+        - "Security-focused testing sessions."
+        - "Before a penetration test — find the easy wins first."
+        - "When testing input validation, authorization, and error handling."
+        - "As the default negative testing tour in every session."
+      oracle: "Standards — security and validation must meet established security standards."
+
+  when_to_use:
+    - "Select 2-3 tours per exploratory session for diverse coverage."
+    - "Always include at least one negative tour (Bad Neighborhood, Saboteur, or Rained-Out)."
+    - "Guidebook Tour and Money Tour first for new products — establish the baseline."
+    - "Rotate tours across sessions to avoid testing the same way every time."
+    - "Match tours to risk — high-risk features get Intellectual and Saboteur tours."
+
+  gotchas:
+    - "Do not try to do all 12 tours in one session — pick 2-3 and go deep."
+    - "The Couch Potato Tour catches surprisingly many bugs — do not underestimate it."
+    - "Saboteur Tour should be in every session's plan — agents tend to stay on happy paths."
+    - "Rained-Out Tour is critical for mobile and SPA applications where users frequently navigate away."
+    - "FedEx Tour is the best way to find data inconsistency bugs that other tours miss."
+    - "Bad Neighborhood Tour requires historical bug data — check the bug tracker first."

@@ -1,0 +1,146 @@
+id: technique-business-logic-race-conditions
+version: "0.1.0"
+type: technique
+name: "Business Logic Flaws & Race Condition Testing"
+description: >
+  Advanced technique for finding high-impact bugs in mature applications — hidden
+  endpoints, state transition attacks, parameter tampering, and race conditions.
+  Sourced from experienced bug bounty hunters.
+author: "Compiled from bug bounty community (Reddit r/bugbounty)"
+source: "Bug bounty practitioner methodologies"
+tags: [security, business-logic, race-condition, state-transition, advanced]
+domains: [all]
+priority: high
+added: "2026-03-28"
+updated: "2026-03-28"
+
+content:
+  summary: >
+    Most obvious bugs get found first. High-impact bugs live in business logic
+    (wrong state transitions, parameter tampering, privilege escalation) and race
+    conditions (parallel requests exploiting timing windows). The key insight:
+    treat the frontend JS as your real API map to find hidden surface area,
+    then stress-test every state transition.
+
+  hidden_surface_area:
+    description: >
+      Mature apps have hidden endpoints — old flows, admin helpers, feature-flagged
+      routes, mobile-only APIs. These are less tested and often miss newer validation.
+    how_to_find:
+      - "Check page source and JS bundles for API endpoints, fetch/axios calls"
+      - "Look for /api/, /v1/, /v2/, /graphql, /internal/ patterns in JS"
+      - "Check network tab for requests not visible in the UI"
+      - "Look for commented-out features, feature flags, A/B test routes"
+      - "Try common endpoint patterns: /admin, /debug, /status, /health, /metrics"
+    playwright_cli_approach:
+      - "npx playwright-cli network — capture all API calls during normal usage"
+      - "npx playwright-cli eval \"Array.from(document.querySelectorAll('script[src]')).map(s => s.src)\" — find JS bundles"
+      - "npx playwright-cli eval \"performance.getEntriesByType('resource').filter(r => r.name.includes('api')).map(r => r.name)\" — find API calls"
+
+  logic_stress_testing:
+    description: >
+      For every state-changing endpoint (create, update, delete, transfer, confirm),
+      test what happens when you break the expected flow.
+    attack_patterns:
+      - name: "Wrong state order"
+        description: "Call step 3 before step 1 — skip prerequisites"
+        examples:
+          - "Submit payment confirmation without adding items to cart"
+          - "Access order confirmation page directly without checkout"
+          - "Call 'confirm transfer' without initiating transfer"
+        playwright_cli: "Navigate directly to confirmation URLs, skip intermediate steps"
+
+      - name: "Parameter tampering"
+        description: "Change values that should be server-controlled"
+        examples:
+          - "Modify price/amount in the request"
+          - "Change user ID to access another user's data"
+          - "Change role/permission level in request body"
+          - "Modify quantity to negative or zero"
+          - "Change currency or payment method mid-flow"
+        playwright_cli: >
+          Fill forms with tampered values, use eval to modify hidden fields:
+          npx playwright-cli eval "document.querySelector('input[name=price]').value = '0.01'"
+
+      - name: "Replay attacks"
+        description: "Repeat a request that should only work once"
+        examples:
+          - "Submit the same discount code twice"
+          - "Confirm the same order multiple times"
+          - "Redeem the same gift card/coupon again"
+          - "Apply referral bonus after already used"
+
+      - name: "State transition bypasses"
+        description: "Skip or reorder steps in a multi-step flow"
+        examples:
+          - "Go from cart directly to order confirmation (skip payment)"
+          - "Change shipping address after payment confirmed"
+          - "Cancel then un-cancel an order"
+          - "Downgrade account then access premium features"
+
+  race_condition_testing:
+    description: >
+      Fire parallel requests against the same state transition to exploit
+      timing windows where validation hasn't completed yet.
+    high_value_targets:
+      - "Double-submit: payment, transfer, order placement"
+      - "Duplicate redeem: coupons, gift cards, rewards"
+      - "Quota bypass: rate limits, usage caps, free tier limits"
+      - "Double-like/follow/vote: social actions"
+      - "Multiple withdrawals: before balance check completes"
+      - "Invitation/role change: race between invite and revoke"
+      - "Inventory: buy last item simultaneously from two sessions"
+
+    how_to_test:
+      - description: "Multi-tab approach (with playwright-cli)"
+        steps:
+          - "Open two browser sessions: -s=race1 and -s=race2"
+          - "Navigate both to the same state-changing page"
+          - "Fill forms in both sessions"
+          - "Submit both as close together as possible"
+          - "Check if both succeeded (e.g., double charge, double credit)"
+
+      - description: "Rapid sequential approach"
+        steps:
+          - "Complete action once normally"
+          - "Immediately repeat the same action before state updates"
+          - "Check for duplicate records, double charges, or bypassed limits"
+
+    what_to_look_for:
+      - "Two successful responses when only one should succeed"
+      - "Balance debited twice or credited twice"
+      - "Duplicate records in database (orders, transactions)"
+      - "Rate limit bypassed"
+      - "Coupon/discount applied multiple times"
+
+  mindset:
+    principles:
+      - name: "Use the app as a real user first"
+        description: "Before hunting bugs, understand the product's business logic by actually using it. Know what SHOULD happen before testing what SHOULDN'T."
+
+      - name: "Dev experience reveals patterns"
+        description: "Understanding how developers build things helps predict where they cut corners. Common shortcuts: client-side validation only, trusting user-supplied IDs, missing server-side state checks."
+
+      - name: "Creativity over checklists"
+        description: "Stop when you catch yourself mechanically following steps. Ask: 'What would happen if...?' and follow your curiosity."
+
+      - name: "Hidden endpoints = highest ROI"
+        description: "Endpoints with no GUI path are less tested. Old flows, admin helpers, and feature-flagged routes often miss newer security controls."
+
+      - name: "Every state transition is a target"
+        description: "Any action that changes data (create, update, delete, transfer, confirm) is worth testing for logic flaws and race conditions."
+
+  when_to_use:
+    - "After functional testing passes — these bugs live BEYOND happy-path validation"
+    - "On any app with financial transactions (transfers, payments, credits)"
+    - "On any app with user-generated content (likes, votes, reviews)"
+    - "On any app with inventory or quotas (e-commerce, SaaS tiers)"
+    - "On multi-step flows (checkout, onboarding, approval workflows)"
+    - "When the app feels 'mature' and obvious bugs are already fixed"
+
+  gotchas:
+    - "Race conditions are hard to reproduce reliably — may need multiple attempts"
+    - "Don't test destructive race conditions on production without authorization"
+    - "Parameter tampering via browser tools may be blocked by CSRF tokens — check for them"
+    - "Hidden endpoints may require valid auth tokens — capture them from a normal session first"
+    - "AI agents tend to skip this entirely because it requires creative 'what if' thinking"

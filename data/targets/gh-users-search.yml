@@ -1,0 +1,13 @@
+id: gh-users-search
+name: "GitHub Users Search App"
+base_url: "https://gh-users-search.netlify.app/"
+domain: saas
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "GitHub user search application. Tests search, API integration, user profiles."

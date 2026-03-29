@@ -1,0 +1,84 @@
+id: reference-exploratory-testing-types
+version: "0.1.0"
+type: reference
+name: "Exploratory Testing Types & Approach"
+description: >
+  Three types of exploratory testing (unplanned, scenario-based, strategic) and
+  the learn-test-adapt loop. Key for AI agents: don't just use one mode — adapt
+  the approach based on familiarity with the application.
+author: "Artem Golubev"
+source: "testRigor Blog"
+tags: [exploratory, methodology, approach, agile, types]
+domains: [all]
+priority: medium
+added: "2026-03-28"
+updated: "2026-03-28"
+
+content:
+  summary: >
+    Exploratory testing is "not so much a thing you do; it's far more a way that
+    you think." Three distinct modes exist, and the AI agent should shift between
+    them during a session based on what it learns about the application.
+
+  three_types:
+    - name: "Unplanned / Ad-hoc"
+      when: "First encounter with unknown application"
+      approach: "Freestyle — click around, observe, get a feel for the app"
+      ai_mapping: "This is our Discovery Phase — map the app without preconceptions"
+      strengths: "Fast, unbiased, finds obvious UX issues"
+      weaknesses: "Shallow, may miss complex flows"
+
+    - name: "User Scenario-based"
+      when: "After understanding the app's purpose and user types"
+      approach: "Think of real user journeys and test end-to-end flows"
+      ai_mapping: "This is our Functional Testing Phase — test complete user flows (login → browse → cart → checkout)"
+      strengths: "Finds flow-breaking bugs, tests real workflows"
+      weaknesses: "Biased toward happy paths if not careful"
+
+    - name: "Strategic"
+      when: "Deep familiarity with the app, looking for complex/hidden bugs"
+      approach: "Apply specific techniques — equivalence partitioning, risk-based, error guessing, boundary testing"
+      ai_mapping: "This is our Edge Case Phase — apply targeted heuristics and negative testing"
+      strengths: "Finds subtle bugs that survive other testing"
+      weaknesses: "Requires domain knowledge and experience"
+
+  learn_test_adapt_loop:
+    description: >
+      The core cycle of exploratory testing. Unlike scripted testing, you adapt
+      your approach based on what you discover. Each action informs the next.
+    steps:
+      - "OBSERVE: Take a snapshot, read the page, check console/network"
+      - "THINK: Based on what I see, what could go wrong here? What would a user try?"
+      - "TEST: Execute the test idea (fill form, click button, try edge case)"
+      - "LEARN: What happened? Was it expected? What does this tell me about the app?"
+      - "ADAPT: Based on what I learned, where should I look next?"
+    ai_implication: >
+      After every significant action, the AI agent should explicitly reason about
+      what it learned and what to test next — not just follow a predetermined script.
+      Log the reasoning ("I noticed the form accepted empty strings, so I'll now
+      test with XSS payloads to check if sanitization is also missing").
+
+  documentation_during_testing:
+    principle: "Log every finding immediately — you'll forget or lose context otherwise"
+    what_to_log:
+      - "What you tested and WHY you chose to test it"
+      - "What you observed (expected vs actual)"
+      - "Screenshots/console output as evidence"
+      - "Questions that arose (unclear behavior needing human judgment)"
+      - "Ideas for further testing that you didn't have time for"
+
+  challenges_for_ai:
+    - "Diversification: AI tends to test the same way every time — needs randomization/variation"
+    - "Measuring success: Hard to quantify ROI of exploratory sessions — track bugs found per session"
+    - "Skill level: Strategic exploratory testing requires deep domain knowledge — use domain configs"
+    - "Reproducing bugs: Always log exact steps during exploration, not after the fact"
+
+  agile_integration:
+    description: >
+      In Agile, exploratory testing complements sprint testing by finding edge cases
+      that structured test cases miss. Best run: after feature completion, before sprint review.
+    when_to_use:
+      - "New feature just completed — explore before writing formal tests"
+      - "Sprint review prep — quick sanity exploration"
+      - "After bug fix — explore around the fix to find related issues"
+      - "New team member onboarding — explore to learn the product"

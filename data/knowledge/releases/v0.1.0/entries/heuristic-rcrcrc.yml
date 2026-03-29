@@ -1,0 +1,207 @@
+id: heuristic-rcrcrc
+version: "0.1.0"
+type: heuristic
+name: "RCRCRC(R) — Regression Testing Focus Areas"
+description: >
+  A mnemonic for deciding what to test during regression testing: Recent, Core,
+  Risky, Configuration, Repaired, Chronic. Extended with Revenue (from Richard
+  Bradshaw) as the seventh R. Each letter identifies a category of features
+  that deserve priority attention after changes are deployed.
+author: "Karen N. Johnson"
+source: "Karen N. Johnson — RCRCRC regression testing heuristic"
+tags: [regression, prioritization, change-management]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    When you cannot test everything after a change (and you never can), RCRCRC
+    tells you WHERE to focus. Each letter identifies a category of the product
+    that is more likely to contain regression bugs. Prioritize testing in these
+    areas first, then expand coverage if time permits. The extended version
+    (RCRCRCR) adds Revenue — features that generate business income and must
+    never break.
+
+  mnemonic:
+    - name: Recent
+      letter: R
+      description: "New code or recently changed features — fresh code has fresh bugs."
+      why_it_matters: >
+        Code that was just written or modified has not been battle-tested yet.
+        New features, recent refactors, and recently merged pull requests are
+        the most likely places for regressions to appear.
+      what_to_test:
+        - "Features added or modified in this sprint or release."
+        - "Files with the most recent commits (check git log)."
+        - "Recently merged pull requests — especially large ones."
+        - "New integrations or dependency upgrades."
+        - "Features behind newly toggled feature flags."
+      questions:
+        - "What changed in this release?"
+        - "Which files were touched in the last sprint?"
+        - "Are there any new feature flags that were just enabled?"
+
+    - name: Core
+      letter: C
+      description: "Features critical to the product's purpose — the reason the product exists."
+      why_it_matters: >
+        If core features break, the product is fundamentally broken. These are
+        the features that users bought the product for and use every day. A bug
+        in a core feature has maximum user impact.
+      what_to_test:
+        - "The product's primary value proposition (search for Google, payments for Stripe, messaging for Slack)."
+        - "The top 5 most-used features from analytics."
+        - "Critical user journeys — signup, login, primary workflow, checkout."
+        - "Features mentioned in marketing as key differentiators."
+        - "Features that, if broken, would generate immediate support tickets."
+      questions:
+        - "What would users complain about first if it broke?"
+        - "What features define this product?"
+        - "What are the top 5 user journeys by frequency?"
+
+    - name: Risky
+      letter: R
+      description: "Complex areas with many dependencies, integrations, or known fragility."
+      why_it_matters: >
+        Complexity breeds bugs. Features with many dependencies, complex
+        algorithms, heavy integrations, or historically fragile code are more
+        likely to break when anything in their dependency chain changes.
+      what_to_test:
+        - "Features with the most external dependencies (payment gateways, third-party APIs)."
+        - "Complex algorithms (pricing engines, recommendation systems, search ranking)."
+        - "Features with many database joins or complex queries."
+        - "Code written under time pressure or technical debt."
+        - "Features with high cyclomatic complexity."
+        - "Areas where junior developers made significant contributions (higher risk of overlooked edge cases)."
+      questions:
+        - "Which features have the most moving parts?"
+        - "What integrations could fail independently?"
+        - "Where is the most complex business logic?"
+        - "Who wrote this code and how experienced were they with this codebase?"
+
+    - name: Configuration
+      letter: C
+      description: "Features affected by settings, environments, feature flags, and deployment configurations."
+      why_it_matters: >
+        Configuration changes are silent — they do not show up in code diffs
+        but can dramatically change behavior. Environment differences between
+        dev, staging, and production cause bugs that only appear in production.
+      what_to_test:
+        - "Features controlled by feature flags — test both on and off states."
+        - "Environment-specific behavior (dev vs. staging vs. production)."
+        - "Locale and language settings — does the app work in all configured locales?"
+        - "User role and permission configurations — test each role."
+        - "Database connection strings, API keys, and service URLs."
+        - "Browser and device configurations that the product claims to support."
+        - "Notification settings, email templates, and communication preferences."
+      questions:
+        - "What feature flags changed in this release?"
+        - "Are there environment-specific configurations that differ between staging and production?"
+        - "What user roles exist and have their permissions changed?"
+
+    - name: Repaired
+      letter: R
+      description: "Recently fixed bugs — the fix itself may introduce a new regression."
+      why_it_matters: >
+        Bug fixes are code changes, and code changes introduce risk. The fix
+        for bug A might break feature B. Additionally, the area where the bug
+        existed was already proven fragile — more bugs likely hide nearby.
+      what_to_test:
+        - "The exact scenario from the original bug report — does the fix actually work?"
+        - "Related scenarios near the fix — did the fix break neighboring functionality?"
+        - "The same bug in other similar features — if it was wrong here, it might be wrong everywhere."
+        - "Edge cases around the fix — the developer may have fixed the reported case but missed variations."
+        - "The fix under different conditions (different user roles, different data, different browsers)."
+      questions:
+        - "What bugs were fixed in this release?"
+        - "Do the original bug reports have clear reproduction steps I can re-run?"
+        - "Are there similar features that might have the same underlying bug?"
+
+    - name: Chronic
+      letter: C
+      description: "Areas with a history of recurring issues — some code is perpetually broken."
+      why_it_matters: >
+        Bug clusters are real. Some areas of the codebase are structurally
+        fragile and produce bugs repeatedly. These chronic problem areas
+        deserve extra scrutiny every release because they are likely to
+        break again.
+      what_to_test:
+        - "Features that have had 3+ bugs filed in the last 6 months."
+        - "Areas flagged as technical debt in team discussions."
+        - "Features that have been 'fixed' multiple times for the same issue."
+        - "Code with low test coverage (check coverage reports)."
+        - "Features that frequently appear in production incident reports."
+        - "Legacy code that nobody on the current team wrote or fully understands."
+      questions:
+        - "Which areas of the product have the highest bug density historically?"
+        - "Are there any features the team jokes about being 'always broken'?"
+        - "What shows up repeatedly in retrospectives as a quality concern?"
+
+    - name: Revenue (Extended)
+      letter: R
+      description: "Features that directly generate business revenue — if these break, the business loses money."
+      why_it_matters: >
+        Added by Richard Bradshaw as the seventh R. Revenue-generating features
+        have a direct financial impact when they fail. A broken checkout costs
+        real money every minute it is down. These features justify the highest
+        testing priority regardless of recent changes.
+      what_to_test:
+        - "Payment and checkout flows — end to end."
+        - "Subscription and billing management."
+        - "Pricing display and calculation accuracy."
+        - "Promotional codes, discounts, and special offers."
+        - "Upsell and cross-sell features."
+        - "Trial-to-paid conversion flows."
+        - "Invoice generation and receipt delivery."
+        - "Refund and cancellation processes."
+      questions:
+        - "Which features directly generate revenue?"
+        - "What is the per-minute cost of downtime for the checkout flow?"
+        - "Are pricing calculations accurate across all products and currencies?"
+
+  application_process:
+    description: "How to use RCRCRC(R) to prioritize regression testing."
+    steps:
+      - "List all features or areas affected by the release (use git diff, release notes, sprint board)."
+      - "For each RCRCRC(R) category, identify which features or areas qualify."
+      - "Features that appear in multiple categories get highest priority (e.g., a recently changed core feature that handles revenue)."
+      - "Allocate testing time proportionally — features in 3+ categories get tested first and deepest."
+      - "For each prioritized area, apply appropriate testing techniques (boundary testing, error guessing, tours)."
+      - "Document which RCRCRC(R) categories drove your test selection — this helps justify coverage decisions."
+
+  priority_matrix:
+    description: "Score each feature area against RCRCRC(R) — higher scores mean higher test priority."
+    scoring:
+      - "Award 1 point for each RCRCRC(R) category the feature matches."
+      - "Features scoring 4+ points: test first and deepest."
+      - "Features scoring 2-3 points: test thoroughly."
+      - "Features scoring 1 point: basic smoke test."
+      - "Features scoring 0 points: skip unless time permits."
+    example:
+      feature: "Checkout flow after payment provider migration"
+      recent: "Yes — payment provider changed this sprint (1 point)"
+      core: "Yes — checkout is a primary user journey (1 point)"
+      risky: "Yes — external payment integration, complex flow (1 point)"
+      configuration: "Yes — payment provider API keys changed (1 point)"
+      repaired: "No — no recent bugs fixed here (0 points)"
+      chronic: "No — checkout has been stable historically (0 points)"
+      revenue: "Yes — directly generates all revenue (1 point)"
+      total: "5/7 — highest priority, test exhaustively"
+
+  when_to_use:
+    - "After every deployment or release — the primary regression prioritization tool."
+    - "During sprint planning — identify which areas need regression testing based on planned changes."
+    - "When time is limited — RCRCRC(R) tells you where the highest-risk areas are."
+    - "After hotfixes — the Repaired category is especially important."
+    - "Before major releases — score every feature area to create a risk-ranked test plan."
+    - "During incident response — check if the broken area scores high on Chronic."
+
+  gotchas:
+    - "RCRCRC is for prioritization, not exclusion — low-scoring areas still deserve occasional testing."
+    - "Recent does not only mean 'this sprint' — consider changes in the last 2-3 releases that have not been thoroughly tested."
+    - "Risky and Chronic overlap but are different — Risky is about inherent complexity, Chronic is about historical evidence of bugs."
+    - "Revenue features should be tested every release, even if nothing changed — the cost of a missed regression is too high."
+    - "Configuration changes are invisible in code reviews — always ask 'did any configuration change?' before a release."
+    - "Use the priority matrix as a communication tool with stakeholders — it explains WHY you chose to test what you tested."
+    - "Combine with SFDIPOT — use RCRCRC(R) to decide WHERE to test, then SFDIPOT to decide WHAT to test within that area."

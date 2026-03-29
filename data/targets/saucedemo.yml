@@ -1,0 +1,13 @@
+id: saucedemo
+name: "Sauce Demo - E-commerce Practice Site"
+base_url: "https://www.saucedemo.com/"
+domain: ecommerce
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Swag Labs e-commerce demo. May have login page with test credentials."

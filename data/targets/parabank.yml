@@ -1,0 +1,13 @@
+id: parabank
+name: "ParaBank - Online Banking Demo"
+base_url: "https://parabank.parasoft.com/parabank/index.htm"
+domain: fintech
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Parasoft demo banking app. Registration, accounts, transactions, bill pay, etc."

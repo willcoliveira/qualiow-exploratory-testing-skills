@@ -1,0 +1,13 @@
+id: demoqa
+name: "DemoQA - Practice Site"
+base_url: "https://demoqa.com/"
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "ToolsQA practice site with elements, forms, alerts, widgets, interactions."

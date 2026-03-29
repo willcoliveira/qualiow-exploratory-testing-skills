@@ -1,0 +1,95 @@
+id: reference-heuristic-praxis
+version: "0.1.0"
+type: reference
+name: "Heuristic Praxis — Theory Meets Practice"
+description: >
+  Understanding when and how to apply heuristics thoughtfully, not mechanically.
+  Covers the praxis gap between knowing heuristics and using them effectively.
+  Critical for AI agents: avoid applying heuristics as checklists without contextual reasoning.
+author: "Ministry of Testing (Richard Bradshaw, Mark Winteringham)"
+source: "Ministry of Testing"
+tags: [heuristics, praxis, theory, meta-testing, reflection]
+domains: [all]
+priority: high
+added: "2026-03-28"
+updated: "2026-03-28"
+
+content:
+  summary: >
+    Heuristics are cognitive shortcuts — not guaranteed solutions. The praxis gap
+    is the space between knowing heuristics (theory) and applying them effectively
+    (practice). AI agents are especially prone to this gap: mechanically applying
+    SFDIPOT or FEW HICCUPPS as checklists without adapting to context.
+
+  key_principles:
+    - name: "All heuristics are fallible"
+      description: "No heuristic guarantees finding bugs. They suggest where to look, not what you'll find."
+      ai_implication: "Don't report 'no bugs found in this dimension' as confidence — it means you didn't find any yet."
+
+    - name: "Context determines which heuristic to use"
+      description: "A heuristic that works in e-commerce may not help in fintech. Choose based on what you observe."
+      ai_implication: "After discovery phase, select 2-3 most relevant SFDIPOT dimensions rather than mechanically checking all 7."
+
+    - name: "Unknowing use causes biases"
+      description: "The availability heuristic makes you test what you recently saw succeed. Availability bias in AI means repeating patterns from training data."
+      ai_implication: "Explicitly challenge your own test ideas — ask 'what am I NOT testing that a user would care about?'"
+
+    - name: "Modify heuristics to fit your context"
+      description: "FEW HICCUPPS started as HICCUPS. RCRCRC became RCRCRCR when Revenue was added. Don't use heuristics rigidly."
+      ai_implication: "After each session, evaluate which heuristic dimensions were useful and which were noise. Adapt for next time."
+
+    - name: "Reflect on efficacy"
+      description: "After applying a heuristic, ask: did it help me find real bugs? What did I miss? What worked?"
+      ai_implication: "The /qa-explore-feedback skill should capture which heuristics led to real findings and which didn't."
+
+  additional_heuristics_to_know:
+    - name: "Goldilocks (Elisabeth Hendrickson)"
+      description: "Too big, too small, just right — test data extremes and typical values"
+      mnemonic: "Goldilocks"
+      apply_to: "Every input field, data entry, configuration value"
+
+    - name: "RCRCRC (Karen N. Johnson)"
+      description: "Recent, Core, Risky, Configuration, Repaired, Chronic — regression testing focus areas"
+      mnemonic: "RCRCRC"
+      apply_to: "Regression testing, deciding what to test after changes"
+
+    - name: "SACRED (Richard Bradshaw)"
+      description: "Automated check design heuristic"
+      apply_to: "When generating test scripts from exploratory findings"
+
+    - name: "TRIMS (Richard Bradshaw)"
+      description: "Automation strategy thinking"
+      apply_to: "When deciding what to automate from session findings"
+
+    - name: "SCAMPER (applied by John Stevenson)"
+      description: "Substitute, Combine, Adapt, Modify, Put to another use, Eliminate, Reverse — remix existing models"
+      apply_to: "When standard heuristics aren't generating enough test ideas, remix them"
+
+  praxis_gap_for_ai_agents:
+    description: >
+      AI agents are highly prone to the heuristic praxis gap. They apply heuristics
+      mechanically from training data without adapting to the specific context of
+      what they're testing. The biggest risks:
+
+    anti_patterns:
+      - "Applying ALL heuristic dimensions equally instead of prioritizing by context"
+      - "Treating heuristics as checklists to complete rather than thinking tools"
+      - "Not adapting test approach when a heuristic isn't producing useful results"
+      - "Missing domain-specific bugs because the heuristic doesn't cover business logic"
+      - "Availability bias: testing what the agent has seen before rather than what matters here"
+
+    mitigations:
+      - "After discovery, explicitly reason about WHICH heuristic dimensions matter most for THIS app"
+      - "If a heuristic dimension yields nothing after 5 minutes, switch to another"
+      - "Always ask: 'What would a real user of THIS app care about that I haven't tested?'"
+      - "Use domain configs (data/domains/) to inject business context before applying generic heuristics"
+      - "In the feedback loop, track which heuristics led to real bugs vs noise"
+
+  references:
+    - "Tversky & Kahneman — Judgment under Uncertainty: Heuristics and Biases"
+    - "Kahneman — Thinking, Fast and Slow (System 1 vs System 2)"
+    - "Elisabeth Hendrickson — Explore It!"
+    - "Michael Bolton — FEW HICCUPPS blog"
+    - "Del Dewar — Testing Mnemonics mind map"
+    - "Test Heuristics Cheat Sheet — Hendrickson, Lyndsay, Emery"
+    - "John Stevenson — Model Fatigue and How to Break It"

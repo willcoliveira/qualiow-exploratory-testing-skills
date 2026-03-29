@@ -1,0 +1,194 @@
+id: heuristic-few-hiccupps
+version: "0.1.0"
+type: heuristic
+name: "FEW HICCUPPS - Consistency Oracles"
+description: >
+  A set of 11 oracle heuristics for recognizing problems during testing.
+  A bug is anything that threatens the value of the product. FEW HICCUPPS
+  helps you detect bugs by checking whether the product is consistent with
+  various reference points. If the product violates any of these consistency
+  checks, you may have found a bug worth reporting.
+author: "James Bach & Michael Bolton"
+source: "Rapid Software Testing"
+tags: [oracles, bug-recognition, consistency, rst]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    An oracle is a mechanism for recognizing a problem. FEW HICCUPPS provides
+    11 consistency heuristics — reference frames against which you compare the
+    product's actual behavior. When behavior is inconsistent with any of these
+    references, investigate further. Not every inconsistency is a bug, but
+    every bug is an inconsistency with something that matters.
+
+  oracles:
+    - name: Familiar
+      letter: F
+      description: "Is the product consistent with things we have seen before — patterns, conventions, prior experience?"
+      questions:
+        - "Does this behave like similar features I have tested in other products?"
+        - "Does the interaction pattern match what I have seen in well-known apps?"
+        - "Does the error handling follow familiar conventions?"
+        - "Would an experienced user find this behavior surprising?"
+      examples:
+        - "A delete button that does not ask for confirmation — most products do."
+        - "A form that clears all fields when one validation fails — unusual and frustrating."
+        - "A 'Save' button that does not give any feedback — most apps show a toast or change button state."
+        - "Search results that are not ranked by relevance — Google has set the expectation."
+
+    - name: Explainable
+      letter: E
+      description: "Can the behavior be explained rationally? If not, it might be a bug."
+      questions:
+        - "Can I explain why the product behaves this way?"
+        - "Is there a logical reason for this output given this input?"
+        - "If a user asked me why this happened, could I give a clear answer?"
+        - "Does the response time make sense for this operation?"
+      examples:
+        - "A page takes 12 seconds to load but only displays 5 items — unexplainable slowness."
+        - "Clicking 'Cancel' saves the form — behavior contradicts the label."
+        - "A price calculation shows a negative total — no rational explanation."
+        - "Two identical searches return different results — nondeterminism without cause."
+
+    - name: World
+      letter: W
+      description: "Is the product consistent with the real world — laws of physics, business rules, domain knowledge?"
+      questions:
+        - "Does this match how the real-world process works?"
+        - "Are business rules correctly enforced?"
+        - "Does the data make sense in a real-world context?"
+        - "Are regulatory or legal requirements met?"
+      examples:
+        - "An ecommerce site allowing a delivery date in the past."
+        - "A banking app that permits a negative account balance without overdraft protection."
+        - "A calendar that allows scheduling a meeting for February 30."
+        - "A shipping calculator that charges less for international than domestic delivery."
+
+    - name: History
+      letter: H
+      description: "Is the product consistent with its own past behavior — previous versions, established patterns?"
+      questions:
+        - "Did this feature work differently in the previous version?"
+        - "Has a regression been introduced?"
+        - "Does this behavior match the release notes?"
+        - "Are deprecated features still accessible when they should not be?"
+      examples:
+        - "Export feature used to produce CSV with headers, now it omits them."
+        - "Login used to remember the last email, now it clears the field."
+        - "API response format changed without a version bump."
+        - "A feature that worked on the previous build now throws a 500 error."
+
+    - name: Image
+      letter: I
+      description: "Is the product consistent with the organization's image, brand, and reputation?"
+      questions:
+        - "Does the quality level match the company's brand promise?"
+        - "Would this bug embarrass the company if a customer found it?"
+        - "Does the tone and language match the brand voice?"
+        - "Is the polish level consistent with the price point?"
+      examples:
+        - "Typos on a banking app's homepage — inconsistent with a trust-based brand."
+        - "A premium SaaS product with broken layout on mobile — damages credibility."
+        - "Error messages with technical jargon in a consumer-facing app."
+        - "A healthcare app that casually says 'Oops!' when displaying medical results."
+
+    - name: Comparable
+      letter: C
+      description: "Is the product consistent with comparable products — competitors, similar tools, industry standards?"
+      questions:
+        - "How do competitors handle this same feature?"
+        - "Is there an industry-standard way to implement this?"
+        - "Does this meet the baseline that users expect from this product category?"
+        - "Are there well-known UI patterns this feature should follow?"
+      examples:
+        - "A checkout flow that requires 7 steps when competitors do it in 3."
+        - "No auto-save in a document editor — Google Docs and Notion both do this."
+        - "No keyboard shortcut for the most common action — all competitors have one."
+        - "Requiring page refresh to see updates — competitors use real-time sync."
+
+    - name: Claims
+      letter: C
+      description: "Is the product consistent with what it claims to do — docs, marketing, help text, tooltips?"
+      questions:
+        - "Does the product do what the documentation says it does?"
+        - "Do marketing claims match actual capabilities?"
+        - "Are help text and tooltips accurate?"
+        - "Do error messages correctly describe what went wrong and how to fix it?"
+      examples:
+        - "Documentation says 'supports CSV and Excel' but Excel import fails."
+        - "Marketing page claims '99.9% uptime' but status page shows frequent incidents."
+        - "Tooltip says 'maximum 100 characters' but the field accepts 200."
+        - "Help article describes a settings page that no longer exists."
+
+    - name: Users
+      letter: U
+      description: "Is the product consistent with what users want, need, and expect?"
+      questions:
+        - "Would the target user find this workflow intuitive?"
+        - "Does the feature solve the user's actual problem?"
+        - "Are there unnecessary steps that frustrate users?"
+        - "Is the feature discoverable — can users find it without a manual?"
+      examples:
+        - "A required field that 90% of users leave blank — they do not understand why it is needed."
+        - "An important action buried three levels deep in settings."
+        - "A dashboard that shows data no one asked for and hides what they need."
+        - "Mobile users cannot complete a task that desktop users can."
+
+    - name: Product
+      letter: P
+      description: "Is the product consistent with itself — do all parts work together coherently?"
+      questions:
+        - "Does this feature behave the same way in all places it appears?"
+        - "Is the terminology consistent throughout the product?"
+        - "Does the same action produce the same result everywhere?"
+        - "Are visual styles, spacing, and components consistent across pages?"
+      examples:
+        - "Date format is DD/MM/YYYY on one page and MM/DD/YYYY on another."
+        - "'Remove' in one place, 'Delete' in another, 'Trash' in a third — all do the same thing."
+        - "Button styles differ between the settings page and the main app."
+        - "Pagination works differently on the users list vs. the orders list."
+
+    - name: Purpose
+      letter: P
+      description: "Is the product consistent with its explicit and implicit purpose — does it fulfill its reason for existing?"
+      questions:
+        - "Does this feature serve the product's core mission?"
+        - "Could a critical user journey fail because of this issue?"
+        - "Does the product achieve the outcome users bought it for?"
+        - "Are there features that actively work against the product's purpose?"
+      examples:
+        - "A project management tool where you cannot assign tasks to team members."
+        - "A search engine that returns irrelevant results for common queries."
+        - "An analytics dashboard that shows data with a 24-hour delay when real-time is the selling point."
+        - "A collaboration tool where changes are not visible to other users without refreshing."
+
+    - name: Standards
+      letter: S
+      description: "Is the product consistent with applicable standards — industry, legal, accessibility, technical?"
+      questions:
+        - "Does it meet WCAG 2.1 AA accessibility standards?"
+        - "Is it compliant with GDPR, CCPA, or other privacy regulations?"
+        - "Does the API follow REST conventions or the declared spec?"
+        - "Does it meet the organization's coding and UX standards?"
+      examples:
+        - "Images without alt text — violates WCAG 1.1.1."
+        - "No cookie consent banner in the EU — violates GDPR."
+        - "API returns 200 for errors instead of proper HTTP status codes."
+        - "Password stored in plain text in a cookie — violates security standards."
+
+  when_to_use:
+    - "Constantly during testing — this is your primary bug-detection lens."
+    - "When you see something odd but are not sure if it is a bug — check it against each oracle."
+    - "When writing bug reports — name which oracle the product violates to strengthen the argument."
+    - "During risk assessment — which oracles matter most for this product's context?"
+    - "In debriefs — categorize found bugs by which oracle detected them."
+
+  gotchas:
+    - "Not every inconsistency is a bug — some are deliberate design decisions. Investigate before reporting."
+    - "Multiple oracles can apply to the same bug. Name the strongest one in the report."
+    - "Users and Claims are the most concrete oracles — they give you the strongest arguments for filing a bug."
+    - "Standards is often the most actionable — you can cite specific regulations or specs."
+    - "Do not ignore Image — brand damage from quality issues can be more costly than functional bugs."
+    - "World is especially important for domain-specific testing (fintech, healthcare, ecommerce)."

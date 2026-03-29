@@ -1,0 +1,298 @@
+id: technique-risk-based-testing
+version: "0.1.0"
+type: technique
+name: "Risk-Based Testing"
+description: >
+  A strategic testing technique that prioritizes testing effort based on risk
+  assessment. Risk = Probability x Impact. Features with higher risk get more
+  testing time, deeper coverage, and earlier attention. This technique answers
+  the question every tester faces: "I cannot test everything — what should I
+  test first?"
+author: "Classic testing technique"
+source: "Adapted from multiple sources — ISTQB, James Bach, Ministry of Testing"
+tags: [risk, prioritization, strategy, planning]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    Risk-based testing allocates testing effort proportionally to risk. Instead
+    of testing everything equally, you identify the areas where failure is most
+    likely and most damaging, then focus testing there first. This requires
+    assessing both the probability of failure (how likely is a bug?) and the
+    impact of failure (how bad is it if there is a bug?). The result is a
+    prioritized test plan that maximizes bug-finding ROI.
+
+  core_formula:
+    description: "The fundamental risk equation."
+    formula: "Risk = Probability x Impact"
+    components:
+      - name: Probability (Likelihood)
+        description: "How likely is it that this area contains a bug?"
+        factors:
+          - "Complexity of the code or feature"
+          - "Amount of recent change (more changes = more risk)"
+          - "Developer experience level (junior devs = higher risk)"
+          - "Technology newness (new frameworks, libraries, APIs)"
+          - "Historical bug density (areas with past bugs tend to have more)"
+          - "Test coverage gaps (untested code = unknown risk)"
+          - "Time pressure during development (rushed code = more bugs)"
+          - "Number of external dependencies (each is a failure point)"
+      - name: Impact (Severity)
+        description: "How bad is it if a bug exists here?"
+        factors:
+          - "Number of users affected"
+          - "Revenue impact (direct financial loss)"
+          - "Brand and reputation damage"
+          - "Legal and compliance exposure"
+          - "Data loss or corruption"
+          - "Security breach potential"
+          - "Workaround availability (is there an alternative?)"
+          - "Recovery difficulty (how hard is it to fix and deploy?)"
+
+  risk_matrix:
+    description: >
+      A 2-axis grid for visually categorizing risk. Plot each feature or area
+      on the grid based on likelihood and impact.
+    grid:
+      - { likelihood: high, impact: high, priority: "Critical — test first and deepest", action: "Allocate 40% of testing time", color: "red" }
+      - { likelihood: high, impact: medium, priority: "High — test thoroughly", action: "Allocate 20% of testing time", color: "orange" }
+      - { likelihood: high, impact: low, priority: "Medium — test standard", action: "Allocate 10% of testing time", color: "yellow" }
+      - { likelihood: medium, impact: high, priority: "High — test thoroughly", action: "Allocate 20% of testing time", color: "orange" }
+      - { likelihood: medium, impact: medium, priority: "Medium — test standard", action: "Allocate 10% of testing time", color: "yellow" }
+      - { likelihood: medium, impact: low, priority: "Low — smoke test", action: "Allocate 5% of testing time", color: "green" }
+      - { likelihood: low, impact: high, priority: "Medium — test standard", action: "Allocate 10% of testing time", color: "yellow" }
+      - { likelihood: low, impact: medium, priority: "Low — smoke test", action: "Allocate 5% of testing time", color: "green" }
+      - { likelihood: low, impact: low, priority: "Minimal — skip or automate", action: "Allocate remaining time if available", color: "green" }
+
+  risk_priority_number:
+    description: >
+      A more granular scoring system from FMEA (Failure Mode and Effects Analysis).
+      Rate each factor on a 1-10 scale and multiply to get a Risk Priority Number.
+    formula: "RPN = Severity x Likelihood x Detectability"
+    components:
+      - name: Severity
+        scale: "1 (negligible cosmetic issue) to 10 (data loss, security breach, system down)"
+        examples:
+          - { score: 1, description: "Cosmetic — wrong font size, minor alignment" }
+          - { score: 3, description: "Minor — feature works but UX is degraded" }
+          - { score: 5, description: "Moderate — feature partially broken, workaround exists" }
+          - { score: 7, description: "Major — feature broken for some users, no workaround" }
+          - { score: 9, description: "Critical — data corruption, security vulnerability" }
+          - { score: 10, description: "Catastrophic — system down, data breach, financial loss" }
+      - name: Likelihood
+        scale: "1 (extremely unlikely) to 10 (almost certain)"
+        examples:
+          - { score: 1, description: "Mature, stable code with no recent changes" }
+          - { score: 3, description: "Established code with minor modifications" }
+          - { score: 5, description: "Moderate changes, some complexity" }
+          - { score: 7, description: "Significant new code, complex logic" }
+          - { score: 9, description: "Brand new feature, tight deadline, complex integrations" }
+          - { score: 10, description: "Rewrite of critical system, new technology, no tests" }
+      - name: Detectability
+        scale: "1 (easily caught by automated tests) to 10 (invisible until production incident)"
+        examples:
+          - { score: 1, description: "Caught by existing unit and integration tests" }
+          - { score: 3, description: "Caught by manual smoke testing" }
+          - { score: 5, description: "Requires specific scenarios to reveal" }
+          - { score: 7, description: "Only appears under load or specific configurations" }
+          - { score: 9, description: "Race condition, intermittent, data-dependent" }
+          - { score: 10, description: "Silent data corruption — no visible error" }
+    interpretation:
+      - "RPN 1-100: Low risk — standard testing"
+      - "RPN 101-300: Medium risk — thorough testing, explicit test cases"
+      - "RPN 301-600: High risk — deep testing, multiple techniques, peer review"
+      - "RPN 601-1000: Critical risk — maximum attention, exploratory + scripted + monitoring"
+
+  risk_categories:
+    - name: Business Risks
+      description: "Risks that threaten business goals, revenue, or customer satisfaction."
+      examples:
+        - "Checkout flow failure loses sales"
+        - "Pricing calculation error causes financial loss"
+        - "Customer data exposed damages trust"
+        - "Feature launch failure misses market window"
+
+    - name: Operational Risks
+      description: "Risks related to running the system in production."
+      examples:
+        - "System downtime during peak hours"
+        - "Database performance degradation under load"
+        - "Monitoring gaps — failures not detected"
+        - "Deployment failures causing rollback"
+
+    - name: Technical Risks
+      description: "Risks from technology choices, architecture, and implementation."
+      examples:
+        - "New framework version introduces breaking changes"
+        - "Third-party API changes without notice"
+        - "Database migration data loss"
+        - "Memory leaks under sustained load"
+
+    - name: Compliance Risks
+      description: "Risks of violating regulations, standards, or contractual obligations."
+      examples:
+        - "GDPR violation — personal data handling"
+        - "WCAG non-compliance — accessibility lawsuit"
+        - "PCI DSS violation — credit card data exposure"
+        - "SOC 2 audit failure — security controls"
+
+    - name: Project Risks
+      description: "Risks to the project timeline, scope, or team effectiveness."
+      examples:
+        - "Key developer leaves mid-sprint"
+        - "Requirements change after development starts"
+        - "Testing environment unavailable"
+        - "Dependencies delivered late"
+
+  feature_risk_ranking:
+    description: "Allocate testing time based on feature risk priority."
+    levels:
+      - level: "P0 — Critical"
+        time_allocation: "40% of total testing time"
+        criteria: "Revenue-generating, high user impact, recently changed, complex"
+        approach: "Full exploratory testing, boundary analysis, error guessing, race conditions, multiple browsers"
+        examples:
+          - "Payment processing"
+          - "User authentication and authorization"
+          - "Core data creation and modification flows"
+
+      - level: "P1 — High"
+        time_allocation: "30% of total testing time"
+        criteria: "Core features, moderate complexity, some dependencies"
+        approach: "Exploratory testing, happy and unhappy paths, key boundaries"
+        examples:
+          - "Search and filtering"
+          - "User profile management"
+          - "Notification system"
+
+      - level: "P2 — Medium"
+        time_allocation: "20% of total testing time"
+        criteria: "Supporting features, low change frequency, moderate user impact"
+        approach: "Happy path + key error scenarios, spot-check boundaries"
+        examples:
+          - "Settings and preferences"
+          - "Help and documentation pages"
+          - "Export and reporting features"
+
+      - level: "P3 — Low"
+        time_allocation: "10% of total testing time"
+        criteria: "Cosmetic, rarely used, low impact, stable code"
+        approach: "Quick smoke test, visual inspection"
+        examples:
+          - "About page and legal pages"
+          - "Rarely used admin utilities"
+          - "Cosmetic polish items"
+
+  techniques:
+    - name: Riskstorming
+      description: >
+        A collaborative workshop technique where the team collectively identifies
+        and rates risks on a visual board. Each team member brings their perspective
+        (dev sees technical risks, PM sees business risks, tester sees quality risks).
+      process:
+        - "Draw the feature's architecture or flow on a whiteboard."
+        - "Each participant silently adds risk sticky notes to the areas they think are risky."
+        - "Group and discuss — where do multiple people see risk?"
+        - "Rate each risk using the risk matrix or RPN."
+        - "Create test charters targeting the highest-rated risks."
+      tip: "AI agents can simulate Riskstorming by systematically evaluating each SFDIPOT dimension for probability and impact."
+
+    - name: Nightmare Headline
+      description: >
+        Imagine the worst possible newspaper headline about a bug in your software.
+        Work backwards from that headline to identify what must be tested to
+        prevent it from becoming reality.
+      process:
+        - "Brainstorm worst-case headlines: 'Bank App Transfers $10M to Wrong Account Due to Decimal Bug'"
+        - "For each headline, identify the feature and failure mode."
+        - "Rate the likelihood and impact."
+        - "Create specific test scenarios that would catch the bug before release."
+      examples:
+        ecommerce:
+          - headline: "'Online Store Charges Customers 100x the Listed Price'"
+            feature: "Pricing calculation"
+            test: "Verify price x quantity calculation with decimal precision, test currency conversion"
+          - headline: "'Customer Data of 500K Users Leaked Through Search Feature'"
+            feature: "Search with user data exposure"
+            test: "Test search results for data leakage, verify authorization on search API"
+        banking:
+          - headline: "'Banking App Allows Negative Balance Transfers, Losing $2M Overnight'"
+            feature: "Transfer validation"
+            test: "Test transfers with amounts exceeding balance, test concurrent transfers, test negative amounts"
+          - headline: "'Interest Calculation Error Affects 100K Savings Accounts'"
+            feature: "Interest calculation engine"
+            test: "Verify calculations at year boundaries, leap years, account type transitions"
+        saas:
+          - headline: "'SaaS Platform Gives Free Users Access to Enterprise Features After Trial Expires'"
+            feature: "Subscription tier enforcement"
+            test: "Test feature access after trial end, test downgrade flows, test with expired sessions"
+
+  risk_factors_deep_dive:
+    developer_experience:
+      description: >
+        Code written by developers with less experience in the codebase or technology
+        carries higher risk. This is not about skill level — a senior developer new
+        to a codebase is also a risk factor.
+      indicators:
+        - "New team member's first contributions"
+        - "First time using a particular library or framework"
+        - "Code written during onboarding period"
+        - "Pair programming was not used for complex areas"
+      test_response: "Allocate extra testing time, focus on edge cases the developer may not have considered"
+
+    change_impact:
+      description: >
+        Recently changed code has higher risk than stable code. The more lines changed,
+        the more files touched, and the more dependencies affected, the higher the risk.
+      indicators:
+        - "Large pull requests (500+ lines changed)"
+        - "Changes to shared libraries or utilities"
+        - "Database schema changes"
+        - "API contract changes"
+        - "Infrastructure or deployment changes"
+      test_response: "Focus testing on changed code and its dependents, verify backwards compatibility"
+
+  practical_examples:
+    ecommerce:
+      scenario: "Testing a new product catalog feature for an e-commerce site"
+      risk_assessment:
+        - { area: "Add to cart from new catalog", likelihood: "high", impact: "high", rpn: "Severity:9 x Likelihood:7 x Detectability:3 = 189", priority: "P0" }
+        - { area: "Product search in new catalog", likelihood: "medium", impact: "high", rpn: "Severity:7 x Likelihood:5 x Detectability:3 = 105", priority: "P1" }
+        - { area: "Product image gallery", likelihood: "medium", impact: "low", rpn: "Severity:3 x Likelihood:5 x Detectability:2 = 30", priority: "P3" }
+        - { area: "Price display with currency", likelihood: "high", impact: "high", rpn: "Severity:9 x Likelihood:6 x Detectability:5 = 270", priority: "P0" }
+
+    banking:
+      scenario: "Testing a new fund transfer feature for a banking app"
+      risk_assessment:
+        - { area: "Transfer execution", likelihood: "medium", impact: "critical", rpn: "Severity:10 x Likelihood:5 x Detectability:4 = 200", priority: "P0" }
+        - { area: "Balance validation", likelihood: "high", impact: "critical", rpn: "Severity:10 x Likelihood:7 x Detectability:3 = 210", priority: "P0" }
+        - { area: "Transfer history display", likelihood: "low", impact: "medium", rpn: "Severity:5 x Likelihood:3 x Detectability:2 = 30", priority: "P2" }
+        - { area: "Concurrent transfers (race condition)", likelihood: "high", impact: "critical", rpn: "Severity:10 x Likelihood:8 x Detectability:9 = 720", priority: "P0 Critical" }
+
+    saas:
+      scenario: "Testing a new team collaboration feature for a SaaS platform"
+      risk_assessment:
+        - { area: "Permission enforcement across teams", likelihood: "high", impact: "high", rpn: "Severity:8 x Likelihood:7 x Detectability:6 = 336", priority: "P0" }
+        - { area: "Real-time collaboration sync", likelihood: "high", impact: "medium", rpn: "Severity:6 x Likelihood:8 x Detectability:7 = 336", priority: "P0" }
+        - { area: "Team member invitation flow", likelihood: "medium", impact: "medium", rpn: "Severity:5 x Likelihood:5 x Detectability:3 = 75", priority: "P2" }
+        - { area: "Activity audit log", likelihood: "low", impact: "high", rpn: "Severity:8 x Likelihood:3 x Detectability:8 = 192", priority: "P1" }
+
+  when_to_use:
+    - "At the start of every testing effort — before you test anything, assess risk first."
+    - "During sprint planning — use risk assessment to allocate QA time across stories."
+    - "When time is limited — risk-based testing maximizes the value of limited testing time."
+    - "Before major releases — comprehensive risk assessment drives the regression test plan."
+    - "When prioritizing bug fixes — severity and impact determine fix order."
+    - "When communicating with stakeholders — risk language translates testing decisions into business terms."
+
+  gotchas:
+    - "Risk assessment is subjective — get input from developers, product owners, and support, not just testers."
+    - "Do not skip low-risk areas entirely — they still deserve a smoke test. The risk assessment might be wrong."
+    - "Re-assess risk regularly — a low-risk area becomes high-risk when it gets significant changes."
+    - "Detectability is often underestimated — silent data corruption has the highest detectability score (hardest to detect) and is frequently overlooked."
+    - "Do not confuse risk-based testing with only testing the risky stuff — it is about proportional allocation, not exclusion."
+    - "Nightmare Headline is the most powerful technique for communicating risk to non-technical stakeholders."
+    - "AI agents should compute RPN scores explicitly during the planning phase rather than relying on gut feeling."
+    - "Combine with RCRCRC for regression testing — RCRCRC identifies WHERE, risk-based testing determines HOW MUCH."

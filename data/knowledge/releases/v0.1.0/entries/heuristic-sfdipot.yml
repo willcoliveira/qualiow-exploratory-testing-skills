@@ -1,0 +1,171 @@
+id: heuristic-sfdipot
+version: "0.1.0"
+type: heuristic
+name: "SFDIPOT - Product Elements"
+description: >
+  A mnemonic for the seven product elements that deserve exploration.
+  Use SFDIPOT to systematically generate test ideas by examining each
+  dimension of the product under test. It prevents tunnel vision by
+  ensuring you consider the product from multiple angles.
+author: "James Bach"
+source: "Rapid Software Testing"
+tags: [exploration, what-to-test, systematic, rst]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    SFDIPOT stands for Structure, Function, Data, Interfaces, Platform,
+    Operations, and Time. Each dimension prompts a different lens through
+    which to examine the product. Walk through all seven during the
+    reconnaissance phase to build a comprehensive test charter.
+
+  dimensions:
+    - name: Structure
+      letter: S
+      description: "What the product IS — its physical and logical composition."
+      questions:
+        - "What are the major components, modules, or pages?"
+        - "How is the navigation organized — what is the sitemap?"
+        - "What are the code layers (UI, API, DB, services)?"
+        - "Where are the configuration files, feature flags, or admin settings?"
+        - "What is the URL structure — are there hidden or undocumented routes?"
+        - "How is the database schema organized — what are the key entities?"
+      test_ideas:
+        - "Map every navigable page and check for orphan pages."
+        - "Inspect HTML/DOM structure for semantic correctness."
+        - "Check that all links resolve — no 404s."
+        - "Verify the component hierarchy matches the design system."
+        - "Look for exposed debug endpoints, admin panels, or status pages."
+        - "Check that the URL structure is logical and consistent."
+
+    - name: Function
+      letter: F
+      description: "What the product DOES — every feature, capability, and workflow."
+      questions:
+        - "What are the primary user workflows (happy paths)?"
+        - "What can each user role do? What should they NOT be able to do?"
+        - "What are the CRUD operations and where do they happen?"
+        - "What happens on form submission — validation, confirmation, side effects?"
+        - "Are there background jobs, scheduled tasks, or async operations?"
+        - "What are the search, filter, and sort capabilities?"
+      test_ideas:
+        - "Execute every happy path end to end."
+        - "Test each user role's permissions — try actions outside your role."
+        - "Submit every form with valid data, then with invalid data."
+        - "Test all search/filter/sort combinations."
+        - "Verify confirmation dialogs before destructive actions."
+        - "Check that undo/redo works where available."
+        - "Test pagination and infinite scroll behavior."
+
+    - name: Data
+      letter: D
+      description: "What the product PROCESSES — inputs, outputs, stored state."
+      questions:
+        - "What are all the input fields and what data types do they accept?"
+        - "What are the validation rules — min, max, required, format?"
+        - "What data is persisted and where (DB, localStorage, cookies, session)?"
+        - "What data is displayed and how is it formatted?"
+        - "Are there import/export features? What formats?"
+        - "How is sensitive data (PII, passwords, tokens) handled?"
+      test_ideas:
+        - "Test every input at its boundaries (see boundary-testing technique)."
+        - "Enter data with special characters, Unicode, emoji, RTL text."
+        - "Check that data survives a round trip — enter, save, reload, verify."
+        - "Test with empty datasets and with very large datasets."
+        - "Verify sensitive data is masked in the UI and not leaked in network responses."
+        - "Check localStorage/sessionStorage/cookies for unencrypted sensitive data."
+        - "Test file uploads with wrong extensions, oversized files, empty files."
+
+    - name: Interfaces
+      letter: I
+      description: "How the product CONNECTS — APIs, integrations, UI touchpoints."
+      questions:
+        - "What external APIs or services does the product call?"
+        - "What APIs does the product expose?"
+        - "How does the frontend communicate with the backend (REST, GraphQL, WebSocket)?"
+        - "Are there third-party integrations (payment, email, analytics, SSO)?"
+        - "What happens when an external dependency is slow or unavailable?"
+        - "Are there webhooks, callbacks, or event-driven integrations?"
+      test_ideas:
+        - "Monitor network traffic for unexpected API calls or failed requests."
+        - "Test with a slow network (throttle to 3G in devtools)."
+        - "Block third-party domains and check graceful degradation."
+        - "Verify API error responses are handled in the UI (not raw JSON displayed)."
+        - "Check CORS headers on API endpoints."
+        - "Test SSO/OAuth login flows including token expiry."
+        - "Verify webhook payloads match the documented schema."
+
+    - name: Platform
+      letter: P
+      description: "What the product DEPENDS ON — OS, browser, hardware, infrastructure."
+      questions:
+        - "Which browsers and versions are supported?"
+        - "Is it responsive — does it work on mobile, tablet, desktop?"
+        - "What OS or hardware requirements exist?"
+        - "What is the hosting environment (cloud, on-prem, serverless)?"
+        - "Are there dependencies on specific runtimes, libraries, or versions?"
+        - "Does it work offline or with intermittent connectivity?"
+      test_ideas:
+        - "Test on Chrome, Firefox, Safari, and Edge."
+        - "Test at mobile (375px), tablet (768px), and desktop (1440px) viewports."
+        - "Check touch interactions on mobile — swipe, pinch, long press."
+        - "Test with browser zoom at 50%, 100%, 150%, 200%."
+        - "Disable JavaScript and check for graceful degradation or SSR."
+        - "Test with ad blockers and privacy extensions enabled."
+        - "Verify the app works with different locale/language settings."
+
+    - name: Operations
+      letter: O
+      description: "How the product is USED in practice — real-world usage patterns."
+      questions:
+        - "How do real users actually use the product (vs. how designers intended)?"
+        - "What are the most common user journeys from analytics?"
+        - "How do users recover from errors — is the error guidance sufficient?"
+        - "What does the onboarding experience look like for a new user?"
+        - "How do users manage their accounts, settings, and preferences?"
+        - "What happens during maintenance windows or deployments?"
+      test_ideas:
+        - "Follow the most common user journey from start to finish."
+        - "Test the first-time user experience with a fresh account."
+        - "Trigger every error message and evaluate its helpfulness."
+        - "Test multi-tab usage — open the same page in two tabs, edit in both."
+        - "Test the back button extensively — does the app handle browser history well?"
+        - "Log out and in — does session state persist correctly?"
+        - "Test with multiple users interacting with the same data simultaneously."
+
+    - name: Time
+      letter: T
+      description: "How the product BEHAVES over time — performance, state, decay."
+      questions:
+        - "How does performance change as data volume grows?"
+        - "Are there timeouts, expirations, or TTLs that affect behavior?"
+        - "What happens when sessions expire mid-workflow?"
+        - "Are there scheduled events, cron jobs, or time-based triggers?"
+        - "How does the product handle timezone and DST differences?"
+        - "What happens at date boundaries (midnight, month-end, year-end)?"
+      test_ideas:
+        - "Leave the app idle for 30+ minutes, then try to interact."
+        - "Test session timeout — what is preserved vs. lost?"
+        - "Change the system clock and observe time-dependent features."
+        - "Test with dates near DST transitions."
+        - "Test across timezones — create data in one TZ, view in another."
+        - "Rapidly repeat an action 50+ times — check for rate limiting or memory leaks."
+        - "Test long-running operations — do they show progress? Can they be cancelled?"
+        - "Check cache behavior — stale data after updates?"
+
+  when_to_use:
+    - "At the start of every exploratory session during the reconnaissance phase."
+    - "When building a test charter and you need to generate test ideas systematically."
+    - "When you feel stuck — pick a dimension you have not covered yet."
+    - "During risk assessment — rate each dimension for the feature under test."
+    - "When reviewing someone else's testing — check which dimensions they missed."
+
+  gotchas:
+    - "Agents tend to skip Operations and Time — these are the easiest to forget but often where the nastiest bugs hide. Force yourself to spend time on both."
+    - "Do not treat SFDIPOT as a checklist to rush through. Each dimension deserves genuine exploration and curiosity."
+    - "Structure is not just UI structure — include backend architecture, database schema, and infrastructure."
+    - "Interfaces includes internal interfaces (module-to-module) not just external APIs."
+    - "Platform testing is not just cross-browser. Consider network conditions, locale, accessibility settings, and device capabilities."
+    - "Time bugs are intermittent and hard to reproduce — document reproduction steps carefully."

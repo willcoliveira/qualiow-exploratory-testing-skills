@@ -1,0 +1,11 @@
+id: default
+name: "Ad-hoc Target"
+base_url: ""
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  max_depth: 3

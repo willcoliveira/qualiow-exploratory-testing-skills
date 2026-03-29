@@ -1,0 +1,200 @@
+# Domain: Fintech (Financial Technology)
+
+## Priority Areas
+
+1. **Calculation Accuracy** - Interest, fees, exchange rates, and balances must be exact
+2. **Transaction Flows** - Transfers, payments, and settlements complete reliably
+3. **Security** - Authentication, encryption, session management, fraud prevention
+4. **Regulatory Compliance** - KYC, AML, PCI DSS, and jurisdiction-specific rules
+5. **Audit Trails** - Every action logged with timestamp, user, and context
+6. **Data Precision** - Decimal handling, rounding rules, currency formatting
+7. **Error Handling** - Financial operations fail safely with clear recovery paths
+
+## Feature Risk Ranking
+
+| Tier | Features                                                          | Rationale                                                        |
+|------|-------------------------------------------------------------------|------------------------------------------------------------------|
+| P0   | Transfers, payments, balance calculations, authentication/security | Money movement and security are existential. A bug here = financial loss, fraud, or regulatory action. |
+| P1   | Account management, transaction history, loan/credit features      | Core daily workflows. Users depend on accurate history and account control. |
+| P2   | Bill pay, statements, contact/profile info                         | Important but secondary. Failure is inconvenient, not catastrophic. |
+| P3   | News/market updates, about page, general settings                  | Informational. Does not impact financial operations or security. |
+
+## Completeness Checklist
+
+> Minimum features a fintech application should have. Verify these exist and function before deep-testing.
+
+- [ ] Transaction receipt generated for every completed transaction
+- [ ] Unique transaction ID assigned and displayed for every transaction
+- [ ] Audit trail present -- every financial action logged with timestamp, user, amount, and result
+- [ ] Balance reconciliation -- displayed balance matches the sum of all transactions
+- [ ] Two-factor authentication available and enforced for sensitive operations
+- [ ] Session timeout configured (shorter than general web apps -- typically 5-15 minutes of inactivity)
+- [ ] Account lockout after excessive failed login or PIN attempts
+- [ ] PII masking -- account numbers, SSN, and other sensitive data partially masked in UI
+- [ ] Transaction history with search, filter, and date range
+- [ ] Statement generation (monthly or custom date range)
+
+## Data Integrity Checks
+
+> Financial data integrity is non-negotiable. After every state-changing action, verify these to the penny.
+
+1. **Source account debited = destination account credited** -- For every transfer, the exact amount debited from the source must equal the exact amount credited to the destination (accounting for any documented fees). Check both accounts. No rounding differences.
+2. **Transaction appears in BOTH accounts' history** -- After a transfer between two accounts, the transaction must appear in the history of both the sending and receiving account with correct amounts, timestamps, and reference IDs.
+3. **Running balance matches after every transaction** -- After any transaction (deposit, withdrawal, transfer, fee, interest), recalculate: previous balance +/- transaction amount = new balance. This must hold for every single transaction in the history.
+4. **Loan terms calculate correctly** -- Monthly payment, total interest, and total cost should match the amortization schedule. Verify with an independent calculator for at least one scenario.
+5. **Fees applied correctly** -- Any fees (transfer fees, maintenance fees, overdraft fees) should match the published fee schedule and appear as distinct line items in the transaction history.
+6. **Currency conversions are traceable** -- For cross-currency transactions, the exchange rate used, the source amount, the destination amount, and any conversion fee should all be visible and mathematically consistent.
+
+## Cross-Feature Journeys
+
+> End-to-end flows that cross feature boundaries. Financial bugs at the seams can cause real monetary loss.
+
+### Journey 1: Full Banking Workflow
+`Register -> Login -> Open Account -> Transfer Funds -> Verify Both Balances -> Pay Bill -> Check Transaction History`
+- Verify: registration completes identity verification, account shows correct opening balance, transfer debits and credits exact amounts, both account balances are correct, bill payment appears in history with correct payee and amount.
+
+### Journey 2: Transaction Verification and Export
+`Login -> Transfer Funds -> View Transaction History -> Verify Amounts Match -> Export Statement -> Verify Statement Matches History`
+- Verify: transfer completes with confirmation and receipt, transaction history shows the transfer with correct details, amounts in history match the transfer confirmation, exported statement contains the same data as the on-screen history.
+
+### Journey 3: Security and Session Management
+`Login -> Start Transfer -> Session Times Out -> Re-authenticate -> Complete Transfer -> Verify No Duplicate`
+- Verify: session timeout interrupts the flow gracefully, re-authentication does not lose the in-progress transfer (or clearly notifies the user), no duplicate transaction is created, final balance is correct.
+
+## Must-Test Patterns
+
+### Calculations
+- Interest calculation accuracy (simple, compound, daily accrual)
+- Fee computation (flat, percentage, tiered, capped)
+- Exchange rate conversion with correct rounding
+- Loan amortization schedule accuracy
+- APR and APY display correctness
+- Tax withholding calculations
+- Dividend and yield computations
+- Split transactions and partial payments
+- Rounding rules match regulatory requirements (banker's rounding)
+- Calculations with very large amounts (millions, billions)
+- Calculations with very small amounts (fractions of a cent)
+- Multi-currency conversions with intermediary currency
+
+### Transaction Flows
+- Successful money transfer between accounts
+- Transfer with insufficient funds (rejected gracefully)
+- Transfer at exact balance amount (edge case)
+- Scheduled and recurring transaction execution
+- Transaction cancellation before processing
+- Transaction reversal after completion
+- Pending transaction status and timeline
+- Failed transaction with automatic retry
+- Duplicate transaction prevention (idempotency)
+- Concurrent transactions on same account (race conditions)
+- Cross-border transactions with currency conversion
+- Transaction timeout handling (what happens to funds)
+- Batch transaction processing
+- Transaction receipt and confirmation generation
+- Real-time balance update after transaction
+
+### Account Management
+- Account creation with identity verification
+- Multiple account types (checking, savings, investment)
+- Account linking (external bank connections)
+- Account statements (monthly, custom date range)
+- Account closure process and final balance handling
+- Joint account management
+- Beneficiary management (add, edit, remove)
+- Account freeze and unfreeze
+- Balance inquiry accuracy (available vs ledger balance)
+- Account limits (daily, monthly, per-transaction)
+
+### Security
+- Two-factor authentication setup (TOTP, SMS, hardware key)
+- 2FA required for high-value transactions
+- Session timeout appropriate for financial context (shorter than general apps)
+- Session invalidation on password change
+- Device fingerprinting and trusted device management
+- IP-based anomaly detection alerts
+- Brute force protection on login and PIN entry
+- Encryption of sensitive data at rest and in transit
+- Secure password requirements (length, complexity)
+- Biometric authentication (fingerprint, face ID) on mobile
+- PIN entry for transaction confirmation
+- Security questions as backup recovery method
+- Account lockout after excessive failed attempts
+- Unlock procedure (identity reverification)
+- Phishing detection warnings on suspicious links
+
+### Regulatory Compliance
+- KYC (Know Your Customer) identity verification flow
+- Document upload for ID verification (passport, driver license)
+- Address verification (utility bill, bank statement)
+- AML (Anti-Money Laundering) transaction monitoring
+- Suspicious Activity Report (SAR) generation triggers
+- OFAC sanctions list screening
+- Transaction reporting thresholds (CTR for $10,000+)
+- Consumer disclosure documents (Truth in Lending, fee schedules)
+- Regulation E compliance (electronic fund transfer rights)
+- PSD2 Strong Customer Authentication (EU)
+- Open Banking API compliance (if applicable)
+
+### Audit Trails
+- Login and logout events logged
+- Every transaction logged with full details
+- Permission changes logged
+- Account modification events logged
+- Failed authentication attempts logged
+- Export of audit log for compliance review
+- Audit log tamper protection (immutable entries)
+- Audit log retention meets regulatory minimums
+- Audit log search and filter by date, user, action type
+- Administrative actions logged separately
+
+### Data Precision
+- Currency amounts stored with correct decimal places (2 for USD, 0 for JPY, 8 for crypto)
+- No floating-point arithmetic for currency (use decimal or integer cents)
+- Rounding direction consistent (round half even for financial)
+- Negative amounts handled correctly (debits, fees, reversals)
+- Currency formatting matches locale (symbol, separator, decimal)
+- Percentage displays with appropriate precision
+- Large number formatting (thousand separators)
+- Zero amount transactions handled correctly
+- Display precision matches calculation precision (no hidden rounding)
+
+### Error Handling for Financial Operations
+- Insufficient funds returns clear error with current balance
+- Daily limit exceeded shows limit and reset time
+- Invalid recipient account returns specific error
+- Network failure during transaction shows clear status (not "unknown")
+- Timeout during payment does not result in lost funds
+- Partial failure in batch operations identifies which items failed
+- Concurrent modification conflict resolution
+- Expired session during transaction saves draft or clearly notifies
+- Payment gateway errors mapped to user-friendly messages
+- Recovery flow after failed transaction (retry, contact support)
+
+## Common Bugs
+
+- **Floating-point arithmetic errors** - Using float instead of decimal for currency results in rounding drift, totals off by 0.01 after many operations, percentage fee calculates to incorrect amount
+- **Race conditions on balance** - Two concurrent withdrawals both succeed when only one should, balance goes negative briefly before correction, pending transactions not considered in available balance
+- **Transaction state inconsistencies** - Sender debited but receiver not credited (half-completed transfer), transaction status shows "completed" while still pending at bank, cancelled transaction still processes
+- **Rounding discrepancy** - Statement total does not match sum of individual transactions, currency conversion rounds differently on different screens, tax calculation rounding differs from display
+- **Security session issues** - Session not invalidated on 2FA change, token replay attack possible, device trust persists after account compromise, PIN attempt counter resets on app restart
+- **Timezone-related bugs** - Interest accrual calculated wrong across timezone boundaries, scheduled payment executes on wrong day, statement date range off by one day
+- **Currency display errors** - Negative amounts shown without minus sign, wrong currency symbol after locale change, thousand separator used as decimal in some locales
+- **Compliance gaps** - KYC check can be bypassed by direct API call, transaction below threshold split into multiple to avoid reporting, audit log missing entries for bulk operations
+- **Notification failures** - Large transaction alert not sent, fraud alert delayed, duplicate notifications on retry
+
+## Compliance Requirements
+
+- **PCI DSS** - Payment card data encryption, no card numbers in logs, network segmentation, quarterly vulnerability scans
+- **SOX (Sarbanes-Oxley)** - Financial reporting accuracy, internal controls, audit trail integrity
+- **KYC / AML** - Customer identification program, ongoing monitoring, suspicious activity reporting
+- **GLBA (Gramm-Leach-Bliley)** - Financial privacy, safeguards rule, pretexting protection
+- **Regulation E** - Electronic fund transfer error resolution, unauthorized transaction liability limits
+- **PSD2 (EU)** - Strong Customer Authentication, open banking API access, transaction risk analysis
+- **GDPR** - Data minimization, right to erasure (balanced with record retention requirements), consent management
+- **CCPA** - Consumer data access and deletion rights
+- **BSA (Bank Secrecy Act)** - Currency Transaction Reports, recordkeeping requirements
+- **OFAC Sanctions** - Screening all parties against sanctions lists before transactions
+- **SOC 2 Type II** - Security, availability, and confidentiality controls audited
+- **Accessibility (WCAG 2.1 AA)** - All financial workflows accessible, including transaction flows and statements
+- **Data Residency** - Financial data stored in jurisdictions meeting regulatory requirements

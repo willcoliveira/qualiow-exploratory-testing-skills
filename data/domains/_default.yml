@@ -1,0 +1,167 @@
+id: default
+name: "Generic Web Application"
+
+risk_ranking:
+  p0: ["authentication & authorization", "core form submissions", "payment/revenue flows"]
+  p1: ["primary navigation", "user registration", "data creation/modification"]
+  p2: ["search & filtering", "settings", "responsive design", "error handling"]
+  p3: ["about page", "help docs", "static content", "SEO meta tags"]
+
+completeness_checklist:
+  - "Logo links to homepage"
+  - "Primary navigation is present and functional on all pages"
+  - "Footer is present with expected links (privacy, terms, contact)"
+  - "Breadcrumbs reflect the current location (if applicable)"
+  - "404 page exists and is user-friendly (not a raw server error)"
+  - "500 error page exists and is user-friendly"
+  - "Registration flow completes end to end"
+  - "Login flow works with valid credentials"
+  - "Logout clears session and redirects appropriately"
+  - "Password reset flow sends email and allows reset"
+  - "Protected pages redirect to login when unauthenticated"
+  - "Empty list/table shows a helpful message (not a blank page)"
+  - "Empty search results suggest alternatives or show a clear message"
+  - "New user with no data sees onboarding or guidance, not emptiness"
+  - "No placeholder text (lorem ipsum, TODO, TBD)"
+  - "No broken images or missing media"
+  - "Copyright year is current"
+  - "Legal pages are linked and accessible (privacy policy, terms of service)"
+  - "All forms submit and provide feedback (success or error)"
+  - "All buttons and links lead somewhere (no dead ends)"
+  - "Loading states exist for async operations (no frozen UI)"
+  - "Back button behavior is consistent and does not break state"
+
+data_integrity_checks:
+  - "Persistence -- Reload the page. Does the change survive? Is the data still correct?"
+  - "Reflection -- Does the change appear everywhere it should? (List views, detail views, summaries, exports.)"
+  - "Consistency -- Do calculated values (totals, counts, timestamps) update correctly?"
+  - "Reversibility -- If the action can be undone (delete, cancel), does the system return to a clean state?"
+  - "Concurrency -- If two users (or two tabs) act on the same data, does the system handle it without silent data loss?"
+  - "Cascade -- If the changed item is referenced elsewhere (e.g., a category that contains products), are related items updated or handled?"
+
+journeys:
+  - name: "New User Onboarding"
+    steps:
+      - "Register"
+      - "Verify Email"
+      - "Login"
+      - "Complete Profile"
+      - "Use Primary Feature"
+      - "Logout"
+      - "Verify: session persists correctly through each step, data entered in earlier steps is visible later, logout clears everything"
+  - name: "Content Lifecycle"
+    steps:
+      - "Create Item"
+      - "View in List"
+      - "Edit Item"
+      - "Verify Changes"
+      - "Delete Item"
+      - "Verify Removal"
+      - "Verify: item appears in all relevant views after creation, edits persist after reload, deletion removes item from all views"
+  - name: "Error Recovery"
+    steps:
+      - "Start Action"
+      - "Force Error (disconnect network, submit invalid data)"
+      - "See Error State"
+      - "Retry"
+      - "Complete Successfully"
+      - "Verify: error messages are clear, no data is lost or duplicated on retry, system returns to a consistent state"
+
+must_test_patterns:
+  forms:
+    - "Required field validation (submit empty, partial, complete)"
+    - "Input boundary values (min/max length, special characters, Unicode)"
+    - "Email and URL format validation"
+    - "Date and number field constraints"
+    - "Form submission with network interruption"
+    - "Double-submit prevention"
+    - "Tab order through form fields"
+    - "Error message clarity and placement"
+  navigation:
+    - "All internal links resolve (no 404s)"
+    - "Browser back/forward behavior is consistent"
+    - "Deep linking and bookmarking work"
+    - "Breadcrumbs reflect actual location"
+    - "Menu states (open, close, hover, focus)"
+    - "Navigation on mobile (hamburger menu, touch targets)"
+  authentication:
+    - "Login with valid and invalid credentials"
+    - "Password reset flow end to end"
+    - "Session timeout behavior"
+    - "Concurrent session handling"
+    - "Remember me functionality"
+    - "Logout clears session data"
+    - "Protected pages redirect to login"
+  error_handling:
+    - "404 page for invalid URLs"
+    - "Server error pages (500) are user-friendly"
+    - "Network timeout behavior"
+    - "Invalid input error messages are helpful"
+    - "Form validation errors do not lose user input"
+    - "API failure graceful degradation"
+  responsive:
+    - "Layout at 320px, 768px, 1024px, 1440px widths"
+    - "Images scale without distortion"
+    - "Text remains readable at all sizes"
+    - "Touch targets are at least 44x44px on mobile"
+    - "No horizontal scrolling on mobile"
+    - "Modals and popups work on small screens"
+  accessibility:
+    - "All images have alt text"
+    - "Form fields have associated labels"
+    - "Focus indicators are visible"
+    - "Color is not the only indicator of state"
+    - "Page has a logical heading hierarchy (h1-h6)"
+    - "Skip navigation link is present"
+    - "ARIA roles are used correctly where needed"
+  performance:
+    - "Initial page load under 3 seconds"
+    - "Time to interactive is reasonable"
+    - "Large images are optimized"
+    - "No excessive DOM size"
+    - "No memory leaks on repeated interactions"
+    - "Lazy loading for below-the-fold content"
+  seo:
+    - "Each page has a unique title tag"
+    - "Meta descriptions are present and descriptive"
+    - "Heading hierarchy is semantic"
+    - "Canonical URLs are set"
+    - "Robots.txt and sitemap.xml are accessible"
+    - "Open Graph and Twitter Card meta tags present"
+
+common_bugs:
+  - "Broken links after content updates"
+  - "Form submission succeeds silently without confirmation"
+  - "Session expires during long form entry, losing data"
+  - "Mobile menu overlaps content"
+  - "Inconsistent error message styles"
+  - "Missing loading states causing double clicks"
+  - "Stale cache showing outdated content"
+  - "Z-index issues with overlapping modals and dropdowns"
+  - "Autofill conflicts with custom input components"
+  - "Scroll position not restored on back navigation"
+
+compliance:
+  - "WCAG 2.1 Level AA (baseline accessibility)"
+  - "GDPR cookie consent if applicable"
+  - "HTTPS everywhere"
+  - "Privacy policy and terms of service links accessible"
+
+guidance: |
+  This is the default domain config for generic web applications. Use it when
+  no specific domain (ecommerce, fintech, saas, marketing) applies.
+
+  Priority areas in order:
+  1. Core Functionality -- Forms, navigation, and primary user flows work correctly
+  2. Authentication & Authorization -- Login, logout, session management, protected routes
+  3. Error Handling -- Graceful failures, meaningful error messages, recovery paths
+  4. Responsive Design -- Layout integrity across viewport sizes
+  5. Accessibility -- Keyboard navigation, screen reader basics, color contrast
+  6. Performance -- Page load times, interaction responsiveness
+  7. SEO Fundamentals -- Meta tags, heading structure, crawlability
+
+  Feature risk ranking guide:
+  - P0: "If this feature is broken, does the business lose money or get sued?" If yes, P0.
+  - P1: "If this feature is broken, do users fail their primary task?" If yes, P1.
+  - P2: "If this feature is broken, do users notice and complain?" If yes, P2.
+  - P3: Everything else.

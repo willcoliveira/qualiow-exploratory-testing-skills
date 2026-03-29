@@ -1,0 +1,203 @@
+id: technique-boundary-testing
+version: "0.1.0"
+type: technique
+name: "Boundary Value Analysis"
+description: >
+  A systematic technique for testing at and around the edges of input
+  domains. Bugs cluster at boundaries — the transition points where
+  behavior changes. Test the boundary itself, one below, and one above.
+author: "Classic testing technique"
+source: "Adapted from multiple sources for exploratory testing context"
+tags: [boundaries, edge-cases, input-testing]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    For every input, there are boundaries where the system's behavior changes.
+    Testing at those exact boundaries (and immediately on either side) catches
+    off-by-one errors, incorrect comparisons, and missed edge cases. Apply this
+    technique to every input field, parameter, and constraint you encounter.
+
+  strategies:
+    - name: Exact Boundaries
+      description: "Test the precise values where behavior is defined to change."
+      approach:
+        - "Identify the specified minimum and maximum values."
+        - "Test at min, min-1, min+1."
+        - "Test at max, max-1, max+1."
+        - "Test at zero (even if not a boundary — it often is implicitly)."
+      examples:
+        - input: "Age field (18-120)"
+          test_values:
+            - { value: 17, expected: "Rejected — below minimum" }
+            - { value: 18, expected: "Accepted — minimum boundary" }
+            - { value: 19, expected: "Accepted — just above minimum" }
+            - { value: 119, expected: "Accepted — just below maximum" }
+            - { value: 120, expected: "Accepted — maximum boundary" }
+            - { value: 121, expected: "Rejected — above maximum" }
+            - { value: 0, expected: "Rejected — zero" }
+            - { value: -1, expected: "Rejected — negative" }
+
+        - input: "Quantity field (1-99)"
+          test_values:
+            - { value: 0, expected: "Rejected" }
+            - { value: 1, expected: "Accepted — minimum" }
+            - { value: 99, expected: "Accepted — maximum" }
+            - { value: 100, expected: "Rejected" }
+
+    - name: Type Boundaries
+      description: "Test at the limits of the data type itself, not just the business rule."
+      approach:
+        - "Consider the underlying data type (int32, int64, float, etc.)."
+        - "Test at type overflow boundaries."
+        - "Test type coercion boundaries — what happens when a float is expected but an int is given, or vice versa."
+        - "Test with the wrong type entirely."
+      examples:
+        - input: "Integer field"
+          test_values:
+            - { value: 2147483647, expected: "Max int32 — should handle or reject gracefully" }
+            - { value: 2147483648, expected: "Int32 overflow — should not wrap to negative" }
+            - { value: -2147483648, expected: "Min int32 — boundary" }
+            - { value: -2147483649, expected: "Int32 underflow" }
+            - { value: 9999999999999999, expected: "Beyond int32, test int64 handling" }
+            - { value: "3.14", expected: "Float in integer field — truncation? rejection?" }
+            - { value: "1e10", expected: "Scientific notation — accepted or rejected?" }
+            - { value: "abc", expected: "Wrong type entirely — must be rejected" }
+
+        - input: "Price/money field"
+          test_values:
+            - { value: "0.00", expected: "Zero price — allowed or not?" }
+            - { value: "0.001", expected: "Three decimal places — rounding behavior?" }
+            - { value: "0.1 + 0.2", expected: "Floating point imprecision (0.30000000000000004)" }
+            - { value: "999999999.99", expected: "Very large price — display and storage" }
+            - { value: "-10.00", expected: "Negative price — refund context?" }
+
+    - name: Numeric Boundaries
+      description: "Common numeric edge cases that catch bugs regardless of specific business rules."
+      approach:
+        - "Always test zero, negative, and very large positive values."
+        - "Test decimal precision boundaries."
+        - "Test numeric strings vs. actual numbers."
+        - "Test special numeric values (NaN, Infinity)."
+      examples:
+        - category: "Universal numeric tests"
+          test_values:
+            - { value: 0, note: "Zero — the most common boundary bug trigger" }
+            - { value: -1, note: "First negative — sign handling" }
+            - { value: -0, note: "Negative zero — JS treats this specially" }
+            - { value: 0.1, note: "Simple decimal" }
+            - { value: 0.123456789012345, note: "High precision decimal" }
+            - { value: "NaN", note: "Not a number — should be caught by validation" }
+            - { value: "Infinity", note: "Infinity — division by zero result" }
+            - { value: "-Infinity", note: "Negative infinity" }
+            - { value: "1e308", note: "Near max float64" }
+            - { value: "5e-324", note: "Near min positive float64" }
+
+    - name: String Boundaries
+      description: "Test string length limits, empty strings, and content boundaries."
+      approach:
+        - "Test empty string and whitespace-only strings."
+        - "Test at the character limit and one beyond."
+        - "Test single character."
+        - "Test with very long strings."
+        - "Test with different character types at boundaries."
+      examples:
+        - input: "Name field (max 50 characters)"
+          test_values:
+            - { value: "", expected: "Empty — required field check" }
+            - { value: " ", expected: "Single space — trimming behavior?" }
+            - { value: "   ", expected: "Multiple spaces — whitespace-only handling" }
+            - { value: "A", expected: "Single character — minimum viable input" }
+            - { value: "A" , note: "Repeat 49 times = 49 chars — one below limit" }
+            - { value: "A" , note: "Repeat 50 times = 50 chars — exactly at limit" }
+            - { value: "A" , note: "Repeat 51 times = 51 chars — one above limit, should truncate or reject" }
+            - { value: "A" , note: "Repeat 1000 times — far beyond limit" }
+
+        - input: "General string edge cases"
+          test_values:
+            - { value: "   leading spaces", expected: "Trimming on left?" }
+            - { value: "trailing spaces   ", expected: "Trimming on right?" }
+            - { value: "line1\\nline2", expected: "Newline in single-line field" }
+            - { value: "tab\\there", expected: "Tab character in input" }
+            - { value: "null", expected: "String 'null' — not confused with null value" }
+            - { value: "undefined", expected: "String 'undefined'" }
+            - { value: "true", expected: "String 'true' — not coerced to boolean" }
+            - { value: "0", expected: "String '0' — not treated as falsy" }
+
+    - name: Date Boundaries
+      description: "Test at calendar boundaries, time zone edges, and format limits."
+      approach:
+        - "Test at month and year boundaries."
+        - "Test leap year dates."
+        - "Test DST transition dates."
+        - "Test minimum and maximum dates the system should handle."
+        - "Test date format boundaries."
+      examples:
+        - category: "Calendar boundary dates"
+          test_values:
+            - { value: "2026-01-01", note: "Start of year" }
+            - { value: "2026-12-31", note: "End of year" }
+            - { value: "2026-02-28", note: "End of February (non-leap year)" }
+            - { value: "2024-02-29", note: "Leap day (2024 is a leap year)" }
+            - { value: "2025-02-29", note: "Invalid — 2025 is not a leap year" }
+            - { value: "2026-04-30", note: "Last day of 30-day month" }
+            - { value: "2026-04-31", note: "Invalid — April has 30 days" }
+            - { value: "2026-03-08", note: "DST spring forward (US)" }
+            - { value: "2026-11-01", note: "DST fall back (US)" }
+            - { value: "1970-01-01", note: "Unix epoch — common system minimum" }
+            - { value: "2038-01-19", note: "Unix timestamp overflow (Y2K38)" }
+            - { value: "1900-01-01", note: "Pre-epoch date" }
+            - { value: "9999-12-31", note: "Far future date" }
+
+        - category: "Time boundary values"
+          test_values:
+            - { value: "00:00:00", note: "Midnight — start of day" }
+            - { value: "23:59:59", note: "Last second of day" }
+            - { value: "12:00:00", note: "Noon — AM/PM boundary" }
+            - { value: "24:00:00", note: "Invalid in most systems — should be 00:00:00 next day" }
+            - { value: "23:59:60", note: "Leap second — most systems reject this" }
+
+    - name: Collection Boundaries
+      description: "Test at the edges of lists, arrays, sets, and paginated results."
+      approach:
+        - "Test with empty collections."
+        - "Test with a single item."
+        - "Test at pagination boundaries."
+        - "Test at the system's maximum allowed items."
+        - "Test bulk operations at boundaries."
+      examples:
+        - category: "Collection size boundaries"
+          test_values:
+            - { value: "0 items", note: "Empty state — what does the UI show?" }
+            - { value: "1 item", note: "Single item — plural/singular labels?" }
+            - { value: "2 items", note: "Minimum plural — layout edge case" }
+            - { value: "page_size - 1", note: "Just under one page — no pagination shown?" }
+            - { value: "page_size", note: "Exactly one page — pagination appears or not?" }
+            - { value: "page_size + 1", note: "Just over one page — second page has 1 item" }
+            - { value: "1000 items", note: "Large list — performance and scrolling" }
+            - { value: "max_limit", note: "System maximum — does it enforce the cap?" }
+            - { value: "max_limit + 1", note: "One beyond maximum — rejection message?" }
+
+        - category: "Selection and multi-select boundaries"
+          test_values:
+            - { value: "Select 0", note: "No selection — action buttons disabled?" }
+            - { value: "Select 1", note: "Single selection" }
+            - { value: "Select all", note: "Select all on current page vs. all pages" }
+            - { value: "Select all then deselect one", note: "Mixed state handling" }
+
+  when_to_use:
+    - "Every time you encounter an input field — boundaries are always worth testing."
+    - "When you know the validation rules — test at the exact boundaries."
+    - "When you do not know the rules — probe with boundary values to discover them."
+    - "When testing calculations — precision and overflow boundaries."
+    - "When testing lists and pagination — collection boundaries."
+
+  gotchas:
+    - "The spec says max is 100, but does the code use < or <=? Always test the exact boundary."
+    - "Client-side validation may differ from server-side — test both (submit via devtools to bypass client)."
+    - "Floating point arithmetic is imprecise — 0.1 + 0.2 !== 0.3 in most languages."
+    - "Empty string and null are different — test both."
+    - "Date boundaries depend on timezone — midnight in UTC may be yesterday in Pacific."
+    - "Collection boundaries interact with permissions — can a user with 'read' access trigger bulk operations?"

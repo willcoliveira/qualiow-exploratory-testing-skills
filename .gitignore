@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+
+# Session data (user-generated)
+output/sessions/*/
+output/bugs/*.md
+!output/sessions/INDEX.md
+!output/bugs/all-bugs.md
+
+# Auth & secrets
+.auth/*.json
+.env
+
+# Playwright
+.playwright-cli/
+
+# Traces & recordings
+*.trace.zip
+*.webm
+
+# OS
+.DS_Store

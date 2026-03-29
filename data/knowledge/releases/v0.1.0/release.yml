@@ -1,0 +1,22 @@
+# Release metadata for v0.1.0
+version: "0.1.0"
+date: "2026-03-28"
+author: "qualiow"
+status: active
+
+notes: >
+  Initial release of the Qualiow exploratory testing knowledge base.
+  Contains the foundational heuristics, techniques, and checklists that
+  guide every exploratory testing session. Covers what to test (SFDIPOT),
+  how to recognize bugs (FEW HICCUPPS), how to explore (Test Tours),
+  and core techniques (boundary testing, error guessing, accessibility).
+
+entry_count: 6
+
+entries:
+  - heuristic-sfdipot
+  - heuristic-few-hiccupps
+  - heuristic-test-tours
+  - technique-boundary-testing
+  - technique-error-guessing
+  - checklist-accessibility-wcag

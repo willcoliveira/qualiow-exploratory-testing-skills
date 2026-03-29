@@ -1,0 +1,13 @@
+id: thinking-tester
+name: "Thinking Tester Contact List"
+base_url: "https://thinking-tester-contact-list.herokuapp.com/"
+domain: saas
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Contact list CRUD application. May require login/registration."

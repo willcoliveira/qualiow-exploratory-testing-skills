@@ -1,0 +1,326 @@
+id: checklist-accessibility-wcag
+version: "0.1.0"
+type: checklist
+name: "WCAG 2.1 Level AA Checklist"
+description: >
+  Accessibility checklist organized by the four POUR principles
+  (Perceivable, Operable, Understandable, Robust). Covers the most
+  impactful WCAG 2.1 Level AA success criteria with practical checks
+  and Playwright CLI commands for automated verification.
+author: "Based on W3C WCAG 2.1"
+source: "https://www.w3.org/TR/WCAG21/"
+tags: [accessibility, wcag, a11y, compliance]
+domains: [all]
+priority: medium
+added: "2026-03-28"
+
+content:
+  summary: >
+    Web accessibility ensures that people with disabilities can perceive,
+    understand, navigate, and interact with your application. WCAG 2.1 Level AA
+    is the standard most organizations target. Use this checklist during every
+    exploratory session — accessibility bugs affect real users and carry legal
+    risk.
+
+  principles:
+    - name: Perceivable
+      code: P
+      description: "Information and UI components must be presentable to users in ways they can perceive."
+      checks:
+        - criterion: "1.1.1 Non-text Content (A)"
+          what_to_check: "Every image, icon, and non-text element has appropriate alt text."
+          how_to_test:
+            - "Take a snapshot and look for img elements — each should have meaningful alt text."
+            - "Decorative images should have alt='' (empty) or role='presentation'."
+            - "Icon buttons must have aria-label or accessible text."
+            - "Charts and infographics need text alternatives summarizing the data."
+          playwright_commands:
+            - "snapshot — inspect all img tags for alt attributes"
+            - "evaluate document.querySelectorAll('img:not([alt])').length — count images missing alt"
+            - "evaluate document.querySelectorAll('button:not([aria-label]):not(:has(span))').length — buttons without labels"
+
+        - criterion: "1.3.1 Info and Relationships (A)"
+          what_to_check: "Structure and relationships conveyed visually are also conveyed in markup."
+          how_to_test:
+            - "Headings use proper h1-h6 tags in logical order (no skipped levels)."
+            - "Form fields have associated labels (label[for] or aria-label)."
+            - "Data tables use th elements for headers and proper scope attributes."
+            - "Lists use ul/ol/li — not styled divs."
+            - "Landmark regions are defined (header, nav, main, footer)."
+          playwright_commands:
+            - "snapshot — check heading hierarchy and form labels"
+            - "evaluate document.querySelectorAll('input:not([id]):not([aria-label])').length — unlabeled inputs"
+
+        - criterion: "1.3.4 Orientation (AA)"
+          what_to_check: "Content is not restricted to a single display orientation."
+          how_to_test:
+            - "Test in both portrait and landscape viewport sizes."
+            - "Content should not require a specific orientation to be usable."
+          playwright_commands:
+            - "viewport 375 812 — portrait mobile"
+            - "snapshot"
+            - "viewport 812 375 — landscape mobile"
+            - "snapshot — compare that content is still accessible"
+
+        - criterion: "1.4.1 Use of Color (A)"
+          what_to_check: "Color is not the only visual means of conveying information."
+          how_to_test:
+            - "Error states use more than just red text — look for icons, bold, or borders."
+            - "Required fields are not indicated by color alone."
+            - "Links are distinguishable from regular text by more than just color (underline, weight)."
+            - "Charts use patterns or labels in addition to colors."
+          playwright_commands:
+            - "screenshot — examine visually for color-only indicators"
+
+        - criterion: "1.4.3 Contrast (Minimum) (AA)"
+          what_to_check: "Text has at least 4.5:1 contrast ratio against background (3:1 for large text)."
+          how_to_test:
+            - "Check body text, placeholder text, disabled text, and error messages."
+            - "Pay special attention to light gray placeholder text — often fails."
+            - "Check text on colored backgrounds and images."
+          playwright_commands:
+            - "screenshot — use visual inspection for contrast issues"
+            - "evaluate window.getComputedStyle(document.querySelector('body')).color — check text color"
+
+        - criterion: "1.4.4 Resize Text (AA)"
+          what_to_check: "Text can be resized up to 200% without loss of content or functionality."
+          how_to_test:
+            - "Zoom the browser to 200% and verify all content is still readable."
+            - "No horizontal scrolling should be required at 200% zoom."
+            - "Text should not overlap or be cut off."
+          playwright_commands:
+            - "evaluate document.documentElement.style.fontSize='200%'"
+            - "snapshot — check for overlapping or clipped content"
+            - "evaluate document.documentElement.style.fontSize=''"
+
+        - criterion: "1.4.11 Non-text Contrast (AA)"
+          what_to_check: "UI components and graphical objects have at least 3:1 contrast."
+          how_to_test:
+            - "Form field borders are visible against the background."
+            - "Focus indicators are clearly visible."
+            - "Icon buttons have sufficient contrast."
+            - "Custom checkboxes and toggles are distinguishable."
+          playwright_commands:
+            - "screenshot — visually inspect UI component boundaries"
+
+    - name: Operable
+      code: O
+      description: "UI components and navigation must be operable by all users."
+      checks:
+        - criterion: "2.1.1 Keyboard (A)"
+          what_to_check: "All functionality is available via keyboard alone."
+          how_to_test:
+            - "Tab through the entire page — every interactive element should be reachable."
+            - "Activate buttons and links with Enter/Space."
+            - "Open and navigate dropdowns with arrow keys."
+            - "Close modals with Escape."
+            - "Verify custom widgets (sliders, date pickers, tabs) are keyboard accessible."
+          playwright_commands:
+            - "press Tab — move focus forward"
+            - "press Shift+Tab — move focus backward"
+            - "press Enter — activate focused element"
+            - "press Space — toggle/activate focused element"
+            - "press Escape — close modal/dropdown"
+            - "snapshot — check which element has focus"
+
+        - criterion: "2.1.2 No Keyboard Trap (A)"
+          what_to_check: "Keyboard focus can be moved away from all components."
+          how_to_test:
+            - "Tab into every component and verify you can Tab out."
+            - "Check modals, date pickers, rich text editors, and embedded content."
+            - "Tab focus should never get stuck in an infinite loop."
+          playwright_commands:
+            - "press Tab — repeatedly, checking that focus moves through and past all components"
+            - "snapshot — verify focus is not stuck"
+
+        - criterion: "2.4.1 Bypass Blocks (A)"
+          what_to_check: "A mechanism exists to bypass repeated content (skip navigation link)."
+          how_to_test:
+            - "Press Tab on first page load — a 'Skip to content' link should appear."
+            - "Activating it should move focus to the main content area."
+          playwright_commands:
+            - "press Tab — look for skip link in snapshot"
+            - "press Enter — activate skip link"
+            - "snapshot — verify focus is on main content"
+
+        - criterion: "2.4.3 Focus Order (A)"
+          what_to_check: "Tab order follows a logical, meaningful sequence."
+          how_to_test:
+            - "Tab through the page and verify order matches visual layout (left-to-right, top-to-bottom)."
+            - "Modals should trap focus within themselves when open."
+            - "Dynamic content inserted into the page should not break tab order."
+          playwright_commands:
+            - "press Tab — repeatedly, noting the order of focused elements in snapshot"
+
+        - criterion: "2.4.6 Headings and Labels (AA)"
+          what_to_check: "Headings and labels describe topic or purpose."
+          how_to_test:
+            - "Headings are descriptive and not generic ('Details' is vague, 'Order Details' is clear)."
+            - "Form labels clearly describe what input is expected."
+            - "Labels match the visible text (for voice control users)."
+          playwright_commands:
+            - "snapshot — review all heading text and label text for clarity"
+
+        - criterion: "2.4.7 Focus Visible (AA)"
+          what_to_check: "Keyboard focus indicator is always visible."
+          how_to_test:
+            - "Tab through the page and check that every focused element has a visible indicator."
+            - "Focus should not be invisible (CSS outline: none without a replacement)."
+            - "Custom focus styles should be clearly visible — not just a subtle color change."
+          playwright_commands:
+            - "press Tab"
+            - "screenshot — verify focus ring is visible"
+            - "press Tab"
+            - "screenshot — continue checking focus visibility"
+
+        - criterion: "2.5.3 Label in Name (A)"
+          what_to_check: "Visible label text is included in the accessible name."
+          how_to_test:
+            - "Check that button text matches aria-label (if both are present)."
+            - "A button visually labeled 'Submit' should not have aria-label='Send form'."
+            - "This is critical for voice control users who say what they see."
+          playwright_commands:
+            - "snapshot — compare visible text with aria-label attributes"
+
+    - name: Understandable
+      code: U
+      description: "Information and UI operation must be understandable."
+      checks:
+        - criterion: "3.1.1 Language of Page (A)"
+          what_to_check: "The default human language of the page is declared."
+          how_to_test:
+            - "Check that the html element has a lang attribute."
+            - "Verify the lang value matches the actual content language."
+          playwright_commands:
+            - "evaluate document.documentElement.lang — should return a valid language code like 'en'"
+
+        - criterion: "3.1.2 Language of Parts (AA)"
+          what_to_check: "Content in a different language has a lang attribute."
+          how_to_test:
+            - "If a page in English contains a Spanish paragraph, that paragraph needs lang='es'."
+          playwright_commands:
+            - "snapshot — look for content in different languages without lang attribute"
+
+        - criterion: "3.2.1 On Focus (A)"
+          what_to_check: "Receiving focus does not trigger an unexpected change of context."
+          how_to_test:
+            - "Tab to each form field — the page should not navigate, submit, or open a new window."
+            - "Focus on a dropdown should not automatically select an option."
+          playwright_commands:
+            - "press Tab — check snapshot after each tab for unexpected changes"
+
+        - criterion: "3.2.2 On Input (A)"
+          what_to_check: "Changing a setting does not cause an unexpected context change unless the user is warned."
+          how_to_test:
+            - "Changing a dropdown value should not auto-submit the form or navigate away."
+            - "Checking a checkbox should not trigger a page reload."
+            - "If auto-submit is needed, the user should be warned beforehand."
+          playwright_commands:
+            - "select <ref> optionValue — check that page does not auto-navigate"
+            - "snapshot — verify page is still on the same view"
+
+        - criterion: "3.3.1 Error Identification (A)"
+          what_to_check: "Input errors are identified and described in text."
+          how_to_test:
+            - "Submit a form with empty required fields — errors should appear."
+            - "Error messages should identify which field has the error."
+            - "Error messages should describe what went wrong (not just 'Invalid input')."
+            - "Errors should be announced to screen readers (aria-live or role='alert')."
+          playwright_commands:
+            - "click <submit-ref> — submit empty form"
+            - "snapshot — check for error messages and their association with fields"
+            - "evaluate document.querySelectorAll('[role=\"alert\"]').length — check for live regions"
+
+        - criterion: "3.3.2 Labels or Instructions (A)"
+          what_to_check: "Labels or instructions are provided when content requires user input."
+          how_to_test:
+            - "Every input field has a visible label (not just placeholder)."
+            - "Required fields are clearly marked."
+            - "Expected format is described (e.g., 'DD/MM/YYYY')."
+            - "Placeholder text alone is not sufficient as a label."
+          playwright_commands:
+            - "snapshot — check that every input has a visible label, not just placeholder"
+
+        - criterion: "3.3.3 Error Suggestion (AA)"
+          what_to_check: "When an error is detected, suggestions for correction are provided."
+          how_to_test:
+            - "Enter an invalid email — does the error say 'Enter a valid email address (e.g., name@example.com)'?"
+            - "Enter a date in the wrong format — does the error suggest the correct format?"
+          playwright_commands:
+            - "fill <ref> 'invalid' — enter known-bad input"
+            - "click <submit-ref>"
+            - "snapshot — check error messages include correction suggestions"
+
+        - criterion: "3.3.4 Error Prevention - Legal, Financial, Data (AA)"
+          what_to_check: "Submissions involving legal or financial commitments are reversible, verifiable, or confirmed."
+          how_to_test:
+            - "Financial transactions show a confirmation/review step before final submission."
+            - "Users can review and edit their input before committing."
+            - "Destructive actions (delete, cancel subscription) require explicit confirmation."
+          playwright_commands:
+            - "Complete a checkout/payment flow — verify a confirmation step exists before final submit"
+
+    - name: Robust
+      code: R
+      description: "Content must be robust enough to be interpreted by a wide variety of user agents, including assistive technologies."
+      checks:
+        - criterion: "4.1.1 Parsing (A) — Deprecated in WCAG 2.2 but still good practice"
+          what_to_check: "HTML is well-formed — no duplicate IDs, proper nesting, complete tags."
+          how_to_test:
+            - "Check for duplicate ID attributes on the page."
+            - "Verify HTML elements are properly nested."
+            - "Check that ARIA attributes have valid values."
+          playwright_commands:
+            - "evaluate document.querySelectorAll('[id]').length vs new Set([...document.querySelectorAll('[id]')].map(e=>e.id)).size — detect duplicate IDs"
+
+        - criterion: "4.1.2 Name, Role, Value (A)"
+          what_to_check: "All UI components have proper name, role, and state exposed to assistive technology."
+          how_to_test:
+            - "Custom components (dropdowns, tabs, accordions) have proper ARIA roles."
+            - "Toggle buttons expose their pressed/expanded state via aria-pressed or aria-expanded."
+            - "Custom checkboxes expose their checked state."
+            - "Progress indicators have aria-valuenow."
+          playwright_commands:
+            - "snapshot — inspect custom components for proper ARIA roles and states"
+            - "evaluate document.querySelectorAll('[role=\"tab\"]').length — check tab panels have roles"
+            - "evaluate document.querySelectorAll('[aria-expanded]').length — check expandable elements"
+
+        - criterion: "4.1.3 Status Messages (AA)"
+          what_to_check: "Status messages (success, error, progress) are programmatically determinable without receiving focus."
+          how_to_test:
+            - "After form submission, check that success/error messages use role='status' or role='alert'."
+            - "Loading indicators should be announced (aria-live='polite')."
+            - "Toast notifications should use aria-live regions."
+          playwright_commands:
+            - "Trigger a form submission, then:"
+            - "snapshot — check for role='status', role='alert', or aria-live attributes on notification elements"
+            - "evaluate document.querySelectorAll('[aria-live]').length — count live regions"
+
+  quick_audit_sequence:
+    description: "A fast 5-minute accessibility audit to run during any exploratory session."
+    steps:
+      - "1. snapshot — check for lang attribute on html, heading hierarchy, alt text on images, labels on inputs."
+      - "2. press Tab (10-15 times) — verify focus order is logical and focus indicator is visible."
+      - "3. press Enter/Space on focused elements — verify keyboard activation works."
+      - "4. press Escape — verify modals and dropdowns close."
+      - "5. viewport 375 812 then snapshot — check mobile responsiveness."
+      - "6. screenshot — visual check for contrast issues and color-only indicators."
+      - "7. Submit an empty form — check error messages are clear and associated with fields."
+      - "8. evaluate document.querySelectorAll('img:not([alt])').length — count missing alt text."
+      - "9. evaluate document.querySelectorAll('[role=\"alert\"], [aria-live]').length — check live regions exist."
+
+  when_to_use:
+    - "Run the quick audit on every page during exploratory testing."
+    - "Do a full checklist review during dedicated accessibility testing sessions."
+    - "After UI changes — new components, layout updates, or style changes."
+    - "When testing forms — check labels, errors, and keyboard access."
+    - "Before release — accessibility issues are legal liability."
+
+  gotchas:
+    - "Automated tools catch only 30-40% of accessibility issues — manual testing is essential."
+    - "Test with actual keyboard navigation, not just inspecting the DOM."
+    - "Placeholder text is NOT a label — it disappears when the user starts typing."
+    - "CSS outline:none removes focus indicators — this is one of the most common accessibility bugs."
+    - "Custom components (dropdowns, date pickers, modals) are the most common ARIA failures."
+    - "Dynamic content (toasts, live updates, loading states) needs aria-live regions."
+    - "Color contrast tools may not catch contrast issues on gradients or background images."

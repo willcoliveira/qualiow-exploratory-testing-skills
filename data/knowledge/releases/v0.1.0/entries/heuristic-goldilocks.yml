@@ -1,0 +1,143 @@
+id: heuristic-goldilocks
+version: "0.1.0"
+type: heuristic
+name: "Goldilocks Heuristic"
+description: >
+  "Too big, too small, just right" — a simple but powerful heuristic for testing
+  with extremes and typical values. For every input, ask: what happens when the
+  value is absurdly large, absurdly small, and perfectly normal? Apply this lens
+  to numbers, text, dates, selections, and file sizes to surface validation gaps,
+  display issues, and processing failures.
+author: "Elisabeth Hendrickson"
+source: "Explore It! — Reduce Risk and Increase Confidence with Exploratory Testing"
+tags: [input-testing, boundaries, exploration, goldilocks]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    The Goldilocks heuristic borrows from the fairy tale: test with values that are
+    too big, too small, and just right. It complements formal boundary analysis by
+    encouraging you to think in terms of extremes and typicality rather than only
+    precise boundary values. For every input field, parameter, or configuration
+    value, generate at least one "too big," one "too small," and one "just right"
+    test case. This surfaces bugs in validation, storage, display, and calculation
+    that formal specs often miss.
+
+  principle: >
+    Every input has a "Goldilocks zone" — the range of values the system was
+    designed and tested to handle. Bugs live outside that zone (extremes the
+    developer never imagined) and sometimes inside it (typical values with
+    unexpected edge properties). Always test all three zones.
+
+  categories:
+    - name: Numbers (Currency, Quantities, Scores)
+      too_big:
+        - { value: "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 (googol)", note: "Far beyond any reasonable value — tests overflow, display truncation, storage limits" }
+        - { value: "999999999.99", note: "Maximum practical currency — does the UI handle it? Does the total overflow?" }
+        - { value: "2147483647", note: "Max int32 — common overflow boundary" }
+        - { value: "9999999", note: "Large quantity — performance, display, and calculation stress" }
+      too_small:
+        - { value: "-1", note: "Negative — does a quantity or price field allow negatives?" }
+        - { value: "-999999999.99", note: "Large negative — what happens to totals and calculations?" }
+        - { value: "0", note: "Zero — often a special case (division by zero, free items, zero balance)" }
+        - { value: "0.001", note: "Sub-penny amount — rounding behavior in financial calculations" }
+        - { value: "-0", note: "Negative zero — some languages treat this differently" }
+      just_right:
+        - { value: "42.50", note: "Typical price — happy path with decimals" }
+        - { value: "3", note: "Typical small quantity" }
+        - { value: "100.00", note: "Round number — common in real usage" }
+        - { value: "19.99", note: "Common retail price point" }
+
+    - name: Strings (Names, Descriptions, Text Fields)
+      too_big:
+        - { value: "'A' x 10000", note: "10K characters — far beyond most field limits" }
+        - { value: "'word ' x 5000", note: "25K characters of words — tests word-wrap, storage, and rendering" }
+        - { value: "A single paragraph repeated 100 times", note: "Realistic but excessive content" }
+        - { value: "URL or path string 2000+ characters long", note: "Tests URL length limits and parameter handling" }
+      too_small:
+        - { value: "", note: "Empty string — the most common too-small value" }
+        - { value: " ", note: "Single space — is whitespace-only accepted?" }
+        - { value: "A", note: "Single character — minimum meaningful input" }
+        - { value: "\\t", note: "Tab only — invisible but non-empty" }
+      just_right:
+        - { value: "John Smith", note: "Typical Western name" }
+        - { value: "Maria Garcia de la Cruz", note: "Longer name with spaces and special handling" }
+        - { value: "A 50-word product description", note: "Typical paragraph-length content" }
+        - { value: "user@example.com", note: "Standard email format" }
+
+    - name: Dates and Times
+      too_big:
+        - { value: "9999-12-31", note: "Far future — maximum representable date in many systems" }
+        - { value: "2099-01-01", note: "Distant future — valid but unlikely" }
+        - { value: "2038-01-19T03:14:08Z", note: "Unix Y2K38 overflow — int32 timestamp limit" }
+      too_small:
+        - { value: "1900-01-01", note: "Very old date — before Unix epoch" }
+        - { value: "1970-01-01", note: "Unix epoch — timestamp zero" }
+        - { value: "0000-01-01", note: "Year zero — invalid in many date libraries" }
+        - { value: "1969-12-31", note: "Day before Unix epoch — negative timestamp" }
+      just_right:
+        - { value: "2026-03-28", note: "Today's date — standard current date" }
+        - { value: "2026-06-15", note: "Near future — typical scheduling date" }
+        - { value: "2025-12-25", note: "Recent past — typical historical lookup" }
+      boundary_dates:
+        - { value: "2024-02-29", note: "Leap day (2024 is leap year) — valid" }
+        - { value: "2025-02-29", note: "Not a leap year — invalid, should be rejected" }
+        - { value: "2026-04-31", note: "April has 30 days — invalid" }
+        - { value: "2026-12-31 23:59:59", note: "Last second of the year — rollover boundary" }
+        - { value: "2026-03-08 02:30:00 US/Eastern", note: "During DST spring-forward gap — this time does not exist" }
+
+    - name: Selections (Dropdowns, Radio Buttons, Multi-selects)
+      too_big:
+        - { value: "Select all options in a multi-select", note: "Maximum selection — does the UI and API handle it?" }
+        - { value: "Select 100+ items in a list and perform bulk action", note: "Bulk operation at scale" }
+        - { value: "Submit with a value not in the dropdown (tampered request)", note: "Server-side validation of enum values" }
+      too_small:
+        - { value: "No selection (skip required dropdown)", note: "Empty selection — validation check" }
+        - { value: "Deselect all in a multi-select that requires at least one", note: "Below minimum selection" }
+        - { value: "Submit form without touching the dropdown (default placeholder)", note: "Default value handling" }
+      just_right:
+        - { value: "Select one typical option", note: "Happy path — single valid selection" }
+        - { value: "Select 2-3 options in a multi-select", note: "Typical multi-selection" }
+        - { value: "Change selection from A to B before submitting", note: "Changed mind — state update" }
+
+    - name: File Sizes and Uploads
+      too_big:
+        - { value: "100MB+ file", note: "Exceeds typical upload limits — timeout, memory, error handling" }
+        - { value: "File with 10000-character filename", note: "Filename length limit on filesystem" }
+        - { value: "ZIP bomb (small file that expands to GB)", note: "Decompression-based denial of service" }
+        - { value: "Image with 50000x50000 pixel dimensions", note: "Memory exhaustion during image processing" }
+      too_small:
+        - { value: "0-byte empty file", note: "Empty file — does the system accept and handle it?" }
+        - { value: "1-byte file", note: "Minimum viable file — corrupt or valid?" }
+        - { value: "File with no extension", note: "Missing file type — how is it classified?" }
+      just_right:
+        - { value: "500KB JPEG image", note: "Typical photo upload" }
+        - { value: "50KB PDF document", note: "Typical document upload" }
+        - { value: "2KB CSV file with 50 rows", note: "Typical data import file" }
+
+  application_process:
+    description: "How to apply Goldilocks systematically during exploratory testing."
+    steps:
+      - "Identify every input on the page (visible fields, hidden parameters, URL params, file uploads)."
+      - "For each input, determine its expected data type (number, string, date, selection, file)."
+      - "Generate at least one 'too big,' one 'too small,' and one 'just right' value from the category above."
+      - "Enter each value, submit, and observe: Does validation catch it? Does the UI handle it? Does the data persist correctly?"
+      - "Pay special attention to what happens AFTER submission — does the data display correctly on other pages, in reports, in exports?"
+      - "Combine Goldilocks with other inputs — one field too big while another is too small."
+
+  when_to_use:
+    - "Every time you encounter an input field — Goldilocks takes 30 seconds and catches real bugs."
+    - "During initial exploration of a new form or feature."
+    - "When boundary values are not documented — Goldilocks helps discover the actual limits."
+    - "When testing calculations — extreme values reveal overflow, precision, and rounding bugs."
+    - "When combined with FedEx Tour — enter extreme data and track it through the entire system."
+
+  gotchas:
+    - "Too small often catches more bugs than too big — developers think about maximum limits but forget about zero, empty, and negative."
+    - "Just right is not always safe — a typical name like O'Brien has an apostrophe that breaks SQL and display."
+    - "Test Goldilocks on BOTH client and server side — bypass client validation to send extreme values directly to the API."
+    - "Combine categories — enter a too-big number in a too-small form field with a too-big date in the same submission."
+    - "The 'just right' values should include realistic data from the target domain, not just generic test data."
+    - "File uploads are often forgotten — apply Goldilocks to file size, filename length, file type, and file content."

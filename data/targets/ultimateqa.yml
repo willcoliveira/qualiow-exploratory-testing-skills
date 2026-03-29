@@ -1,0 +1,13 @@
+id: ultimateqa
+name: "Ultimate QA - Automation Practice"
+base_url: "https://ultimateqa.com/automation"
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Collection of automation practice pages and challenges."

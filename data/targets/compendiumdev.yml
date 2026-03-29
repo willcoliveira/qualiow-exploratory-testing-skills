@@ -1,0 +1,13 @@
+id: compendiumdev
+name: "Compendium Dev - Testing Resources"
+base_url: "https://compendiumdev.co.uk/"
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Alan Richardson's testing and development resources."

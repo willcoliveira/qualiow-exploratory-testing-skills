@@ -1,0 +1,14 @@
+id: testers-ai
+name: "Testers.ai Testing Playground"
+base_url: "https://testers.ai/testing/"
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/testing/"]
+  include_patterns: ["/testing/**"]
+  max_depth: 3
+notes: "Intentional test pages with 200+ known issues. Perfect for validating exploratory testing skills."

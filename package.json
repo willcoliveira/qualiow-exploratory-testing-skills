@@ -1,0 +1,70 @@
+{
+  "name": "@qualiow/exploratory-testing",
+  "version": "1.0.0",
+  "description": "qualiow — AI-powered exploratory testing skills using Claude Code + Playwright CLI",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "qualiow": "dist/cli/index.js"
+  },
+  "files": [
+    "dist/",
+    "skills/",
+    "data/domains/*.yml",
+    "data/knowledge/",
+    "data/templates/",
+    "data/targets/_default.yml",
+    "data/targets/testers-ai.yml",
+    "docs/GETTING-STARTED.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "validate": "node dist/cli/index.js validate --all",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "exploratory-testing",
+    "qa",
+    "testing",
+    "playwright",
+    "ai",
+    "claude",
+    "skills",
+    "heuristics",
+    "bug-detection"
+  ],
+  "author": "William Oliveira",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/willcoliveira/qualiow-exploratory-testing-skills.git"
+  },
+  "homepage": "https://github.com/willcoliveira/qualiow-exploratory-testing-skills#readme",
+  "bugs": {
+    "url": "https://github.com/willcoliveira/qualiow-exploratory-testing-skills/issues"
+  },
+  "dependencies": {
+    "@playwright/cli": "latest",
+    "chalk": "^5.3.0",
+    "commander": "^13.1.0",
+    "glob": "^11.0.0",
+    "handlebars": "^4.7.8",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

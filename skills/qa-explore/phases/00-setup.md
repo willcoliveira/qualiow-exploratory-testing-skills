@@ -1,0 +1,55 @@
+# Phase 0: Session Setup
+
+## Step 1: Parse Input & Resolve Target
+
+Extract from user message:
+- **target_url**: The URL to test (required)
+- **domain**: Domain type (optional -- auto-detect if not specified)
+- **focus**: Specific area or feature (optional)
+- **time_box**: Session duration (default: 45 min, max: 45 min)
+- **context**: Path to requirements file OR inline context text (optional)
+
+Resolve target config from `data/targets/` if available. Read domain config from `data/domains/`.
+
+## Step 2: Load Context (if provided)
+
+**If `--context <file>` provided:** Read the file. It may be a `tool-qa-workflow` output (structured markdown with Jira data, Confluence specs, GitLab MR diffs, Figma design notes) or any document describing what to test.
+
+**If inline context provided:** Extract from the user's message any descriptions of: what the feature does, acceptance criteria, what changed, what the design should look like, known risks, user personas.
+
+**If no context provided:** That's fine -- run in blind exploration mode. The agent discovers everything on its own.
+
+**When context IS available, extract and use:**
+
+| Context Element | How It Changes the Session |
+|----------------|---------------------------|
+| **Acceptance criteria** | Add as explicit checkpoints -- verify each AC during testing |
+| **What changed** (MR diff, commits) | Focus testing on changed areas -- highest regression risk |
+| **Design specs** (Figma, mockups) | Compare live app against intended design -- spot deviations |
+| **User stories / requirements** | Test against INTENT, not just what's visible |
+| **Known risks** (from risk analysis) | Prioritize testing on flagged risk areas |
+| **API contracts** (OpenAPI, endpoints) | Verify UI matches API behavior |
+| **Previous test results** | Don't re-test what passed -- focus on gaps |
+
+**Context makes exploration sharper but NEVER blocks it.** A QA walking up to a random app with zero documentation should still get a full, valuable session. Context is a boost, not a gate.
+
+When context is loaded, note in the charter:
+```
+CONTEXT SOURCE: [filename or "inline" or "none -- blind exploration"]
+ACCEPTANCE CRITERIA: [list extracted ACs or "none provided -- discovering from app"]
+CHANGE SCOPE: [what changed or "unknown -- full exploration"]
+```
+
+## Step 3: Load Knowledge
+
+Read `data/knowledge/manifest.yml`. Load:
+1. Core heuristics (SFDIPOT, FEW HICCUPPS, Test Tours)
+2. Domain-specific entries
+3. `data/knowledge/learned-patterns.md` -- false-positive skip list + must-check patterns
+4. Business logic & race condition techniques (if app has transactions/state changes)
+
+Keep brief summaries only -- don't fill context with full entries.
+
+## Step 4: Create Session Directory
+
+Create `output/sessions/<YYYY-MM-DD-HHmm-target>/` with: `charter.md`, `session-log.md`, `screenshots/`, `bugs/`

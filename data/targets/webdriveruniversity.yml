@@ -1,0 +1,13 @@
+id: webdriveruniversity
+name: "WebDriver University"
+base_url: "https://webdriveruniversity.com/index.html"
+domain: _default
+auth:
+  strategy: none
+browser:
+  headless: false
+  viewport: { width: 1280, height: 720 }
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+notes: "Practice site with contact forms, login portal, dropdowns, Ajax loader, etc."

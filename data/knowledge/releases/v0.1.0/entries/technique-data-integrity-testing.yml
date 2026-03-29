@@ -1,0 +1,269 @@
+id: technique-data-integrity-testing
+version: "0.1.0"
+type: technique
+name: "Data Integrity & Cross-Feature Verification"
+description: >
+  After every state-changing action, verify that data is correct on ALL related
+  pages. This technique goes beyond testing a single feature in isolation — it
+  checks that data remains consistent, accurate, and complete as it flows
+  through the entire system. The most impactful bugs are often not in the
+  action itself but in how the result appears elsewhere.
+author: "Classic testing technique"
+source: "Adapted from data quality engineering and exploratory testing practice"
+tags: [data-integrity, verification, cross-feature, calculations, audit]
+domains: [all]
+priority: high
+added: "2026-03-28"
+
+content:
+  summary: >
+    Most testers verify that an action worked on the page where they performed
+    it. Data integrity testing goes further: after every create, update, or
+    delete, navigate to every other page that displays or uses that data and
+    verify it is correct there too. This catches stale caches, missing event
+    propagation, incorrect aggregations, timezone mismatches, and a host of
+    other cross-feature bugs that functional testing misses.
+
+  core_principle: >
+    "If data changes in one place, verify it everywhere."
+    Every state-changing action (create, update, delete, transfer, calculate)
+    produces data that appears in multiple locations: detail pages, list views,
+    dashboards, reports, notifications, audit logs, and API responses. A bug
+    in any one of these locations means the system's data integrity is
+    compromised.
+
+  categories:
+    - name: Calculation Verification
+      description: "Does the math add up? Verify all arithmetic, aggregations, and derived values."
+      checks:
+        - "Price x Quantity = Line Total (no floating point errors)"
+        - "Sum of line totals = Subtotal"
+        - "Subtotal + Tax + Shipping - Discount = Grand Total"
+        - "Debit entries = Credit entries (accounting balance)"
+        - "Percentage calculations (e.g., discount %, tax %) are correct"
+        - "Running totals and cumulative values are accurate"
+        - "Averages, medians, and statistical aggregations are correct"
+        - "Currency conversion uses the correct rate and rounds properly"
+      common_bugs:
+        - "Floating point: 0.1 + 0.2 = 0.30000000000000004 instead of 0.3"
+        - "Rounding: $10.005 rounds to $10.00 or $10.01 depending on implementation"
+        - "Integer overflow: quantity 999999 x price 9999.99 exceeds int32"
+        - "Division by zero: percentage of 0 items, average of empty list"
+        - "Tax calculated on discounted price vs. original price"
+        - "Running total not updated after item removal"
+      test_approach:
+        - "Manually calculate the expected result and compare with the displayed value."
+        - "Use at least 3 decimal places in test data to expose rounding issues."
+        - "Test with quantities and prices that produce repeating decimals (1/3, 1/7)."
+        - "Verify totals after adding, removing, and modifying items."
+
+    - name: Cross-Page Consistency
+      description: "Is data the same when viewed from different pages and contexts?"
+      checks:
+        - "Data on the detail page matches data in the list view"
+        - "Dashboard summary matches the sum of individual records"
+        - "Search results show the same data as the detail page"
+        - "API response matches what the UI displays"
+        - "Export (CSV, PDF) matches what is displayed on screen"
+        - "Notification content matches the actual data"
+        - "Mobile view shows the same data as desktop view"
+        - "Cached pages show updated data after changes"
+      common_bugs:
+        - "List view shows old name after record was renamed"
+        - "Dashboard count does not update after creating or deleting records"
+        - "Search index is stale — recently created records are not found"
+        - "CSV export uses a different date format than the UI"
+        - "Notification email shows the old value, not the updated one"
+        - "Mobile API returns a different data shape than web API"
+      test_approach:
+        - "After every create/update/delete, visit at least 3 other pages that display the data."
+        - "Compare the exact values — not just 'it shows something' but 'it shows the right thing.'"
+        - "Check totals and counts on dashboard pages after every data change."
+        - "Trigger an export after changes and verify data matches the UI."
+
+    - name: Persistence
+      description: "Does data survive actions that should not change it?"
+      checks:
+        - "Data persists after page reload (F5 / Cmd+R)"
+        - "Data persists after browser back and forward navigation"
+        - "Data persists after logout and login"
+        - "Data persists after closing and reopening the browser"
+        - "Data persists after clearing browser cache (if server-stored)"
+        - "Form data is preserved when switching between tabs in a multi-tab form"
+        - "Draft or unsaved data is recovered after accidental navigation"
+      common_bugs:
+        - "Data stored only in component state, lost on navigation"
+        - "LocalStorage data cleared by browser privacy settings"
+        - "Session data lost after token refresh"
+        - "Form values reset when switching between tabs within the form"
+        - "File upload reference lost on page reload before submit"
+      test_approach:
+        - "After every successful save, reload the page and verify data is still there."
+        - "Navigate away and come back using browser back button."
+        - "Logout, login, and verify all data is intact."
+        - "Close the browser tab, reopen the URL, and check."
+
+    - name: Audit Trail
+      description: "Do history and logs accurately reflect what happened?"
+      checks:
+        - "Every create, update, and delete action is logged"
+        - "Log entries include who, what, when, and the old/new values"
+        - "The audit trail timestamp matches the action time"
+        - "Bulk operations generate individual log entries for each affected record"
+        - "Failed operations are logged (not just successful ones)"
+        - "Audit logs cannot be modified or deleted by regular users"
+        - "The log accurately reflects which user performed the action (not a system user)"
+      common_bugs:
+        - "Missing audit log entries for certain action types (delete, bulk update)"
+        - "Audit log shows 'system' instead of the actual user"
+        - "Timestamp in audit log is in server timezone, not the user's timezone"
+        - "Bulk operations logged as a single entry instead of per-record"
+        - "Audit log entry created even when the action failed"
+        - "Old value not captured — log only shows new value"
+      test_approach:
+        - "Perform an action, then immediately check the audit log or activity history."
+        - "Verify the log contains who, what, when, old value, and new value."
+        - "Perform a bulk operation and check that each affected record has its own log entry."
+        - "Attempt an action that fails and verify the failure is or is not logged as expected."
+
+    - name: Uniqueness
+      description: "Are IDs, order numbers, and transaction identifiers unique across operations?"
+      checks:
+        - "Every created record has a unique ID"
+        - "Order numbers, invoice numbers, and transaction IDs are unique"
+        - "Rapid sequential creation does not produce duplicate IDs"
+        - "Concurrent creation from multiple sessions does not produce duplicate IDs"
+        - "IDs follow the expected format (UUID, sequential, prefixed)"
+        - "Deleted IDs are not reused (or are reused intentionally with documentation)"
+      common_bugs:
+        - "Duplicate order numbers generated under concurrent load"
+        - "Sequential IDs skip numbers after failed operations"
+        - "UUID generation uses a weak random seed producing collisions"
+        - "Counter reset after service restart producing duplicate IDs"
+        - "Race condition: two records created in the same millisecond share a timestamp-based ID"
+      test_approach:
+        - "Create multiple records in rapid succession and compare their IDs."
+        - "Create records from two different sessions simultaneously and verify unique IDs."
+        - "Record the IDs and search for duplicates after a batch of operations."
+        - "Check that the ID format is consistent across all created records."
+
+    - name: Temporal
+      description: "Are timestamps correct, in the right timezone, and in the right order?"
+      checks:
+        - "Created-at timestamp matches the time the action was performed"
+        - "Updated-at timestamp changes on every modification"
+        - "Timestamps are displayed in the user's timezone (not UTC or server timezone)"
+        - "Chronological order is correct — newer events appear before older ones (or vice versa, depending on sort)"
+        - "Duration calculations are correct (end time - start time)"
+        - "Scheduled actions execute at the correct time in the correct timezone"
+        - "DST transitions do not cause duplicate or missing time slots"
+      common_bugs:
+        - "Timestamps shown in UTC instead of user's local timezone"
+        - "Created-at and updated-at are identical even after multiple edits"
+        - "Events sorted by string comparison of timestamps instead of actual time"
+        - "Timezone offset applied twice (double-conversion)"
+        - "Scheduled event fires 1 hour early or late after DST change"
+        - "Relative time display ('2 hours ago') calculated from server time, not user time"
+      test_approach:
+        - "Note the current time before an action, perform it, then verify the timestamp."
+        - "Edit a record and verify updated-at changed while created-at did not."
+        - "Compare timestamps between the detail page, list view, audit log, and API response."
+        - "If the system supports multiple timezones, create data in one timezone and view in another."
+
+  playwright_cli_approach:
+    description: "How to verify data integrity using Playwright CLI commands."
+    workflows:
+      - name: "Action then cross-page verification"
+        steps:
+          - "Perform the state-changing action (fill form, click submit)."
+          - "Take a snapshot of the confirmation/success page — capture the key data values."
+          - "Navigate to a related page (list view, dashboard, detail page)."
+          - "Take a snapshot — verify the data matches what was just created/modified."
+          - "Navigate to another related page (reports, export, search)."
+          - "Take a snapshot — verify consistency again."
+        example: >
+          1. fill [order-form] with test data, click submit
+          2. snapshot — capture order number and total
+          3. navigate to /orders — verify order appears in list with correct total
+          4. navigate to /dashboard — verify order count and revenue updated
+          5. navigate to /orders/{id} — verify detail page shows all correct data
+
+      - name: "Repeat action then verify uniqueness"
+        steps:
+          - "Perform the same action twice in quick succession."
+          - "Capture the IDs or reference numbers from both operations."
+          - "Verify the IDs are different."
+          - "Navigate to the list view and verify both records exist as separate entries."
+        example: >
+          1. fill [create-form], click submit — note ID: ORD-001
+          2. fill [create-form] with same data, click submit — note ID: ORD-002
+          3. navigate to /orders — verify both ORD-001 and ORD-002 exist
+          4. verify each has unique timestamps
+
+      - name: "Reload page then verify persistence"
+        steps:
+          - "Perform a state-changing action."
+          - "Take a snapshot to capture the current state."
+          - "Reload the page."
+          - "Take another snapshot."
+          - "Compare the two snapshots — data should be identical."
+        example: >
+          1. edit a record, click save
+          2. snapshot — capture all field values
+          3. reload the page (navigate to current URL)
+          4. snapshot — verify all field values are unchanged
+
+  common_integrity_bugs:
+    - name: "Floating point errors in financial calculations"
+      description: "JavaScript and most languages represent decimals as IEEE 754 floats, which cannot precisely represent all decimal fractions."
+      example: "Cart shows $30.00 but actual charge is $30.000000000000004 — visible in API response."
+      detection: "Compare displayed total with manually calculated total using at least 3 decimal places."
+
+    - name: "Stale data after state changes (cached pages)"
+      description: "CDN caches, browser caches, or in-memory caches serve old data after a record was modified."
+      example: "User updates profile name but the header still shows the old name until hard refresh."
+      detection: "After every update, visit all pages that display the data without clearing cache."
+
+    - name: "Missing audit log entries"
+      description: "Some action types are not logged, or the logging mechanism fails silently."
+      example: "Bulk delete removes 50 records but only logs 1 audit entry."
+      detection: "Perform each type of CRUD operation and verify audit log has a corresponding entry."
+
+    - name: "Duplicate IDs on repeated operations"
+      description: "ID generation relies on timestamps or non-atomic counters, producing collisions under concurrent load."
+      example: "Two orders created simultaneously both get order number ORD-20260328-001."
+      detection: "Create multiple records rapidly (within 1 second) and compare IDs."
+
+    - name: "Timezone mismatches between server and display"
+      description: "Server stores UTC, but display code applies timezone offset incorrectly or inconsistently."
+      example: "Order placed at 11 PM EST shows as next day (March 29) because server stores UTC (4 AM March 29)."
+      detection: "Note the exact local time before an action, then verify the displayed timestamp matches."
+
+    - name: "Aggregation drift"
+      description: "Dashboard totals and counts drift from actual values because they are calculated independently or cached."
+      example: "Dashboard shows 99 orders but the order list has 100 entries."
+      detection: "Count records manually on the list page and compare with the dashboard counter."
+
+    - name: "Orphaned references"
+      description: "Deleting a parent record leaves child records pointing to a non-existent parent."
+      example: "Delete a category but products still reference it, showing 'undefined' as category name."
+      detection: "Delete a record that has dependent data, then check how dependents display."
+
+  when_to_use:
+    - "After EVERY state-changing action during exploratory testing — make it a habit, not an afterthought."
+    - "When testing features that aggregate or summarize data (dashboards, reports, totals)."
+    - "When testing e-commerce (prices, quantities, totals, taxes, discounts — calculation verification is critical)."
+    - "When testing multi-page workflows (data entered in step 1 must appear correctly in steps 2-5)."
+    - "When the FedEx Tour (Whittaker) reveals data flowing through multiple touchpoints."
+    - "After import/export operations — verify data round-trips correctly."
+    - "When testing systems with audit or compliance requirements."
+
+  gotchas:
+    - "Do not assume data is correct just because the success message appeared — always verify on a different page."
+    - "Cache invalidation is one of the two hard problems in CS — always test data freshness after updates."
+    - "Floating point arithmetic is NOT a rounding error you can ignore — in financial systems it is a legal liability."
+    - "Cross-page verification is the highest-ROI technique most testers skip — it catches bugs that no single-page test will find."
+    - "Audit trail testing is often skipped because it feels boring — but auditors and compliance officers will find the gaps you missed."
+    - "Timezone bugs are almost guaranteed in any system that serves users across timezones — test explicitly."
+    - "AI agents tend to verify only the page where the action was performed — explicitly navigate to 2-3 other pages after every action."
+    - "Uniqueness testing requires creating records in rapid succession — slow, one-at-a-time creation will not trigger race conditions."

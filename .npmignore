@@ -1,0 +1,44 @@
+# Source & build config (dist/ is published, src/ is not)
+src/
+tests/
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+.nvmrc
+
+# Session output (user's data, not ours)
+output/sessions/2026-*
+output/bugs/all-bugs.md
+.auth/
+.env
+.env.example
+
+# Internal development files
+.claude/
+.playwright-cli/
+.git/
+
+# POC target configs (keep only _default and testers-ai)
+data/targets/compendiumdev.yml
+data/targets/demoqa.yml
+data/targets/gh-users-search.yml
+data/targets/parabank.yml
+data/targets/saucedemo.yml
+data/targets/thinking-tester.yml
+data/targets/ultimateqa.yml
+data/targets/webdriveruniversity.yml
+
+# Legacy domain markdown (YAML is the source of truth now)
+data/domains/*.md
+
+# Internal docs (not user-facing)
+docs/ARCHITECTURE-DECISIONS.md
+docs/PRODUCTION-READINESS-REVIEW.md
+docs/PROJECT-STATUS.md
+docs/KNOWN-ISSUES.md
+
+# Security policy is internal reference
+data/security/
+
+# Coverage
+coverage/

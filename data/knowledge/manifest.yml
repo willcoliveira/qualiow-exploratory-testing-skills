@@ -1,0 +1,141 @@
+# Qualiow Exploratory Testing Skills — Knowledge Base Manifest
+# This file is the master index. Skills read it to discover available entries.
+
+version: "0.1.0"
+last_updated: "2026-03-28"
+
+active_releases:
+  - "v0.1.0"
+
+stats:
+  total_entries: 13
+  heuristics: 5
+  techniques: 5
+  checklists: 1
+  references: 2
+  domain_profiles: 0
+  custom_entries: 0
+
+# Loading strategy controls which entries are loaded into context.
+# "always"    — loaded at the start of every session
+# "by_domain" — loaded only when the target's domain matches
+# "by_tag"    — loaded only when a matching tag is requested or relevant
+loading_strategy:
+  always:
+    - heuristic-sfdipot
+    - heuristic-few-hiccupps
+    - heuristic-test-tours
+    - heuristic-goldilocks
+    - technique-boundary-testing
+  by_domain:
+    ecommerce: []
+    saas: []
+    fintech: []
+  by_tag:
+    security:
+      - technique-error-guessing
+      - technique-business-logic-race-conditions
+    accessibility:
+      - checklist-accessibility-wcag
+    regression:
+      - heuristic-rcrcrc
+    risk:
+      - technique-risk-based-testing
+    data-integrity:
+      - technique-data-integrity-testing
+    exploration:
+      - reference-exploratory-testing-types
+      - reference-heuristic-praxis
+
+# Entry registry — quick lookup without scanning the filesystem
+entries:
+  - id: heuristic-sfdipot
+    file: releases/v0.1.0/entries/heuristic-sfdipot.yml
+    type: heuristic
+    priority: high
+    tags: [exploration, what-to-test, systematic, rst]
+    domains: [all]
+
+  - id: heuristic-few-hiccupps
+    file: releases/v0.1.0/entries/heuristic-few-hiccupps.yml
+    type: heuristic
+    priority: high
+    tags: [oracles, bug-recognition, consistency, rst]
+    domains: [all]
+
+  - id: heuristic-test-tours
+    file: releases/v0.1.0/entries/heuristic-test-tours.yml
+    type: heuristic
+    priority: high
+    tags: [exploration, how-to-explore, tours, eet]
+    domains: [all]
+
+  - id: heuristic-goldilocks
+    file: releases/v0.1.0/entries/heuristic-goldilocks.yml
+    type: heuristic
+    priority: high
+    tags: [input-testing, boundaries, exploration, goldilocks]
+    domains: [all]
+
+  - id: heuristic-rcrcrc
+    file: releases/v0.1.0/entries/heuristic-rcrcrc.yml
+    type: heuristic
+    priority: high
+    tags: [regression, prioritization, change-management]
+    domains: [all]
+
+  - id: technique-boundary-testing
+    file: releases/v0.1.0/entries/technique-boundary-testing.yml
+    type: technique
+    priority: high
+    tags: [boundaries, edge-cases, input-testing]
+    domains: [all]
+
+  - id: technique-error-guessing
+    file: releases/v0.1.0/entries/technique-error-guessing.yml
+    type: technique
+    priority: medium
+    tags: [security, negative-testing, injection, error-handling]
+    domains: [all]
+
+  - id: technique-business-logic-race-conditions
+    file: releases/v0.1.0/entries/technique-business-logic-race-conditions.yml
+    type: technique
+    priority: high
+    tags: [security, business-logic, race-condition, state-transition, advanced]
+    domains: [all]
+
+  - id: technique-risk-based-testing
+    file: releases/v0.1.0/entries/technique-risk-based-testing.yml
+    type: technique
+    priority: high
+    tags: [risk, prioritization, strategy, planning]
+    domains: [all]
+
+  - id: technique-data-integrity-testing
+    file: releases/v0.1.0/entries/technique-data-integrity-testing.yml
+    type: technique
+    priority: high
+    tags: [data-integrity, verification, cross-feature, calculations, audit]
+    domains: [all]
+
+  - id: checklist-accessibility-wcag
+    file: releases/v0.1.0/entries/checklist-accessibility-wcag.yml
+    type: checklist
+    priority: medium
+    tags: [accessibility, wcag, a11y, compliance]
+    domains: [all]
+
+  - id: reference-exploratory-testing-types
+    file: releases/v0.1.0/entries/reference-exploratory-testing-types.yml
+    type: reference
+    priority: medium
+    tags: [exploratory, methodology, approach, agile, types]
+    domains: [all]
+
+  - id: reference-heuristic-praxis
+    file: releases/v0.1.0/entries/reference-heuristic-praxis.yml
+    type: reference
+    priority: high
+    tags: [heuristics, praxis, theory, meta-testing, reflection]
+    domains: [all]

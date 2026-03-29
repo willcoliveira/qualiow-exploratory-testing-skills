@@ -1,0 +1,75 @@
+# Qualiow Exploratory Testing Skills — Knowledge Base Changelog
+# Tracks what changed in each release so /qa-knowledge-list can show history.
+
+releases:
+  - version: "0.1.0"
+    date: "2026-03-28"
+    summary: "Initial knowledge base — core heuristics, techniques, checklists, and references for exploratory testing."
+    entries_added:
+      - id: heuristic-sfdipot
+        type: heuristic
+        name: "SFDIPOT - Product Elements"
+        description: "James Bach's mnemonic for systematically identifying what to test in any product."
+
+      - id: heuristic-few-hiccupps
+        type: heuristic
+        name: "FEW HICCUPPS - Consistency Oracles"
+        description: "Bach & Bolton's oracle heuristic for recognizing problems through consistency violations."
+
+      - id: heuristic-test-tours
+        type: heuristic
+        name: "Whittaker's Test Tours"
+        description: "12 exploration strategies modeled as city tours for structured yet creative testing."
+
+      - id: heuristic-goldilocks
+        type: heuristic
+        name: "Goldilocks Heuristic"
+        description: "Elisabeth Hendrickson's 'too big, too small, just right' heuristic for testing with extremes and typical values across all input types."
+
+      - id: heuristic-rcrcrc
+        type: heuristic
+        name: "RCRCRC(R) — Regression Testing Focus Areas"
+        description: "Karen N. Johnson's mnemonic for regression test prioritization: Recent, Core, Risky, Configuration, Repaired, Chronic, plus Revenue."
+
+      - id: technique-boundary-testing
+        type: technique
+        name: "Boundary Value Analysis"
+        description: "Systematic boundary testing across types — numbers, strings, dates, collections, and more."
+
+      - id: technique-error-guessing
+        type: technique
+        name: "Error Guessing"
+        description: "Experience-based negative testing — null inputs, injection, Unicode, concurrency, and network failures."
+
+      - id: technique-business-logic-race-conditions
+        type: technique
+        name: "Business Logic Flaws & Race Condition Testing"
+        description: "Advanced technique for hidden endpoints, state transition attacks, parameter tampering, and race conditions."
+
+      - id: technique-risk-based-testing
+        type: technique
+        name: "Risk-Based Testing"
+        description: "Strategic testing prioritization using Risk = Probability x Impact, risk matrices, RPN scoring, and Nightmare Headlines."
+
+      - id: technique-data-integrity-testing
+        type: technique
+        name: "Data Integrity & Cross-Feature Verification"
+        description: "Verify data correctness across all related pages after every state-changing action — calculations, persistence, audit trails, uniqueness, and temporal consistency."
+
+      - id: checklist-accessibility-wcag
+        type: checklist
+        name: "WCAG 2.1 Level AA Checklist"
+        description: "Accessibility checklist organized by POUR principles with Playwright CLI verification commands."
+
+      - id: reference-exploratory-testing-types
+        type: reference
+        name: "Exploratory Testing Types & Approach"
+        description: "Three types of exploratory testing and the learn-test-adapt loop for AI agents."
+
+      - id: reference-heuristic-praxis
+        type: reference
+        name: "Heuristic Praxis — Theory Meets Practice"
+        description: "Understanding when and how to apply heuristics thoughtfully, bridging the praxis gap for AI agents."
+
+    entries_modified: []
+    entries_removed: []
