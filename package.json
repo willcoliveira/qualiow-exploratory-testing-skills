@@ -1,5 +1,5 @@
 {
-  "name": "@qualiow/exploratory-testing",
+  "name": "qualiow-exploratory-testing",
   "version": "1.0.0",
   "description": "qualiow — AI-powered exploratory testing skills using Claude Code + Playwright CLI",
   "type": "module",
