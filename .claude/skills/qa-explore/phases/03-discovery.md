@@ -37,6 +37,20 @@ On every page during discovery:
 - `playwright-cli network` -- note any failed requests (4xx, 5xx)
 - Watch for mixed content warnings (HTTP resources on HTTPS pages)
 
+### API-level observation helpers (optional, Playwright 1.56+)
+
+If the session has access to the `@playwright/test` peer dep AND is running inside a Playwright test context (rare for qa-explore, common for bug-reproduction follow-ups), the following 1.56 retrieval methods can be used alongside the CLI commands above:
+
+- `await page.consoleMessages()` — returns all console messages captured so far on the page. Useful when you need the full history rather than the most-recent tail.
+- `await page.pageErrors()` — returns runtime page errors (uncaught exceptions). More reliable than filtering `console error` output.
+- `await page.requests()` — returns all network requests issued by the page, with status, resource type, and timing. Use this for a single network snapshot instead of parsing `playwright-cli network` output twice.
+
+These are OPTIONAL and only apply when exploratory testing is done from a Playwright test harness. The bash `playwright-cli` commands above remain the primary path for the skill.
+
+### Service Workers (Playwright 1.56+)
+
+Playwright 1.56 added Service Worker network routing. If `playwright-cli network` shows requests you cannot account for on the main document, assume a Service Worker is intercepting them and flag this as a high-risk area worth re-testing with the route filter.
+
 ## After Discovery
 
 1. Write findings to `phase-1-discovery.md`

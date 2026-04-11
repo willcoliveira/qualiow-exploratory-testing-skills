@@ -7,7 +7,7 @@ description: >
   and writes bug reports that executives act on.
   Use when user says: "explore", "test this site", "find bugs", "QA check", "exploratory session",
   or provides a URL to test.
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Read, Write, Glob, Grep
 ---
 
 # Exploratory Testing Session (v2)
@@ -68,3 +68,4 @@ Consult these as needed throughout the session:
 - **`references/severity-guide.md`** — Severity definitions (Critical/High/Medium/Low) and the "when in doubt go LOWER" rule
 - **`references/session-rules.md`** — 20 testing discipline rules: 45-min cap, one bug one report, evidence, risk-proportional time, adapt mid-session, log WHY, AI bias avoidance
 - **`references/context-integration.md`** — How `--context` changes the session (context file, inline context, blind mode)
+- **`references/playwright-agents-integration.md`** — Opt-in handoff to Playwright Test Agents (planner / generator / healer, 1.56+) when a reproducible bug should become a regression test. Requires the `@playwright/test` peer dependency.

@@ -87,6 +87,20 @@ Append to `session-log.md`:
 [<timestamp>] [PHASE] Setup complete — session initialized
 ```
 
+## Step 6: Optional — Bootstrap Playwright Test Agents (opt-in)
+
+**Skip this step entirely if `@playwright/test` is not installed as a peer dep OR `playwright.config.*` is not present.** This is an additive capability for consumers who want to pair an exploratory session with the Playwright Test Agents framework (planner / generator / healer, Playwright 1.56+).
+
+If both prerequisites are present AND the user has opted in (via target config or inline context), you MAY offer to scaffold the agent workspace:
+
+```bash
+npx playwright init-agents --loop=claude
+```
+
+This generates agent definition files that later phases can hand off to — most usefully in phase 5 (features), where a reproducible bug can be converted into a regression test by the generator agent. See `references/playwright-agents-integration.md` for the full workflow.
+
+**Never block the session on this step.** If the user declines, if the prerequisites are missing, or if the command fails, log a note in `session-log.md` and continue to Phase 1 normally.
+
 **IMPORTANT: After EVERY phase completion, update progress.json and append to session-log.md.** This is how the user monitors session progress. Use this pattern at the end of each phase:
 
 ```

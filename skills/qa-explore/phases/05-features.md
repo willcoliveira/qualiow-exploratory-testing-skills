@@ -47,6 +47,26 @@ After testing each feature, explicitly ask:
 
 If you notice an inconsistency (e.g., "Bill Pay validates but Transfer doesn't"), **follow that thread** -- don't move on. The inconsistency is a signal.
 
+### Locator Stabilization Helpers (Playwright 1.59+, optional)
+
+When testing a feature produces flaky snapshots because a locator isn't uniquely addressable, the following 1.59 helpers can harden the repro before you file a bug. They require the `@playwright/test` peer dep.
+
+- `page.pickLocator()` — interactive locator picker. Use this when your current locator matches multiple elements and you need to find the one the user actually sees.
+- `locator.normalize()` — returns a cleaned-up, canonical form of a locator. Use before copying a locator into a bug report so the reproduction is portable across runs.
+
+These are diagnostic aids, not required steps. The bash `playwright-cli` flow above is the primary path.
+
+### Test Agents Handoff (optional, Playwright 1.56+)
+
+When feature testing produces a **reproducible** bug (you can trigger it twice in a row, same steps, same result), you may hand off to the Playwright Test Agents **generator** to convert the reproduction into a regression test case:
+
+1. Finish writing the bug report with exact steps (see phase 07).
+2. If the session's Step 6 bootstrapped Test Agents, pass the repro steps to the generator agent.
+3. The generator produces a `tests/repro-<bug-id>.spec.ts` you can commit alongside the bug report.
+4. The **healer** agent can later be used by the team if the test becomes flaky.
+
+Full workflow in `../references/playwright-agents-integration.md`. This handoff is **opt-in** — it does not replace the bug report and is skipped entirely when `@playwright/test` is not installed.
+
 ## After Feature Testing
 
 Write to `phase-3-feature-testing.md`. Include reasoning for each test.
