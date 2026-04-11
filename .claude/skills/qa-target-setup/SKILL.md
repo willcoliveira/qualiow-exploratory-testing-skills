@@ -104,3 +104,15 @@ Present the saved config to user:
 - Auth strategy configured
 - Scope defined
 - How to use: `/qa-explore --target <target-name>`
+
+### 9. Optional — Offer Playwright Test Agents Bootstrap
+
+If the user plans to author full Playwright tests against this target later (not just exploratory sessions), offer to scaffold the Test Agents workspace now while you already have credentials and scope loaded:
+
+```bash
+npx playwright init-agents --loop=claude
+```
+
+This creates the planner / generator / healer agent definitions in the target project (Playwright 1.56+). It is **strictly optional** — declining does not affect the target config just written. If the user accepts, note in the target config's `notes` field that Test Agents are scaffolded; if they decline, continue normally.
+
+This step requires `@playwright/test` to be installed in the target project. If it is not, skip this step silently.

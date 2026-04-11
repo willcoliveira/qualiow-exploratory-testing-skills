@@ -54,6 +54,8 @@ playwright-cli snapshot
 playwright-cli resize 1280 720  # restore
 ```
 
+> **Note on `page.accessibility` (Playwright 1.57 deprecation):** Upstream Playwright deprecated the `page.accessibility` snapshot API in 1.57. The replacement, available as of Playwright 1.59, is `page.ariaSnapshot()` — an aria-tree-based accessibility snapshot that is both more accurate and directly usable as a locator base. If a session upgrades to deeper a11y checks than the quick-pass above, prefer `page.ariaSnapshot()` over `page.accessibility`. The CLI checks above are unaffected and remain the primary path. See `../references/playwright-agents-integration.md` for a feature cross-reference.
+
 ## Empty States
 
 - What does the cart look like with no items?

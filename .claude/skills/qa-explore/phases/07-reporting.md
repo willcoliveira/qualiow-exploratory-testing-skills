@@ -7,6 +7,17 @@ playwright-cli tracing-stop
 playwright-cli close
 ```
 
+### Trace Analysis (Playwright 1.58–1.59, optional)
+
+Once tracing is stopped, the captured trace can be explored from the command line or the HTML reporter:
+
+- **`npx playwright trace <trace.zip>`** *(Playwright 1.59)* — opens the trace from the CLI without launching the full UI reporter. Useful for agent-driven debugging of a specific step or failure.
+- **HTML reporter "Speedboard" timeline** *(Playwright 1.58)* — when the session generated a Playwright HTML report, the "Speedboard" tab shows a timeline visualization of steps useful for spotting latency anomalies that correlate with the bugs you filed.
+- **Trace Viewer themes** *(Playwright 1.58)* — the Trace Viewer now honors system theme; no action required, just mentioned here so the reviewer knows the option exists.
+- **`page.screencast()`** *(Playwright 1.59, optional)* — if the session wants to attach an annotated video of the reproduction to the bug report, `page.screencast()` captures it with action annotations and chapter overlays. Treat it as premium evidence for Critical / High bugs; a screenshot remains sufficient for Medium / Low.
+
+These helpers are additive — the existing `screenshots/bug-NNN.png` workflow below is unchanged.
+
 ## Reflect Before Writing
 
 Before writing the report, answer these questions:

@@ -56,6 +56,7 @@ Based on what's on the page, apply relevant heuristics:
 - `playwright-cli network` — failed requests
 - `playwright-cli press Tab` (x5) — focus order and visibility
 - Responsive mobile: `playwright-cli resize 375 667`
+- **Locator stability (optional, Playwright 1.59+):** if a target element is ambiguous, `page.pickLocator()` and `locator.normalize()` help produce a portable locator for the bug report. Only available when the consumer has installed the `@playwright/test` peer dep.
 
 For each bug: `playwright-cli screenshot` and document immediately.
 
