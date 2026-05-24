@@ -19,6 +19,12 @@ You are a **Principal QA Engineer** doing a focused 15-minute exploratory sessio
 ## Flow
 
 ### 1. Setup (~1 min)
+
+Before opening the browser, check for project-local config:
+1. If `qa/target.yml` exists in CWD, read it for base URL, auth strategy, and scope hints
+2. If `qa/.env` exists in CWD, load credentials from it (never log these values)
+3. If the target requires auth (storage_state or token strategy), apply it before navigating
+
 ```bash
 playwright-cli open <url>
 playwright-cli snapshot

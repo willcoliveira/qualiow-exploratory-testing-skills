@@ -11,6 +11,10 @@ playwright-cli goto <base_url>
 
 ## Credentials (adaptive -- uses snapshot to find form fields)
 
+Before filling credentials, resolve their values:
+1. If `qa/.env` exists in CWD, read it — use the values for the env var names specified in `auth.credentials.username` / `auth.credentials.password` in the target config
+2. Otherwise read from the skill root `.env`
+
 ```bash
 playwright-cli open <login_url>
 playwright-cli snapshot
