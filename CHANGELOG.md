@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.0] - 2026-07-09
+
+All changes in this release are **additive and backward-compatible** with v1.1.0. No skill names, frontmatter fields, CLI commands, bin entries, or library exports were renamed or removed.
+
+### Added — Mobile exploratory testing (`/qa-explore-mobile`)
+- New skill `skills/qa-explore-mobile/` (SKILL.md + 8 phase files + `references/mobile-edges.md`): full exploratory sessions on iOS Simulators / Android Emulators, in two modes selected by the target config — **NATIVE** (an installed app is the system under test) and **WEB** (a mobile web app in the REAL device browser: iOS Simulator Safari / Android Emulator Chrome — engines Playwright cannot drive).
+- New mobile driver `bin/mobile-cli.mjs` — a Maestro / `xcrun simctl` / `adb` shim mirroring the `playwright-cli` command surface (`set-device`, `set-app`, `launch`, `open-url`, `snapshot` with a11y refs, `click`, `fill`, `clear`, `press`, `screenshot`, `logs`, `record-start/stop`, `wait-text`, `tap-id`/`fill-id`). Node built-ins only, no install step. Wrappers: `bin/mcli` (resolves JAVA_HOME/ANDROID_HOME/PATH), `bin/wadb` (wrapped adb), `bin/wk-ios` + `bin/wkeval.mjs` (WebKit Remote Inspector JS eval in sim Safari via ios-webkit-debug-proxy).
+- New scripts: `scripts/setup-mobile.sh` (idempotent toolchain bootstrap — Homebrew, Node, Maestro, JDK 17, Android cmdline-tools/platform-tools/emulator, Google-Play system image, standard AVD `qa_pixel_api35`, iOS sim `qa-iphone`; checks Xcode Command Line Tools and prints guided-manual steps for Xcode + the iOS runtime) and `scripts/doctor-mobile.sh` (read-only readiness preflight with per-item fix commands).
+- New target templates: `data/targets/_example-native-mobile.yml` (native app), `_example-sim-ios-safari.yml` / `_example-sim-android-chrome.yml` (mobile web on real sim browsers), `_example-mobile-emulation.yml` (mobile web via Playwright device emulation — the `/qa-explore` path, no simulator needed).
+- New doc `docs/MOBILE-SETUP.md` — fresh-Mac setup guide (device names, the two genuinely manual iOS steps, Play-image rationale, auth reality, troubleshooting).
+- Schema/library: `MobileTargetConfigSchema` (+ device/app/web/source_repo/mobile-scope sub-schemas) and matching TS types; `TargetConfigSchema` now accepts web AND mobile targets, discriminated on the `platform` key with per-field error paths preserved. Auth strategies extended with mobile-only `in-app` and `interactive-sso` (+ `identity_provider`, `static_otp`, `test_email_pattern`). `BrowserConfigSchema` documents optional `engine`/`channel`/`device` for mobile-web emulation targets.
+- `package.json` `files` now ships `bin/`, the two mobile scripts, the mobile target templates, and `docs/MOBILE-SETUP.md`.
+
+### Fixed
+- `data/targets/_default.yml` (ad-hoc target) no longer fails validation: `base_url` may be `''` when the URL is provided at session start.
+
 ## [1.1.0] - 2026-04-11
 
 All changes in this release are **additive and backward-compatible** with v1.0.0. No skill names, frontmatter fields, CLI commands, bin entries, library exports, or `files` whitelist entries were renamed or removed. Consumers can upgrade from 1.0.0 → 1.1.0 without changing their workflows.

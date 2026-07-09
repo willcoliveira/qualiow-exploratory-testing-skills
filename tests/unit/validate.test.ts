@@ -149,3 +149,103 @@ describe('validateTargetConfig', () => {
     expect(result.errors!.length).toBeGreaterThan(0);
   });
 });
+
+describe('validateTargetConfig (mobile targets)', () => {
+  it('should pass for a valid mobile WEB-mode target (browser + web.base_url)', () => {
+    const config = {
+      id: 'sim-ios-safari',
+      name: 'Mobile Web on iOS Simulator Safari',
+      platform: 'ios',
+      domain: '_default',
+      device: { name: 'qa-iphone' },
+      app: { bundle_id: 'com.apple.mobilesafari' },
+      web: {
+        base_url: 'https://staging.m.example.com',
+        start_url: 'https://staging.m.example.com/login',
+      },
+      auth: { strategy: 'interactive-sso', identity_provider: 'Entra' },
+      scope: { start_screen: 'login' },
+    };
+
+    const filePath = writeTmpYaml('mobile-web-target.yml', config);
+    const result = validateTargetConfig(filePath);
+
+    expect(result.valid).toBe(true);
+  });
+
+  it('should pass for a valid mobile NATIVE-mode target (installable app)', () => {
+    const config = {
+      id: 'native-app',
+      name: 'Native App on Android Emulator',
+      platform: 'android',
+      domain: '_default',
+      device: { avd: 'qa_pixel_api35', serial: 'emulator-5554' },
+      app: {
+        package: 'com.example.myapp',
+        apk_paths: ['/path/to/app.apk'],
+      },
+      auth: { strategy: 'in-app', static_otp: '000000' },
+      source_repo: {
+        path: '/path/to/source',
+        build_commands: { android_release: 'make android' },
+      },
+    };
+
+    const filePath = writeTmpYaml('mobile-native-target.yml', config);
+    const result = validateTargetConfig(filePath);
+
+    expect(result.valid).toBe(true);
+  });
+
+  it('should fail a mobile target with an invalid platform', () => {
+    const config = {
+      id: 'bad-platform',
+      name: 'Bad Platform',
+      platform: 'windows-phone',
+      domain: '_default',
+      device: { name: 'x' },
+      app: { bundle_id: 'com.example' },
+      auth: { strategy: 'none' },
+    };
+
+    const filePath = writeTmpYaml('mobile-bad-platform.yml', config);
+    const result = validateTargetConfig(filePath);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors!.some((e) => e.path === 'platform')).toBe(true);
+  });
+
+  it('should fail a mobile target missing device and app', () => {
+    const config = {
+      id: 'missing-bits',
+      name: 'Missing Device And App',
+      platform: 'ios',
+      domain: '_default',
+      auth: { strategy: 'none' },
+    };
+
+    const filePath = writeTmpYaml('mobile-missing-bits.yml', config);
+    const result = validateTargetConfig(filePath);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors!.some((e) => e.path === 'device')).toBe(true);
+    expect(result.errors!.some((e) => e.path === 'app')).toBe(true);
+  });
+
+  it('should still fail web targets on web-only requirements (no platform key)', () => {
+    const config = {
+      id: 'web-target',
+      name: 'Web Without Browser',
+      base_url: 'https://example.com',
+      domain: 'ecommerce',
+      auth: { strategy: 'none' },
+      scope: { max_depth: 3 },
+    };
+
+    const filePath = writeTmpYaml('web-no-browser.yml', config);
+    const result = validateTargetConfig(filePath);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors!.some((e) => e.path === 'browser')).toBe(true);
+  });
+});

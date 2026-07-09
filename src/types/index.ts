@@ -6,7 +6,13 @@
 // ─── Target Configuration ────────────────────────────────────────────
 
 export interface AuthConfig {
-  strategy: 'none' | 'storage_state' | 'credentials' | 'token';
+  strategy:
+    | 'none'
+    | 'storage_state'
+    | 'credentials'
+    | 'token'
+    | 'in-app'
+    | 'interactive-sso';
   state_file?: string;
   login_url?: string;
   credentials?: {
@@ -14,6 +20,9 @@ export interface AuthConfig {
     password: string;
   };
   token?: string;
+  identity_provider?: string;
+  static_otp?: string;
+  test_email_pattern?: string;
 }
 
 export interface BrowserConfig {
@@ -22,6 +31,9 @@ export interface BrowserConfig {
     width: number;
     height: number;
   };
+  engine?: 'chromium' | 'webkit' | 'firefox';
+  channel?: string;
+  device?: string;
 }
 
 export interface ScopeConfig {
@@ -49,6 +61,56 @@ export interface TargetConfig {
   safety?: SafetyConfig;
   notes?: string;
 }
+
+// ─── Mobile Target Configuration (/qa-explore-mobile) ───────────────
+
+export interface MobileDeviceConfig {
+  name?: string;
+  udid?: string;
+  avd?: string;
+  serial?: string;
+}
+
+export interface MobileAppConfig {
+  bundle_id?: string;
+  package?: string;
+  app_paths?: string[];
+  apk_paths?: string[];
+}
+
+export interface MobileWebConfig {
+  base_url: string;
+  start_url?: string;
+}
+
+export interface SourceRepoConfig {
+  path: string;
+  build_commands?: Record<string, string>;
+}
+
+export interface MobileScopeConfig {
+  start_screen?: string;
+  start_url?: string;
+  include_patterns?: string[];
+  exclude_patterns?: string[];
+}
+
+export interface MobileTargetConfig {
+  id: string;
+  name: string;
+  platform: 'ios' | 'android';
+  domain: string;
+  device: MobileDeviceConfig;
+  app: MobileAppConfig;
+  web?: MobileWebConfig;
+  auth: AuthConfig;
+  scope?: MobileScopeConfig;
+  safety?: SafetyConfig;
+  source_repo?: SourceRepoConfig;
+  notes?: string;
+}
+
+export type AnyTargetConfig = TargetConfig | MobileTargetConfig;
 
 // ─── Knowledge Base ──────────────────────────────────────────────────
 

@@ -74,6 +74,90 @@ npm test
 /qa-explore-quick https://app.example.com/checkout
 ```
 
+### Mobile session (simulator/emulator)
+
+Runs a full exploratory session on an iOS Simulator or Android Emulator — either a
+**native app** (the installed app is the system under test) or a **mobile web app in the
+real device browser** (iOS Simulator Safari / Android Emulator Chrome — the genuine
+engines, which Playwright cannot drive). The mode comes from the target config.
+
+#### 1. One-time machine setup
+
+```bash
+# installs everything scriptable: Maestro, JDK 17, Android SDK + Google-Play AVD
+# (qa_pixel_api35), ios-webkit-debug-proxy, and the qa-iphone simulator device
+scripts/setup-mobile.sh              # add --android or --ios to scope; --yes for non-interactive
+```
+
+Two iOS steps are genuinely manual (the script prints them if needed):
+
+```bash
+# a) install Xcode from the App Store, then:
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+sudo xcodebuild -license accept
+# b) if no iOS runtime is installed:
+xcodebuild -downloadPlatform iOS
+# then re-run scripts/setup-mobile.sh --ios (creates the qa-iphone simulator)
+```
+
+#### 2. Verify readiness (read-only, run before every first session on a machine)
+
+```bash
+scripts/doctor-mobile.sh             # or --ios / --android; fix each ✗ until READY
+```
+
+#### 3. Create a target and run
+
+Copy a template from `data/targets/`, rename it, and point it at your app:
+
+| Template | What it tests | Driver |
+|----------|---------------|--------|
+| `_example-native-mobile.yml` | An installed iOS/Android app (native mode) | mobile-cli (Maestro) |
+| `_example-sim-ios-safari.yml` | A mobile web app in REAL iOS Simulator Safari | mobile-cli (Maestro) |
+| `_example-sim-android-chrome.yml` | A mobile web app in REAL Android Emulator Chrome | mobile-cli (Maestro) |
+| `_example-mobile-emulation.yml` | A mobile web app via Playwright device emulation (no simulator) | `/qa-explore` (playwright-cli) |
+
+```bash
+/qa-explore-mobile --target my-mobile-target     # real sim/emulator (native or web)
+/qa-explore --target my-emulation-target         # Playwright mobile emulation
+```
+
+#### 4. Driving the device manually (what the skill does under the hood)
+
+```bash
+# Android: boot the standard AVD              # iOS: boot the standard simulator
+~/Library/Android/sdk/emulator/emulator \
+  -avd qa_pixel_api35 -no-snapshot &          xcrun simctl boot qa-iphone && open -a Simulator
+
+export MOBILE_CLI_STATE=/tmp/my-target-state.json   # isolate this session's device/app state
+bin/mcli set-device emulator-5554            # or the iOS sim UDID (xcrun simctl list devices)
+bin/mcli set-app com.android.chrome          # or com.apple.mobilesafari, or your app's id
+bin/mcli launch
+bin/mcli open-url https://staging.m.example.com     # web mode only
+bin/mcli snapshot                            # page/app as tappable refs e1, e2, ...
+bin/mcli fill e4 my-username
+bin/mcli snapshot                            # ALWAYS re-snapshot after the keyboard appears
+bin/mcli click e7
+bin/mcli screenshot /tmp/evidence.png
+bin/mcli logs --errors --since 60
+bin/mcli --help                              # full command surface
+```
+
+iOS Safari web targets additionally get real JS/DOM access via the WebKit bridge:
+
+```bash
+bin/wk-ios 'document.title'                                   # eval JS in the sim's Safari
+bin/wk-ios 'document.querySelectorAll(".cart_item").length'   # exact-DOM assertions
+bin/wk-ios --stop                                             # stop the proxy after the session
+```
+
+Notes that save time:
+- **Never `relaunch-clean` a web target** — it wipes the logged-in browser profile.
+- SSO/MFA logins are done **once, by hand, on the device**; the browser profile persists
+  the session. There is no transferable `storage_state` on a real device browser.
+- Use `bin/wadb` for raw adb commands (logcat, `pm`, `am`) — it sets `ANDROID_HOME` for you.
+- Full setup guide + troubleshooting: `docs/MOBILE-SETUP.md`.
+
 ### Generate or regenerate a report
 
 ```bash
@@ -134,6 +218,7 @@ const csv = await generateJiraExport('output/sessions/2026-03-28-parabank');
 | Skill | Purpose |
 |-------|---------|
 | `/qa-explore` | Full exploratory testing session (45 min) |
+| `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps or mobile web in the real device browser (iOS Safari / Android Chrome) |
 | `/qa-explore-quick` | Quick focused session on a single page or feature (15 min) |
 | `/qa-explore-report` | Generate or regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |

@@ -3,6 +3,13 @@ export {
   BrowserConfigSchema,
   ScopeConfigSchema,
   SafetyConfigSchema,
+  WebTargetConfigSchema,
+  MobileDeviceConfigSchema,
+  MobileAppConfigSchema,
+  MobileWebConfigSchema,
+  SourceRepoConfigSchema,
+  MobileScopeConfigSchema,
+  MobileTargetConfigSchema,
   TargetConfigSchema,
 } from './target.schema.js';
 

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# wk-ios — turn-key WebKit DOM bridge for the iOS Simulator's Safari.
+#
+# WHY: Maestro/mobile-cli read the native XCUITest a11y tree, which collapses Safari's
+# web content into unlabeled nodes. The DOM itself is fully addressable via WebKit's
+# Remote Inspector. This wrapper wires up ios-webkit-debug-proxy (iwdp) against the
+# running Simulator and evaluates JS in the frontmost Safari page — same power as
+# `playwright-cli eval` on desktop, but on the REAL iOS engine.
+#
+# USAGE:
+#   bin/wk-ios "<js-expression>"     # evaluate JS in the sim's Safari, print result
+#   bin/wk-ios --url                 # just print the page WebSocket URL
+#   bin/wk-ios --stop                # stop the background iwdp proxy
+#
+# REQUIRES: brew install ios-webkit-debug-proxy ; a booted iOS Simulator with Safari
+# on a page (open one via: bin/mcli set-app com.apple.mobilesafari; bin/mcli open-url <url>).
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+IWDP_LOG="${TMPDIR:-/tmp}/wk-ios-iwdp.log"
+IWDP_PIDFILE="${TMPDIR:-/tmp}/wk-ios-iwdp.pid"
+
+stop_proxy() {
+  if [[ -f "$IWDP_PIDFILE" ]]; then kill "$(cat "$IWDP_PIDFILE")" 2>/dev/null || true; rm -f "$IWDP_PIDFILE"; fi
+  pkill -f "ios_webkit_debug_proxy .*webinspectord_sim" 2>/dev/null || true
+}
+
+if [[ "${1:-}" == "--stop" ]]; then stop_proxy; echo "iwdp stopped"; exit 0; fi
+
+command -v ios_webkit_debug_proxy >/dev/null || { echo "missing: brew install ios-webkit-debug-proxy" >&2; exit 1; }
+
+# 1) Find the simulator's web inspector unix socket.
+SOCK="$(lsof -U 2>/dev/null | grep -oE '/private/var/tmp/[^ ]+webinspectord_sim.socket' | head -1 || true)"
+[[ -n "$SOCK" ]] || { echo "no webinspectord_sim socket — is a Simulator booted with Safari open?" >&2; exit 1; }
+
+# 2) Ensure iwdp is running against that socket.
+if ! curl -s http://localhost:9221/json >/dev/null 2>&1; then
+  ios_webkit_debug_proxy -F -s "unix:$SOCK" > "$IWDP_LOG" 2>&1 &
+  echo $! > "$IWDP_PIDFILE"
+  for i in $(seq 1 20); do curl -s http://localhost:9221/json >/dev/null 2>&1 && break; sleep 0.25; done
+fi
+
+# 3) Resolve the frontmost page's WebSocket URL (device is assigned port 9222).
+#    Retry briefly: right after iwdp starts, :9221 answers before the per-device
+#    page list on :9222 is populated.
+WS=""
+for i in $(seq 1 20); do
+  WS="$(curl -s http://localhost:9222/json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d[0]["webSocketDebuggerUrl"] if d else "")' 2>/dev/null || true)"
+  [[ -n "$WS" ]] && break
+  sleep 0.25
+done
+[[ -n "$WS" ]] || { echo "no inspectable Safari page found on :9222 (open a URL in the sim Safari first)" >&2; exit 1; }
+
+if [[ "${1:-}" == "--url" ]]; then echo "$WS"; exit 0; fi
+[[ $# -ge 1 ]] || { echo "usage: wk-ios \"<js-expression>\" | --url | --stop" >&2; exit 2; }
+
+# 4) Evaluate via the Target-wrapped WebKit protocol bridge.
+WK_WS="$WS" node "$HERE/wkeval.mjs" "$1"

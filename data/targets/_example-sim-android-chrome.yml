@@ -1,0 +1,81 @@
+# Template target — WEB-MODE mobile app in the REAL Android Emulator Chrome.
+# Copy this file, rename it, and point web.base_url at your mobile web app.
+# For NATIVE mode (an installed app under test), see _example-native-mobile.yml.
+id: example-sim-android-chrome
+name: "Example Mobile Web App — Android Emulator Chrome"
+platform: android
+domain: _default
+# This target drives a WEB app through a real mobile browser on a real emulator.
+# The "app" is just Chrome; the system under test is the web app served at web.base_url.
+# mobile-cli treats Chrome like any other app: set-app -> launch -> open-url -> snapshot.
+device:
+  avd: qa_pixel_api35         # standard AVD created by scripts/setup-mobile.sh (Google-Play API 35). Override to any existing AVD (run: emulator -list-avds).
+  serial: emulator-5554       # populated once the AVD is booted
+app:
+  # The browser IS the app. No native build/install needed — Chrome is preinstalled on
+  # Google-Play emulator images, so there is no apk_paths / build step here.
+  # NOTE: stock AOSP / non-Play emulator images may NOT ship Chrome — they often have only
+  # a basic AOSP browser or none. If `adb shell pm list packages | grep chrome` shows no
+  # com.android.chrome, use a Google-APIs/Play image AVD rather than assuming it's present.
+  package: com.android.chrome
+web:
+  base_url: "https://staging.m.example.com"
+  start_url: "https://staging.m.example.com/login"
+  # Many mobile hosts enforce a mobile User-Agent and redirect desktop UAs to the desktop
+  # host. A real emulator Chrome sends a genuine mobile UA, so this is a non-issue.
+auth:
+  strategy: interactive-sso          # interactive SSO + MFA — cannot be automated
+  identity_provider: "your IdP (e.g. Microsoft Entra, Okta, Auth0)"
+  login_url: "https://staging.m.example.com/login"
+  # One-time interactive login, then the browser profile persists the session.
+  # Do NOT attempt to script the MFA challenge. Use strategy: none for public apps.
+scope:
+  start_screen: login
+  start_url: "https://staging.m.example.com/login"
+notes: |
+  WHAT THIS IS
+  A browser-as-app target: Android Emulator Chrome pointed at a mobile web app. The
+  Maestro/adb route used by mobile-cli drives the real Android Chrome engine.
+
+  NO NATIVE BUILD NEEDED (but verify Chrome exists — see app.package note above)
+  Boot the AVD, then:
+    bin/wadb devices                              # boot `emulator -avd <your-avd> ...` first if empty
+    bin/wadb shell pm list packages | grep chrome # confirm com.android.chrome is present
+    export MOBILE_CLI_STATE=/tmp/<target>-state.json
+    bin/mcli set-device emulator-5554
+    bin/mcli set-app com.android.chrome
+    bin/mcli launch
+    bin/mcli open-url <web.base_url>
+    bin/mcli snapshot
+  Use a dedicated MOBILE_CLI_STATE so you don't clobber another target's default state.
+  On a fresh Chrome profile you may see a one-time first-run / "Open tabs" promo bubble —
+  mobile-cli filters the promo (com.android.chrome:id/message) out of snapshots; if a
+  full-screen first-run/sign-in-to-Chrome interstitial appears, dismiss it once by hand.
+
+  A11Y-vs-DOM LIMITATION (document, do not try to solve)
+  snapshot reads the accessibility tree, not the DOM. Web content IS exposed to a11y —
+  headings, links, buttons, inputs and visible text become tappable refs. But versus
+  playwright-cli you LOSE: CSS/DOM selectors, console & network introspection, route-based
+  mocking, and reliable exact-DOM assertions. You drive purely by visible/accessible labels
+  and tap coordinates.
+  mobile-cli auto-filters Chrome's own chrome (omnibox/URL bar, tab switcher, menu, toolbar,
+  infobars/promos) from snapshots when the app id is a known browser, so the ref tree is the
+  page, not the browser furniture. The generic android:id/content root and the system status
+  bar may still appear (no stable app-specific id to filter on).
+
+  AUTH REALITY — SSO + MFA (do NOT automate)
+  If the app logs in via an interactive IdP with MFA: unlike Playwright, there is NO
+  transferable storage_state you can inject into a real emulator browser. The practical
+  approach is a ONE-TIME INTERACTIVE LOGIN performed by a human in the emulator's Chrome:
+  open the start_url, complete the username/password + MFA prompt by hand once. The
+  emulator persists Chrome's profile (cookies/session) across app launches and across
+  mobile-cli `launch`/`open-url` calls (as long as the AVD is not wiped / `pm clear`ed), so
+  subsequent exploration reuses that session without re-authenticating until it expires.
+  Never script the MFA step. Avoid `relaunch-clean` on this target — `pm clear
+  com.android.chrome` wipes the logged-in profile and forces a fresh SSO+MFA login.
+
+  EMULATOR / EXPLORATION NOTES
+  Android Chrome DOES expose the live page to uiautomator/Maestro's hierarchy, so snapshot
+  refs map to real web elements. Hardware BACK works here (`press BACK`) unlike iOS. If the
+  emulator is slow/flaky to boot or Chrome is absent on the chosen image, document that and
+  fall back to the iOS Safari target rather than blocking — the two engines are independent.

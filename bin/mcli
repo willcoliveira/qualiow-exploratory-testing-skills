@@ -1,0 +1,16 @@
+#!/bin/bash
+# mcli — env-setting wrapper around mobile-cli.mjs so subagents can call a single
+# bash command without needing to prefix every call with export JAVA_HOME=... etc.
+# (Compound `export ...; cmd ...` calls hit the Claude Code permission system
+#  which matches on the first token of the line.)
+# Resolve JDK 17 portably: honor an existing JAVA_HOME, else ask macOS' java_home,
+# else fall back to the Homebrew prefixes (arm64 then Intel). Avoids hardcoding one path.
+if [ -z "${JAVA_HOME:-}" ]; then
+  JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
+  [ -z "$JAVA_HOME" ] && [ -d /opt/homebrew/opt/openjdk@17 ] && JAVA_HOME=/opt/homebrew/opt/openjdk@17
+  [ -z "$JAVA_HOME" ] && [ -d /usr/local/opt/openjdk@17 ] && JAVA_HOME=/usr/local/opt/openjdk@17
+fi
+export JAVA_HOME
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH"
+exec node "$(dirname "$0")/mobile-cli.mjs" "$@"
