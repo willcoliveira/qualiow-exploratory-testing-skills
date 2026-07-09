@@ -136,6 +136,11 @@ export const TargetConfigSchema: z.ZodType<
   const branch = isMobile ? MobileTargetConfigSchema : WebTargetConfigSchema;
   const result = branch.safeParse(data);
   if (!result.success) {
-    for (const issue of result.error.issues) ctx.addIssue(issue);
+    // A fully-formed issue from a sub-parse is structurally compatible with
+    // ctx.addIssue but lacks the index signature zod 4's raw-issue type
+    // declares; assert against the method's own parameter type to forward it
+    // verbatim and keep the per-field error paths.
+    for (const issue of result.error.issues)
+      ctx.addIssue(issue as Parameters<typeof ctx.addIssue>[0]);
   }
 });
