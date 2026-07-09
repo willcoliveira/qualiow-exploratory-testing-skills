@@ -1,0 +1,61 @@
+# Example target — NATIVE-MODE mobile app on a simulator/emulator.
+# Copy this file, rename it, and fill in the values for your app. This documents the
+# fields /qa-explore-mobile reads to run in NATIVE mode (the app itself is the system
+# under test, driven via Maestro + adb / xcrun simctl through bin/mobile-cli.mjs).
+#
+# For WEB mode (a real device browser pointed at a URL), see the committed examples
+# _example-sim-ios-safari.yml / _example-sim-android-chrome.yml instead.
+#
+# MODE DETECTION (done in phases/00-setup.md):
+#   - WEB mode    -> app is a browser bundle (com.apple.mobilesafari / com.android.chrome)
+#                    AND a web.base_url is present.
+#   - NATIVE mode -> app is a non-browser bundle/package with installable artifact paths
+#                    (app_paths / apk_paths), no web.base_url.
+
+id: example-native-mobile
+name: "Example Native App (simulator/emulator)"
+domain: _default
+platform: ios                      # ios | android (required)
+
+device:
+  # iOS: a simulator name or UDID. Android: an AVD name and/or a booted serial.
+  name: "iPhone 17"                # iOS sim label
+  udid: "REPLACE-WITH-SIM-UDID"    # iOS sim UDID (from `xcrun simctl list devices`)
+  # avd: my_test_avd               # Android AVD name (created via Android Studio / avdmanager)
+  # serial: emulator-5554          # Android serial once the AVD is booted
+
+app:
+  # The app under test (NOT a browser). Use whichever id matches the platform.
+  bundle_id: com.example.myapp        # iOS bundle id
+  # package: com.example.myapp        # Android application id
+  #
+  # Installable artifact(s) used to verify/install the build on the device. If the app is
+  # already installed and you don't need to (re)install, these can be omitted.
+  app_paths:                          # iOS .app bundle(s) (simulator build)
+    - "/absolute/path/to/MyApp.app"
+  # apk_paths:                        # Android APK(s)
+  #   - "/absolute/path/to/myapp-release.apk"
+
+# OPTIONAL — only needed if you want /qa-explore-mobile to be able to rebuild from source.
+# Skipped unless the user passes --rebuild or the session goal mentions "latest"/"fresh".
+# build_commands are referenced generically by 00-setup.md — put the EXACT commands your
+# project uses here (no framework is assumed by the skill).
+# source_repo:
+#   path: "/absolute/path/to/app-source"
+#   build_commands:
+#     # Each command should build AND install onto the configured device.
+#     android_release: "..."          # e.g. your project's release build+install command
+#     ios_debug: "..."                # e.g. your project's sim build+install command
+#     refresh: "git fetch && git status -sb"   # used to detect upstream drift before rebuild
+
+auth:
+  # in-app  -> account creation / login happens inside the app (see phases/01-auth.md).
+  # none    -> no auth.
+  strategy: in-app
+  # For staging/test builds that accept a fixed one-time code, record it here so the
+  # auth phase can use it instead of a real OTP. Leave unset for real OTP delivery.
+  # static_otp: "000000"
+  # test_email_pattern: "qa+{unique}@example.com"   # if the app needs a unique email per signup
+
+scope:
+  start_screen: launch               # the app's first screen after launch

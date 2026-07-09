@@ -1,0 +1,80 @@
+# Template target — WEB-MODE mobile app in the REAL iOS Simulator Safari.
+# Copy this file, rename it, and point web.base_url at your mobile web app.
+# For NATIVE mode (an installed app under test), see _example-native-mobile.yml.
+id: example-sim-ios-safari
+name: "Example Mobile Web App — iOS Simulator Safari"
+platform: ios
+domain: _default
+# This target drives a WEB app through a real mobile browser on a real simulator.
+# The "app" is just Safari; the system under test is the web app served at web.base_url.
+# mobile-cli treats Safari like any other app: set-app -> launch -> open-url -> snapshot.
+device:
+  # Resolve by NAME, not a hardcoded UDID (UDIDs are per-machine). scripts/setup-mobile.sh
+  # creates a standard sim named "qa-iphone"; on a machine that already has sims you can set
+  # this to any available iPhone (see: xcrun simctl list devices available). 00-setup boots
+  # the named device (creating it if missing) and resolves its UDID at runtime.
+  name: "qa-iphone"
+  # udid: optional — if set, takes precedence over name. Leave unset for portability.
+app:
+  # The browser IS the app. No native build/install needed — Safari is preinstalled
+  # on every iOS simulator runtime, so there is no app_paths / build step here.
+  bundle_id: com.apple.mobilesafari
+web:
+  base_url: "https://staging.m.example.com"
+  start_url: "https://staging.m.example.com/login"
+  # Many mobile hosts enforce a mobile User-Agent and redirect desktop UAs to the desktop
+  # host. A real simulator Safari already sends a genuine mobile UA, so this is a non-issue
+  # here (it only bites Playwright/desktop browsers).
+auth:
+  strategy: interactive-sso          # interactive SSO + MFA — cannot be automated
+  identity_provider: "your IdP (e.g. Microsoft Entra, Okta, Auth0)"
+  login_url: "https://staging.m.example.com/login"
+  # One-time interactive login, then the browser profile persists the session.
+  # Do NOT attempt to script the MFA challenge. Use strategy: none for public apps.
+scope:
+  start_screen: login
+  start_url: "https://staging.m.example.com/login"
+notes: |
+  WHAT THIS IS
+  A browser-as-app target: iOS Simulator Safari pointed at a mobile web app. The genuine
+  engine matters here — Playwright CANNOT drive iOS Simulator Safari, and Playwright's
+  "webkit" is desktop macOS WebKit, NOT the simulator's WebKit. The Maestro/simctl route
+  used by mobile-cli is the only way to exercise the real iOS engine.
+
+  NO NATIVE BUILD NEEDED
+  Safari ships with every simulator runtime — nothing to build or install. Just boot the
+  sim (`xcrun simctl boot <udid>; open -a Simulator`), then:
+    export MOBILE_CLI_STATE=/tmp/<target>-state.json
+    bin/mcli set-device <udid>
+    bin/mcli set-app com.apple.mobilesafari
+    bin/mcli launch
+    bin/mcli open-url <web.base_url>
+    bin/mcli snapshot
+  Use a dedicated MOBILE_CLI_STATE so you don't clobber another target's default state.
+
+  A11Y-vs-DOM LIMITATION (document, do not try to solve)
+  snapshot reads the accessibility tree, not the DOM. Web content IS exposed to a11y —
+  headings, links, buttons, inputs and visible text become tappable refs. But versus
+  playwright-cli you LOSE: CSS/DOM selectors, console & network introspection, route-based
+  mocking, and reliable exact-DOM assertions. You drive purely by visible/accessible labels
+  and tap coordinates.
+  mobile-cli auto-filters Safari's own chrome (URL/address bar, tabs, toolbar, on-screen
+  keyboard) from snapshots when the app id is a known browser, so the ref tree is the page,
+  not the browser furniture. Residual non-app noise that has no stable a11y id (the iOS
+  status bar clock/wifi/battery and transient "NN%" page-load progress) may still appear.
+
+  AUTH REALITY — SSO + MFA (do NOT automate)
+  If the app logs in via an interactive IdP with MFA: unlike Playwright, there is NO
+  transferable storage_state you can inject into a real simulator browser. The practical
+  approach is a ONE-TIME INTERACTIVE LOGIN performed by a human in the sim's Safari:
+  open the start_url, complete the username/password + MFA prompt by hand once. The
+  simulator persists Safari's profile (cookies/session) across app launches and across
+  mobile-cli `launch`/`open-url` calls, so subsequent exploration reuses that session
+  without re-authenticating (until the session expires or the sim is erased). Never script
+  the MFA step. If you land on the IdP domain mid-session, that just means the session
+  lapsed — hand back to a human for re-login.
+
+  iOS SIM CONSTRAINTS (inherited from the native iOS target)
+  No hardware BACK key (use an on-screen/web back control via snapshot+click), no biometric
+  flow, no easy CLI rotation. iOS a11y can also aggregate sibling nodes into one comma-joined
+  label on some screens — tap by coordinates from a `snapshot --full` when that happens.

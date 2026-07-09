@@ -1,0 +1,6 @@
+#!/bin/bash
+# wadb — wrapped adb for subagents. Sets ANDROID_HOME so PATH lookup of adb works
+# regardless of caller env. Use for direct adb commands (logcat, pm clear, am start, etc.)
+# that aren't covered by mcli.
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+exec "$ANDROID_HOME/platform-tools/adb" "$@"

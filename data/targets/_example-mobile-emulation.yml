@@ -1,0 +1,52 @@
+# Template target — MOBILE-WEB EMULATION via Playwright (desktop engine, mobile device
+# descriptor). This is the /qa-explore path, NOT /qa-explore-mobile — no simulator needed.
+#
+# WHEN TO USE WHICH:
+#   - This template (Playwright emulation): fast, supports storage_state auth, full
+#     console/network/eval — but the engine is desktop Chromium/WebKit pretending to be
+#     a phone. Good for layout, flows, and most functional bugs.
+#   - _example-sim-ios-safari.yml / _example-sim-android-chrome.yml (real sim browsers via
+#     /qa-explore-mobile): the genuine mobile engines — required for engine-identity
+#     behavior (UA/feature detection, real keyboard/viewport behavior, Safari quirks).
+#     Playwright's "webkit" is desktop macOS WebKit, NOT iOS Safari.
+id: example-mobile-emulation
+name: "Example Mobile Web App — Playwright Mobile Emulation (WebKit)"
+base_url: "https://staging.m.example.com"
+domain: _default
+auth:
+  strategy: storage_state
+  state_file: ".auth/example-mobile-emulation.json"
+  login_url: "https://staging.m.example.com/login"
+browser:
+  headless: false
+  engine: webkit              # webkit (Safari-like) | chromium (Chrome-like)
+  channel: webkit
+  device: "iPhone 15"         # Playwright device descriptor — sets mobile UA + viewport + touch
+  viewport: { width: 390, height: 844 }
+safety:
+  read_only: false
+  no_form_submit: false
+scope:
+  start_pages:
+    - "/"
+  max_depth: 3
+  exclude_patterns:
+    - "/auth/*"
+    - "/api/*"
+    - "**/*.pdf"
+notes: |
+  Mobile-web emulation target: Playwright with a mobile device descriptor. Closest proxy
+  to real mobile browsers that Playwright offers (caveat: WebKit != Safari — no Apple Pay,
+  ITP nuances differ; Chromium != Android Chrome).
+
+  The device descriptor matters: many mobile hosts redirect desktop UAs to the desktop
+  site — viewport resize alone is NOT enough; the descriptor sets the mobile UA. Launch:
+    PLAYWRIGHT_MCP_DEVICE="iPhone 15" PLAYWRIGHT_MCP_BROWSER="webkit" playwright-cli ...
+  or pass --browser=webkit --device="iPhone 15" explicitly.
+
+  Create a chromium twin of this config to cross-check engine-specific behavior. WebKit
+  and Chromium maintain independent cookie jars — state files are NOT interchangeable
+  between engine variants; each needs its own one-time login via /qa-target-setup.
+
+  For bugs that depend on the real engine identity (browser detection, install prompts,
+  engine-specific rendering), escalate to the real-sim targets and /qa-explore-mobile.

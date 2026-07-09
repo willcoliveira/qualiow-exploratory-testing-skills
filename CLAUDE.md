@@ -11,6 +11,7 @@ Claude uses **Playwright CLI** (`playwright-cli`) for browser control and its ow
 | Skill | Purpose |
 |-------|---------|
 | `/qa-explore` | Full exploratory testing session (45 min) |
+| `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps OR web apps in the real device browser (iOS Safari / Android Chrome), via mobile-cli; mode selected by the target config |
 | `/qa-explore-quick` | Quick focused session on a single page/feature (15 min) |
 | `/qa-explore-report` | Generate/regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |
@@ -53,6 +54,34 @@ Uses `playwright-cli` — token-efficient CLI for coding agents:
 - `screenshot`, `tracing-start/stop`, `video-start/stop` — capture evidence
 - `state-save/load` — persist auth across sessions
 - `route` — mock network requests for error simulation
+
+## Mobile Control
+
+For testing on a simulator/emulator, `/qa-explore-mobile` uses `bin/mobile-cli.mjs` (call it
+via the `bin/mcli` wrapper). It is a Maestro / `xcrun simctl` / `adb` shim that mirrors the
+`playwright-cli` command surface (`set-device`, `set-app`, `launch`, `open-url`/`deep-link`,
+`snapshot`, `click`, `fill`, `press`, `screenshot`, `logs`, `record-start/stop`).
+
+It runs in **two modes, selected by the target config**:
+- **Native mode** — the target declares an installable app (`app.bundle_id`/`app.package` +
+  `app_paths`/`apk_paths`, optional `source_repo.build_commands`). Setup verifies/installs the
+  build via `adb install` / `xcrun simctl install` (optional rebuild from the config's own
+  commands) and launches the app; the app is the system under test.
+- **Web mode** — the target declares a browser (`com.apple.mobilesafari` /
+  `com.android.chrome`) plus a `web.base_url`. Setup sets the browser as the app and
+  `open-url`s the target; the web URL is the system under test. Useful because Playwright
+  cannot drive a real iOS Simulator browser.
+
+Both modes drive the device accessibility tree (not a DOM), so there are no CSS selectors, JS
+eval, or console/network introspection; auth happens on the device (native: in-app
+login/signup; web: a one-time interactive login the browser profile persists), not a
+transferable storage_state. Target templates: web — `data/targets/_example-sim-ios-safari.yml`,
+`data/targets/_example-sim-android-chrome.yml`; native — `data/targets/_example-native-mobile.yml`;
+Playwright mobile emulation (no simulator, via `/qa-explore`) — `data/targets/_example-mobile-emulation.yml`.
+
+Toolchain: `scripts/setup-mobile.sh` installs everything scriptable (Maestro, JDK 17, Android
+SDK + Play-image AVD, iOS sim device); `scripts/doctor-mobile.sh` is the read-only preflight.
+Full guide: `docs/MOBILE-SETUP.md`.
 
 ## Skills (continued)
 
