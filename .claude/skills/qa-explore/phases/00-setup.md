@@ -9,7 +9,14 @@ Extract from user message:
 - **time_box**: Session duration (default: 45 min, max: 45 min)
 - **context**: Path to requirements file OR inline context text (optional)
 
-Resolve target config from `data/targets/` if available. Read domain config from `data/domains/`.
+Resolve target config in this order:
+1. If `--target <name>` given → load from skill `data/targets/<name>.yml`
+2. Else if CWD contains `qa/target.yml` → load it as the target config
+3. Else fall back to `data/targets/_default.yml`
+
+If loaded from `qa/target.yml`, also check `qa/.env` in CWD for credential env var values before falling back to the skill root `.env`.
+
+Read domain config from `data/domains/`.
 
 ## Step 2: Load Context (if provided)
 
