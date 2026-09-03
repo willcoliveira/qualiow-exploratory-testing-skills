@@ -69,6 +69,27 @@ export interface BackendConfig {
   notes?: string;
 }
 
+export interface ApiSurfaceConfig {
+  /** Defaults to the target's base_url when omitted. */
+  base_url?: string;
+  auth?: 'session-cookie' | 'bearer-env' | 'none';
+  /** Env var NAME holding a bearer token — never the token itself. */
+  token_env?: string;
+  /** Persistent browser profile directory holding the authenticated session. */
+  browser_profile?: string;
+  /** Endpoint returning the deployed build, used to fingerprint the environment. */
+  version_endpoint?: string;
+  /** Logical name -> "VERB /path". */
+  endpoints?: Record<string, string>;
+  /** The only endpoints the read-only API lane may call without asking. */
+  probe_allowlist?: string[];
+  /** Other target ids to run the same matrix against, for parity comparison. */
+  parity_targets?: string[];
+  /** Flag name -> where its deployed value is declared for this environment. */
+  feature_flags?: Record<string, string>;
+  notes?: string;
+}
+
 export interface SourceBranchConfig {
   repo_path: string;
   branch: string;
@@ -87,6 +108,7 @@ export interface TargetConfig {
   safety?: SafetyConfig;
   environment?: EnvironmentConfig;
   backend?: BackendConfig;
+  api?: ApiSurfaceConfig;
   source?: SourceBranchConfig;
   notes?: string;
 }

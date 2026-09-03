@@ -1,0 +1,113 @@
+id: technique-environment-fingerprinting
+version: "0.4.0"
+type: technique
+name: "Environment Fingerprinting — Proving What Is Actually Running"
+description: >
+  A verdict is a claim about code; a probe is an observation of an environment.
+  They are only the same thing when the environment runs that code — and often it
+  does not. One identical build can hold two implementations of the same feature
+  with a flag choosing between them, a frontend can ship a month ahead of the API
+  behind it, and a merged commit can sit undeployed for weeks. This technique
+  establishes which build and which implementation an environment actually runs,
+  before any verdict is written, and defines NOT-REACHABLE as the honest outcome
+  when the changed path is not selected there.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from backend and API verification sessions, 2026-07 to 2026-09"
+tags: [backend, api, verification, evidence, deployment, feature-flags, environment, acceptance-criteria, regression]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Before the first probe, answer three questions with evidence: which build is
+    deployed in every component of the request path, whether the changed code path
+    is SELECTED in this environment, and whether the commit under test is genuinely
+    an ancestor of what is running. Write the answers down. Every verdict that
+    follows is scoped to that environment and says so.
+
+  core_principle: >
+    "It passes in dev" is a statement about dev. Whether it is also a statement
+    about the release depends entirely on whether the other environments run the
+    same code — which is a question, not an assumption. Same build plus different
+    behaviour means configuration, not deploy lag.
+
+  the_three_questions:
+    - question: "Which build is deployed, in every component of the path?"
+      how: >
+        A request usually crosses more than one deployable. Fingerprint each one,
+        not just the component the ticket names. Use whatever version surface
+        exists — a version endpoint, a build manifest, a header — and record build
+        id, timestamp and commit for each.
+      when_there_is_no_version_endpoint: >
+        Fingerprint behaviourally. Pick two or three inputs whose answer differs
+        between the old and the new implementation and use the answers as the
+        identifier — the input the fix was written for, an out-of-range parameter
+        that should now return 400, an empty request that should now be rejected.
+        Write the table down; it becomes the cheapest deployment check for
+        everyone after you.
+      common_finding: >
+        A frontend from this week in front of a service from last month. It renders
+        as empty values, dashes or zeros and gets filed as a data bug.
+
+    - question: "Is the changed code path SELECTED here?"
+      how: >
+        Read the switch from the environment's own configuration, not from the
+        default in the code. A feature flag, an environment variable, a config
+        value or a routing rule can pick between two implementations of the same
+        feature inside one identical build.
+      the_tell: >
+        Two environments return the same commit hash and behave differently. Stop
+        looking for a missing deployment and go find the switch.
+      consequence_to_report: >
+        When the flag is off in the environments that matter, a fix that only lands
+        behind the flag has reached no users, and flipping it is a separate decision
+        with its own risk — it can resolve one defect, change nothing about most,
+        and introduce regressions of its own. That is a finding, not a footnote.
+      the_deeper_finding: >
+        Two implementations of one feature means every fix has to be written twice,
+        and the copy nobody is testing is usually the one production runs. Report
+        the duplication itself.
+
+    - question: "Is the commit actually deployed?"
+      how: >
+        `git merge-base --is-ancestor <commit-under-test> <deployed-commit>`, for
+        every commit the ticket depends on.
+      why: >
+        "It was merged three weeks ago" is not evidence. "Not an ancestor" is.
+
+  verdict_mapping:
+    - situation: "Changed path runs here and behaves as the AC says"
+      verdict: "PASS — scoped to this environment, named in the row"
+    - situation: "Changed path runs here and behaves otherwise"
+      verdict: "FAIL"
+    - situation: "Changed path is not selected or not deployed here"
+      verdict: "NOT-REACHABLE — never PASS, never FAIL"
+    - situation: "Verified only in an environment running a different implementation"
+      verdict: "UNVERIFIABLE for the environment that matters"
+
+  cross_environment_rule: >
+    Compare status codes and response shapes. Never compare absolute counts —
+    different environments hold different data and it drifts under you. A shape
+    divergence between two environments on the same build is a configuration
+    finding. A count divergence is usually nothing.
+
+  common_shapes:
+    - "Frontend/backend skew — the UI ships a feature whose API is not deployed."
+    - "Flag-selected duplicate implementations — the most expensive, because the fix looks done."
+    - "A separate deployable — the fix lives in a service the ticket does not name, with its own release train."
+    - "Environment-specific data — different collection sizes and seed data, which is why only shapes compare."
+    - "Cached or edge-served responses — the origin has the fix; the response you are reading does not."
+
+  what_it_costs_when_skipped:
+    - "A green session that measured an environment nobody ships from."
+    - "A ticket closed as fixed while the defect is fully live for users."
+    - "A regression hunt against a build that never contained the change."
+    - "A count compared against last week's count and reported as a regression."
+
+  anti_patterns:
+    - "Reading the flag's default from source instead of the environment's deployed config."
+    - "Treating a divergence between environments as deploy lag without checking the commit."
+    - "Recording a verdict with no environment attached to it."
+    - "Re-running a matrix after a deploy without re-fingerprinting first."

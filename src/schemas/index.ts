@@ -5,6 +5,7 @@ export {
   SafetyConfigSchema,
   EnvironmentConfigSchema,
   BackendConfigSchema,
+  ApiSurfaceConfigSchema,
   SourceBranchConfigSchema,
   WebTargetConfigSchema,
   MobileDeviceConfigSchema,

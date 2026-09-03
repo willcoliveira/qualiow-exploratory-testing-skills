@@ -15,10 +15,20 @@ Verdicts:
 | **PARTIAL** | The intent is met but something material deviates from the stated spec |
 | **FAIL** | The AC as written is not true |
 | **BLOCKED** | Not verifiable with available access — probe command attached |
+| **NOT-REACHABLE** | This environment does not run the changed code path — a flag, a config value or an undeployed commit. Not a pass and not a failure |
 | **UNVERIFIABLE** | The AC has no falsifier as written — a DoR defect |
 
 Never leave a row at `PENDING`. If you did not check it, the verdict is `BLOCKED` and
 you say why.
+
+**Scope every verdict to an environment**, in the row itself: `PASS (dev)` and `PASS` are
+different claims, and only one of them is honest when the change is behind a flag that is
+off everywhere else. Where the ticket claims several environments, give the matrix a
+column per environment rather than one merged verdict.
+
+Lead the matrix with the fingerprint from `evidence/fingerprint.md` — build id or commit
+per component, and which implementation each environment selected. A reader who does not
+know what was running cannot use the rest of the table.
 
 ## Step 2: Bug Reports
 
@@ -33,6 +43,18 @@ Write the **Business Impact** in terms of consequence:
 
 Give every reproducible finding a copy-pasteable reproduction — the probe command or
 the trigger sequence — so the developer can confirm in under a minute.
+
+Two shapes deserve their own reports rather than a line in someone else's:
+
+- **A fix that cannot reach users.** If the changed path is off in the environments that
+  matter, the ticket is not done, however green the dev environment is. Say what has to
+  happen for it to reach production, and that the switch carries its own risk.
+- **A discrepancy between the endpoint and the screen.** When the API is honest and the
+  UI is not — an error rendered as an empty result, a value re-scaled, a field dropped —
+  that is a client defect with its own owner, independent of the backend verdict.
+
+**Collapse a crash family into one report.** Nine inputs that fail on the same unescaped
+character are one bug with nine examples, not nine bugs.
 
 ## Step 3: DoD and DoR Gaps
 

@@ -80,6 +80,32 @@ export const BackendConfigSchema = z.object({
   notes: z.string().optional(),
 });
 
+// The service's own HTTP surface, probed read-only from the authenticated
+// session. Credentials are referenced by env var NAME or by profile directory —
+// never stored here.
+export const ApiSurfaceConfigSchema = z.object({
+  // Defaults to the target's base_url when omitted.
+  base_url: z.string().optional(),
+  auth: z.enum(['session-cookie', 'bearer-env', 'none']).optional(),
+  // NAME of the env var holding a bearer token, for `auth: bearer-env`.
+  token_env: z.string().optional(),
+  // Persistent browser profile directory holding the authenticated session,
+  // e.g. `.auth/my-service-dev-profile`. Gitignored.
+  browser_profile: z.string().optional(),
+  // Endpoint returning the deployed build, used to fingerprint the environment.
+  version_endpoint: z.string().optional(),
+  // Logical name -> "VERB /path", e.g. search: "POST /api/v1/search".
+  endpoints: z.record(z.string(), z.string()).optional(),
+  // The ONLY endpoints the read-only API lane may call without asking.
+  probe_allowlist: z.array(z.string()).optional(),
+  // Other target ids to run the same matrix against, for parity comparison.
+  parity_targets: z.array(z.string()).optional(),
+  // Flag name -> where its deployed value is declared for this environment.
+  // A flag can select between two implementations inside one identical build.
+  feature_flags: z.record(z.string(), z.string()).optional(),
+  notes: z.string().optional(),
+});
+
 // The implementation branch reviewed statically. Read with `git show`, never
 // checked out — the user may have uncommitted work.
 export const SourceBranchConfigSchema = z.object({
@@ -106,6 +132,7 @@ export const WebTargetConfigSchema = z.object({
   // still a valid /qa-explore target.
   environment: EnvironmentConfigSchema.optional(),
   backend: BackendConfigSchema.optional(),
+  api: ApiSurfaceConfigSchema.optional(),
   source: SourceBranchConfigSchema.optional(),
   notes: z.string().optional(),
 });

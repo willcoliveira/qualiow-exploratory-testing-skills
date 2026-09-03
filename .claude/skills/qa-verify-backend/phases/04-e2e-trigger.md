@@ -25,6 +25,10 @@ If the UI is unavailable, call the write API directly with the same auth — but
 in the report, because an API-only trigger does not prove the UI's identity
 propagation works.
 
+Conversely, if the UI trigger succeeds, that is not evidence the endpoint accepts what
+other clients will send. The client's own guards are still in the path. Phase 3b covers
+what happens without them.
+
 ## Step 3: Re-Probe and Compare
 
 Give the asynchronous path a moment, then query again and compare against the before

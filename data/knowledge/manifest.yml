@@ -1,18 +1,19 @@
 # Qualiow Exploratory Testing Skills — Knowledge Base Manifest
 # This file is the master index. Skills read it to discover available entries.
 
-version: "0.3.0"
-last_updated: "2026-08-21"
+version: "0.4.0"
+last_updated: "2026-09-03"
 
 active_releases:
   - "v0.1.0"
   - "v0.2.0"
   - "v0.3.0"
+  - "v0.4.0"
 
 stats:
-  total_entries: 18
+  total_entries: 22
   heuristics: 5
-  techniques: 10
+  techniques: 14
   checklists: 1
   references: 2
   domain_profiles: 0
@@ -41,6 +42,8 @@ loading_strategy:
       - checklist-accessibility-wcag
     regression:
       - heuristic-rcrcrc
+      - technique-environment-fingerprinting
+      - technique-silent-failure-audit
     risk:
       - technique-risk-based-testing
     data-integrity:
@@ -51,18 +54,56 @@ loading_strategy:
       - technique-test-suite-audit
       - technique-verification-mode-selection
       - technique-functional-diff-analysis
+      - technique-environment-fingerprinting
+      - technique-authenticated-api-probing
+      - technique-ui-api-differential
     api:
       - technique-verification-mode-selection
       - technique-functional-diff-analysis
+      - technique-authenticated-api-probing
+      - technique-ui-api-differential
+      - technique-environment-fingerprinting
     api-contract:
       - technique-contract-narrowing
       - technique-functional-diff-analysis
+      - technique-authenticated-api-probing
     verification:
       - technique-verification-mode-selection
       - technique-llm-output-verification
+      - technique-environment-fingerprinting
+      - technique-authenticated-api-probing
     evidence:
       - technique-verification-mode-selection
       - technique-llm-output-verification
+      - technique-environment-fingerprinting
+      - technique-authenticated-api-probing
+    environment:
+      - technique-environment-fingerprinting
+    deployment:
+      - technique-environment-fingerprinting
+    feature-flags:
+      - technique-environment-fingerprinting
+    error-handling:
+      - technique-silent-failure-audit
+      - technique-error-guessing
+    silent-failure:
+      - technique-silent-failure-audit
+      - technique-contract-narrowing
+      - technique-ui-api-differential
+    differential:
+      - technique-ui-api-differential
+    ui:
+      - technique-ui-api-differential
+      - technique-silent-failure-audit
+    observability:
+      - technique-silent-failure-audit
+    negative-testing:
+      - technique-error-guessing
+      - technique-authenticated-api-probing
+      - technique-silent-failure-audit
+    boundaries:
+      - technique-boundary-testing
+      - technique-authenticated-api-probing
     llm:
       - technique-llm-output-verification
       - technique-verification-mode-selection
@@ -212,4 +253,32 @@ entries:
     type: technique
     priority: high
     tags: [llm, agent, api, verification, evidence, non-determinism, prompt, evaluation]
+    domains: [all]
+
+  - id: technique-environment-fingerprinting
+    file: releases/v0.4.0/entries/technique-environment-fingerprinting.yml
+    type: technique
+    priority: high
+    tags: [backend, api, verification, evidence, deployment, feature-flags, environment, acceptance-criteria, regression]
+    domains: [all]
+
+  - id: technique-authenticated-api-probing
+    file: releases/v0.4.0/entries/technique-authenticated-api-probing.yml
+    type: technique
+    priority: high
+    tags: [api, backend, verification, evidence, boundaries, negative-testing, error-handling, security, acceptance-criteria]
+    domains: [all]
+
+  - id: technique-ui-api-differential
+    file: releases/v0.4.0/entries/technique-ui-api-differential.yml
+    type: technique
+    priority: high
+    tags: [api, backend, ui, verification, differential, error-handling, silent-failure, acceptance-criteria, regression]
+    domains: [all]
+
+  - id: technique-silent-failure-audit
+    file: releases/v0.4.0/entries/technique-silent-failure-audit.yml
+    type: technique
+    priority: high
+    tags: [error-handling, silent-failure, api, backend, ui, data-integrity, observability, negative-testing, regression]
     domains: [all]

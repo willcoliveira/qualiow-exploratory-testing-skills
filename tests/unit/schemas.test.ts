@@ -84,6 +84,15 @@ describe('TargetConfigSchema — backend verification blocks', () => {
       env_suffix: 'dev',
       resources: { config_table: 'example-service-dev-config' },
     },
+    api: {
+      auth: 'session-cookie' as const,
+      browser_profile: '.auth/example-backend-profile',
+      version_endpoint: '/api/v1/version',
+      endpoints: { search: 'POST /api/v1/search' },
+      probe_allowlist: ['POST /api/v1/search'],
+      parity_targets: ['example-backend-staging'],
+      feature_flags: { USE_NEW_SEARCH: 'deploy/config/example-service-dev.yml' },
+    },
     source: {
       repo_path: '/path/to/repo',
       branch: 'origin/feature/TICKET-123',
@@ -92,7 +101,7 @@ describe('TargetConfigSchema — backend verification blocks', () => {
     },
   };
 
-  it('should accept a target with environment, backend and source blocks', () => {
+  it('should accept a target with environment, backend, api and source blocks', () => {
     expect(() => TargetConfigSchema.parse(withBackend)).not.toThrow();
   });
 
@@ -115,6 +124,21 @@ describe('TargetConfigSchema — backend verification blocks', () => {
       ...withBackend,
       backend: { ...withBackend.backend, resources: { config_table: 42 } },
     };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should accept an api block with nothing but a probe allowlist', () => {
+    const minimal = { ...base, api: { probe_allowlist: ['GET /api/v1/health'] } };
+    expect(() => TargetConfigSchema.parse(minimal)).not.toThrow();
+  });
+
+  it('should reject an unknown api auth mode', () => {
+    const bad = { ...withBackend, api: { ...withBackend.api, auth: 'basic' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should reject a probe allowlist that is not an array of strings', () => {
+    const bad = { ...withBackend, api: { ...withBackend.api, probe_allowlist: 'GET /x' } };
     expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
   });
 });

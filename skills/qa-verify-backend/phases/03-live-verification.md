@@ -4,7 +4,12 @@ Skip if the live lane is BLOCKED — but still write every probe command into
 `evidence/live-probes.md` so a human with credentials can run them unchanged.
 
 Read `references/aws-readonly-probes.md` for the command catalogue. Read
-`references/safety-rules.md` before the first probe.
+`references/safety-rules.md` before the first probe, and confirm the fingerprint from
+phase 0 step 3c is on file — a probe of an environment that does not run the change
+measures something else.
+
+This phase covers the **cloud resources**. The service's own HTTP endpoints are phase 3b
+(`phases/03b-api-verification.md`); most tickets need both.
 
 ## Rules
 

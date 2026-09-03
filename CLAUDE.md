@@ -13,7 +13,7 @@ Claude uses **Playwright CLI** (`playwright-cli`) for browser control and its ow
 | `/qa-explore` | Full exploratory testing session (45 min) |
 | `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps OR web apps in the real device browser (iOS Safari / Android Chrome), via mobile-cli; mode selected by the target config |
 | `/qa-explore-quick` | Quick focused session on a single page/feature (15 min) |
-| `/qa-verify-backend` | Verify backend/infra acceptance criteria with no UI surface — IaC + code review, read-only AWS probes, AC traceability matrix |
+| `/qa-verify-backend` | Verify backend/API/infra acceptance criteria with no UI surface — branch review, read-only cloud probes, direct API probes, AC traceability matrix |
 | `/qa-explore-report` | Generate/regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |
 | `/qa-explore-cleanup` | Session cleanup and archival |
@@ -88,19 +88,38 @@ Full guide: `docs/MOBILE-SETUP.md`.
 
 Not every acceptance criterion is visible in a browser. `/qa-verify-backend` covers tickets
 whose ACs live below the UI — DynamoDB tables and streams, Lambda triggers, IAM policies,
-queues, Terraform. It runs three lanes:
+queues, Terraform — and the service's own HTTP endpoints. It runs four lanes:
 
 - **Static** — reads the implementation branch against each AC via `git show` (never checks
   out), looking for spec drift, scope creep, failure paths, identity propagation and
   producer/consumer contract breaks.
 - **Live** — read-only `aws-cli` probes, one per AC, raw output saved as evidence. Never
   mutates; hard stop on production.
+- **API** — calls the endpoints directly from the **already-authenticated page**
+  (`playwright-cli eval` + `fetch(…, {credentials:'include'})`), so the request carries the
+  session cookie, CSRF token and interceptors the UI has: no token plumbing, and it survives
+  SSO/MFA. A written case matrix covers what the browser's own guards prevent — empty and
+  null bodies, metacharacters, invalid enum values, pagination bounds, a second identity.
+  Read-only, limited to the target's `api.probe_allowlist`.
 - **End-to-end** — drives the real write path (UI or API) in an ephemeral environment, then
   re-probes the data layer, including the adversarial cases: same-tick writes, deletes, bulk
   saves, second identity, DLQ depth.
 
+**Before any lane: fingerprint the environment.** Which build is deployed in every component
+of the path, whether the changed code path is even *selected* here (a flag can pick between
+two implementations inside one identical build), and whether the commit under test is an
+ancestor of what is running. *Same build, different behaviour ⇒ configuration, not deploy
+lag.* An environment that does not run the change gets `NOT-REACHABLE`, never `PASS`.
+
+**A client-side guard is not the endpoint's contract.** Never record "the button is disabled
+until you type" as a passing AC — call the endpoint the way the guard is preventing. When a
+ticket has both a screen and an endpoint, run the overlapping cases at both and sort findings
+into *both* (fix in the service), *API only* (a real defect the client's guard is hiding),
+*UI only* (the client invents or masks behaviour the service does not have) and *neither*.
+
 Output is an **AC traceability matrix** (`PASS` / `PARTIAL` / `FAIL` / `BLOCKED` /
-`UNVERIFIABLE`, each with cited evidence) plus one bug report per finding. `BLOCKED` is a
+`NOT-REACHABLE` / `UNVERIFIABLE`, each with cited evidence, each scoped to the environment it
+holds in) plus one bug report per finding. `BLOCKED` is a
 first-class verdict — when credentials are missing the probe commands are written out ready
 to run rather than the verdict being inferred from the code.
 
@@ -112,9 +131,12 @@ request to a no-UI endpoint (webhooks, internal APIs, queue consumers) · LLM/ag
 judged against a written rubric · needs-a-human for pure refactors with nothing observable.
 
 Safety rules: `.claude/skills/qa-verify-backend/references/safety-rules.md`.
-Probe catalogue: `.claude/skills/qa-verify-backend/references/aws-readonly-probes.md`.
+Probe catalogues: `references/aws-readonly-probes.md` (cloud resources),
+`references/api-probes.md` (HTTP endpoints), `references/environment-fingerprinting.md`.
 BE/API techniques: knowledge base v0.3.0 — `technique-verification-mode-selection`,
-`technique-functional-diff-analysis`, `technique-llm-output-verification`.
+`technique-functional-diff-analysis`, `technique-llm-output-verification`; v0.4.0 —
+`technique-environment-fingerprinting`, `technique-authenticated-api-probing`,
+`technique-ui-api-differential`, `technique-silent-failure-audit`.
 
 ## Skills (continued)
 

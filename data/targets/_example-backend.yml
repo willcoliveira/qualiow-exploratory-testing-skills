@@ -1,10 +1,10 @@
 # Example target for /qa-verify-backend — copy, rename, and fill in.
 #
-# A backend-verification target is an ordinary web target plus three optional
-# blocks: `backend:` (the cloud surface to probe read-only), `source:` (the repo
-# and branch to review statically) and `environment:` (what the skill is allowed
-# to do here). All three are optional — a target with none of them still works
-# for /qa-explore.
+# A backend-verification target is an ordinary web target plus four optional
+# blocks: `backend:` (the cloud surface to probe read-only), `api:` (the service's
+# own HTTP surface), `source:` (the repo and branch to review statically) and
+# `environment:` (what the skill is allowed to do here). All four are optional — a
+# target with none of them still works for /qa-explore.
 #
 # NEVER put credentials in this file. Reference environment variables by NAME
 # and keep the values in .env (gitignored).
@@ -59,6 +59,53 @@ backend:
     Resource names here are ASSERTIONS, not proof. The skill confirms them with
     `aws dynamodb list-tables` / `aws lambda list-functions` before trusting them —
     a probe against a mistyped name returns an error that reads like a failure.
+
+# --- The service's own HTTP surface (probed read-only) -----------------------
+api:
+  # base_url: defaults to the target's base_url above when omitted.
+  auth: session-cookie            # session-cookie | bearer-env | none
+  #
+  # session-cookie is the default and the one to prefer: the skill runs the
+  # request from inside the already-authenticated page, so it inherits the
+  # session cookie, the CSRF token and the client's interceptors. Nothing to
+  # store, and it works with SSO/MFA that no scripted login can pass.
+  #
+  # token_env: QA_API_TOKEN       # NAME of the env var, for `auth: bearer-env`
+
+  # Persistent profile holding the logged-in session. Prime it once, headed:
+  #   playwright-cli -s=<id> open <base_url> --headed --profile .auth/<dir>
+  # A profile directory outlives a saved storage_state by a wide margin.
+  browser_profile: ".auth/_example-backend-profile"
+
+  # Used to fingerprint the environment before any verdict is written.
+  version_endpoint: "/api/v1/version"
+
+  endpoints:
+    search: "POST /api/v1/search"       # note the verb — a GET here returns 405
+    item_detail: "GET /api/v1/item/{id}"
+
+  # The ONLY endpoints the read-only API lane may call without asking. Leave an
+  # endpoint off this list if its verb is safe but its effect is not — billed per
+  # call, queues a job, or rate-limited into an outage.
+  probe_allowlist:
+    - "POST /api/v1/search"
+    - "GET /api/v1/item/{id}"
+    - "GET /api/v1/version"
+
+  # Run the same case matrix here too, and compare SHAPES — never counts.
+  parity_targets: ["_example-backend-staging"]
+
+  # Flag name -> where its DEPLOYED value is declared for this environment.
+  # A flag can select between two implementations of one feature inside a single
+  # identical build, which is why "same commit, different behaviour" is a
+  # configuration finding rather than deploy lag.
+  feature_flags:
+    USE_NEW_SEARCH: "deploy/config/example-service-dev.yml"
+
+  notes: >
+    The API lane is read-only in every environment. Writes go through the real
+    write path in phase 4, never against production. Response bodies are real
+    records — they are redacted before anything is written to disk.
 
 # --- Implementation branch to review statically ------------------------------
 source:

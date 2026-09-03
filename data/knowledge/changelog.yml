@@ -2,6 +2,30 @@
 # Tracks what changed in each release so /qa-knowledge-list can show history.
 
 releases:
+  - version: "0.4.0"
+    date: "2026-09-03"
+    summary: "The HTTP/API verification lane — how to probe a service's own endpoints with real credentials, and how to know the environment is running the code you are judging."
+    entries_added:
+      - id: technique-environment-fingerprinting
+        type: technique
+        name: "Environment Fingerprinting - Proving What Is Actually Running"
+        description: "Before the first probe: which build is deployed in every component of the path, whether the changed code path is SELECTED here, and whether the commit under test is an ancestor of what is running. Same build plus different behaviour means configuration, not deploy lag. Adds NOT-REACHABLE as the honest verdict when the change is not live in the environment being measured."
+      - id: technique-authenticated-api-probing
+        type: technique
+        name: "Authenticated API Probing - Calling the Endpoint Behind the Screen"
+        description: "Get a real authenticated request context without handling a token by running fetch inside the already-logged-in page, then drive a written case matrix through it. Ten case families, how to read each signal, and the evidence and safety rules that keep credentials and response bodies off disk."
+      - id: technique-ui-api-differential
+        type: technique
+        name: "UI-vs-API Differential - Running the Same Matrix at Both Surfaces"
+        description: "Sort every finding into reproducible-at-both, API-only, UI-only and neither. Corrects the most common false PASS in exploratory testing: a client-side guard recorded as the endpoint's behaviour."
+      - id: technique-silent-failure-audit
+        type: technique
+        name: "Silent Failure Audit - Failures That Render as Ordinary Results"
+        description: "Seven shapes of failure that look like a legitimate empty or zero answer, how to force each one, and why they recur as a class rather than as individual bugs."
+    entries_modified: []
+    entries_removed: []
+    origin: "Paired UI and API sessions on the same features showed three gaps: the endpoint was never called directly, so client-side guards were being recorded as endpoint behaviour; environments were compared without checking which implementation each one ran; and the same silent-failure defect kept being filed as unrelated one-off bugs."
+
   - version: "0.3.0"
     date: "2026-08-21"
     summary: "The BE/API verification layer — how to actually observe a backend, API or LLM change, and how to say so when you cannot."

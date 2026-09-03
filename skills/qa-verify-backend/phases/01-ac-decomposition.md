@@ -10,7 +10,7 @@ code happens to do.
 |-------|---------|
 | **ID** | AC1, AC2… as numbered in the ticket |
 | **Claim** | The AC restated as a single falsifiable statement |
-| **Evidence source** | `static` (file+line), `live` (probe command), `e2e` (trigger + re-probe), or a combination |
+| **Evidence source** | `static` (file+line), `live` (cloud probe command), `api` (request + raw response), `e2e` (trigger + re-probe), or a combination |
 | **Falsifier** | What observation would prove this AC false — name it now |
 | **Consumer** | Which downstream ticket/system depends on this being true in a particular shape |
 
@@ -33,6 +33,17 @@ An AC is untestable when it has no observable falsifier. Common shapes:
   environments? A merged runbook is not executed work.
 - **Vague quality words** — "clean", "maintainable", "simple". Convert to something
   countable or mark it as not independently verifiable.
+- **A guard described as a behaviour** — "the user cannot submit an empty search". That is
+  a statement about the client. Restate it as the endpoint's contract ("an empty query
+  returns 400 with an error body") and route it to the `api` lane. If the ticket only ever
+  meant the client, say so and add the endpoint's behaviour as a negative-space check.
+
+## Name the Environment in the Claim
+
+Every claim is a claim about an environment. Write it in: *"in staging, an empty query
+returns 400"*. An AC verified in one environment and asserted for another is the single
+most common false `PASS` this skill exists to prevent — see
+`references/environment-fingerprinting.md`.
 
 Report these as **DoR gaps**, not as failures of the developer. They are ticket-writing
 defects and they belong in the report — an untestable AC will be marked done by whoever
