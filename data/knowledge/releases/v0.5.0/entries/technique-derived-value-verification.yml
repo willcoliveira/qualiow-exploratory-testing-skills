@@ -1,0 +1,81 @@
+id: technique-derived-value-verification
+version: "0.5.0"
+type: technique
+name: "Derived Value Verification — Recomputing the Number and Naming What It Does Not Prove"
+description: >
+  Percentages, totals, ratios, deltas and aggregates are derived, and they are verified by
+  recomputing them from the raw figures in the same response against the formula from the
+  specification — never from the code that implements it. The discipline that makes this
+  worth anything is the second half: when both sides of the check come from one payload,
+  you have verified the derivation and not the inputs. Say so, name the independent oracle
+  that would close the gap, and say whether you ran it.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from backend and API verification sessions, 2026-07 to 2026-09"
+tags: [data-integrity, api, backend, calculations, verification, evidence, oracles, acceptance-criteria]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Take the formula from the spec, recompute every derived value from the raw figures in
+    the same response, and choose cases that stress sign, zero, scale and cardinality. Add
+    the structural invariants the values must satisfy regardless of magnitude. Then write
+    down, explicitly, that internal consistency is not correctness, and name the second
+    source that would settle it.
+
+  core_principle: >
+    A check whose two sides come from the same place can only find an inconsistency, never
+    an error. It is still worth running — it is cheap and it catches a real class of bug —
+    but reporting it as "the numbers are correct" is a claim the evidence does not support.
+
+  where_the_formula_comes_from: >
+    The specification, the ticket, or the person who owns the definition. A formula read out
+    of the implementation cannot falsify that implementation — recomputing the code's own
+    arithmetic proves only that arithmetic is deterministic.
+
+  choosing_the_cases:
+    - case: "A negative value"
+      why: "Sign handling is where derivation breaks, and a screen full of positive numbers never exercises it."
+    - case: "A zero, and a zero denominator"
+      why: "Division by zero, and the difference between 0, null and not-applicable."
+    - case: "A very large and a very small value"
+      why: "Rounding, precision loss and scale errors live at both ends."
+    - case: "One item and many items"
+      why: >
+        An aggregate over a single item should equal that item. It is the cleanest
+        apples-to-apples comparison available and removes aggregation ambiguity entirely —
+        reach for it first when comparing against another system.
+
+  structural_invariants: >
+    Relationships that must hold regardless of magnitude — a total equal to the sum of its
+    parts, one metric bounded by another, a derived cost positive, a percentage inside its
+    own range. They cost nothing, they generalise past the cases you happened to pick, and
+    a violation is unambiguous.
+
+  the_limitation_to_write_down: >
+    "This validates that the percentage equals the amount divided by the base. It does not
+    validate that the amount is itself correct, because both figures come from the same
+    payload." Then: "The outstanding oracle is <the other system / report / source of
+    truth> and it has not been run." That is a complete, honest, actionable verdict.
+
+  finding_an_independent_oracle:
+    - "A second system that holds the same figure for the same entity."
+    - "A report, dashboard or extract the business already trusts."
+    - "The source store the value is computed from, queried directly."
+    - "A worked example agreed with whoever owns the definition."
+    - "Where none exists, say that: 'no independent oracle is available' is itself a finding about the feature."
+
+  reporting:
+    - "Record every computed-vs-returned pair, not the conclusion drawn from them."
+    - "Record the formula and where it came from."
+    - "Record the invariants checked."
+    - "Record what the check does not prove, and the oracle that would."
+    - "Scope the verdict: 'internal consistency verified' is not 'values verified'."
+
+  anti_patterns:
+    - "Taking the formula from the code under test."
+    - "Checking only positive, mid-range values."
+    - "Reporting 'the numbers are correct' from a single-source check."
+    - "Comparing an aggregate against a per-item figure without a single-item case to anchor it."

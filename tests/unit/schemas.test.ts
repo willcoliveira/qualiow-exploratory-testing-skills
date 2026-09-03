@@ -62,6 +62,87 @@ describe('TargetConfigSchema', () => {
   });
 });
 
+describe('TargetConfigSchema — backend verification blocks', () => {
+  const base = {
+    id: 'example-backend',
+    name: 'Example Service — dev',
+    base_url: 'https://example-service-dev.example.com',
+    domain: 'saas',
+    auth: { strategy: 'none' as const },
+    browser: { headless: false, viewport: { width: 1440, height: 900 } },
+    scope: { start_pages: ['/'], max_depth: 3 },
+  };
+
+  const withBackend = {
+    ...base,
+    environment: { kind: 'dev' as const, destroyed_automatically: false },
+    backend: {
+      provider: 'aws' as const,
+      aws_profile_env: 'QA_AWS_PROFILE',
+      region_env: 'QA_AWS_REGION',
+      account_id: '000000000000',
+      env_suffix: 'dev',
+      resources: { config_table: 'example-service-dev-config' },
+    },
+    api: {
+      auth: 'session-cookie' as const,
+      browser_profile: '.auth/example-backend-profile',
+      version_endpoint: '/api/v1/version',
+      endpoints: { search: 'POST /api/v1/search' },
+      probe_allowlist: ['POST /api/v1/search'],
+      parity_targets: ['example-backend-staging'],
+      feature_flags: { USE_NEW_SEARCH: 'deploy/config/example-service-dev.yml' },
+    },
+    source: {
+      repo_path: '/path/to/repo',
+      branch: 'origin/feature/TICKET-123',
+      base_branch: 'origin/main',
+      components: { iac: 'infra/modules/service' },
+    },
+  };
+
+  it('should accept a target with environment, backend, api and source blocks', () => {
+    expect(() => TargetConfigSchema.parse(withBackend)).not.toThrow();
+  });
+
+  it('should still accept a target with none of them', () => {
+    expect(() => TargetConfigSchema.parse(base)).not.toThrow();
+  });
+
+  it('should reject an unknown environment kind', () => {
+    const bad = { ...withBackend, environment: { kind: 'preprod' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should reject a source block without a branch', () => {
+    const bad = { ...withBackend, source: { repo_path: '/path/to/repo' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should reject non-string resource names', () => {
+    const bad = {
+      ...withBackend,
+      backend: { ...withBackend.backend, resources: { config_table: 42 } },
+    };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should accept an api block with nothing but a probe allowlist', () => {
+    const minimal = { ...base, api: { probe_allowlist: ['GET /api/v1/health'] } };
+    expect(() => TargetConfigSchema.parse(minimal)).not.toThrow();
+  });
+
+  it('should reject an unknown api auth mode', () => {
+    const bad = { ...withBackend, api: { ...withBackend.api, auth: 'basic' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('should reject a probe allowlist that is not an array of strings', () => {
+    const bad = { ...withBackend, api: { ...withBackend.api, probe_allowlist: 'GET /x' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
+});
+
 describe('KnowledgeEntrySchema', () => {
   const validEntry = {
     id: 'heuristic-sfdipot',

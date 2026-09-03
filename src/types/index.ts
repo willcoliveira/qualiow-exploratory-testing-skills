@@ -50,6 +50,53 @@ export interface SafetyConfig {
   no_delete_actions?: boolean;
 }
 
+export interface EnvironmentConfig {
+  kind: 'dev' | 'ephemeral' | 'staging' | 'production';
+  destroyed_automatically?: boolean;
+}
+
+export interface BackendConfig {
+  provider?: 'aws';
+  /** Env var NAME holding the AWS profile — never the credential itself. */
+  aws_profile_env?: string;
+  region_env?: string;
+  region?: string;
+  /** Expected account id; the live lane stops if the caller identity differs. */
+  account_id?: string;
+  env_suffix?: string;
+  /** Logical name -> deployed resource name. Asserted, confirmed before use. */
+  resources?: Record<string, string>;
+  notes?: string;
+}
+
+export interface ApiSurfaceConfig {
+  /** Defaults to the target's base_url when omitted. */
+  base_url?: string;
+  auth?: 'session-cookie' | 'bearer-env' | 'none';
+  /** Env var NAME holding a bearer token — never the token itself. */
+  token_env?: string;
+  /** Persistent browser profile directory holding the authenticated session. */
+  browser_profile?: string;
+  /** Endpoint returning the deployed build, used to fingerprint the environment. */
+  version_endpoint?: string;
+  /** Logical name -> "VERB /path". */
+  endpoints?: Record<string, string>;
+  /** The only endpoints the read-only API lane may call without asking. */
+  probe_allowlist?: string[];
+  /** Other target ids to run the same matrix against, for parity comparison. */
+  parity_targets?: string[];
+  /** Flag name -> where its deployed value is declared for this environment. */
+  feature_flags?: Record<string, string>;
+  notes?: string;
+}
+
+export interface SourceBranchConfig {
+  repo_path: string;
+  branch: string;
+  base_branch?: string;
+  components?: Record<string, string>;
+}
+
 export interface TargetConfig {
   id: string;
   name: string;
@@ -59,6 +106,10 @@ export interface TargetConfig {
   browser: BrowserConfig;
   scope: ScopeConfig;
   safety?: SafetyConfig;
+  environment?: EnvironmentConfig;
+  backend?: BackendConfig;
+  api?: ApiSurfaceConfig;
+  source?: SourceBranchConfig;
   notes?: string;
 }
 

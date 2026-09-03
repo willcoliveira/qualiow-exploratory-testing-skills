@@ -1,0 +1,97 @@
+id: technique-expected-behaviour-specification
+version: "0.5.0"
+type: technique
+name: "Expected Behaviour Specification — Writing the Spec That Should Have Existed"
+description: >
+  Most of what an API probe turns up has no acceptance criterion behind it, so there is
+  nothing to file the finding against. A bug report says "this is wrong"; this artifact
+  says "here is what right looks like" — observed behaviour and expected behaviour side by
+  side, per area, with the decisions the fix forces made explicit, ranked by what real
+  users can reach today, and closed with a plain-English reply the person funding the fix
+  can act on.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from backend and API verification sessions, 2026-07 to 2026-09"
+tags: [acceptance-criteria, api, backend, requirements, reporting, communication, contract, verification]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Group the findings by cause, not by case. For each area write what the system does
+    today as evidence, what it should do as numbered falsifiable statements, and the
+    decisions the fix forces. Rank by production reachability. Finish with the same content
+    in plain English, ready to paste into a ticket or a chat.
+
+  core_principle: >
+    A finding with no acceptance criterion behind it will be argued about instead of fixed.
+    Converting a pile of observations into one reviewable specification turns a debate into
+    a decision — and the specification is frequently the most valuable thing a session
+    produces.
+
+  structure:
+    - part: "Observed"
+      content: >
+        Exact request, exact status, exact response, and which environments it holds in.
+        Behaviour often differs between environments, and that difference is part of the
+        finding rather than a distraction from it.
+    - part: "Expected"
+      content: >
+        Numbered, falsifiable statements — each a testable assertion, including the
+        boundary values themselves. Not sentiment, not "should handle this gracefully".
+    - part: "Decisions this forces"
+      content: >
+        Made explicit, because leaving them implicit is how one spec becomes three
+        implementations.
+    - part: "What must not change"
+      content: >
+        The valid inputs and their current answers, so the fix is verifiable as
+        non-breaking.
+
+  the_recurring_decisions:
+    - decision: "Reject, or clamp?"
+      answer: >
+        Reject. Silently serving a different page size, a truncated list or a corrected
+        value than was asked for breaks every caller that trusts the value back — and does
+        it invisibly.
+    - decision: "An error, or an empty result?"
+      answer: >
+        An error. A silent zero is indistinguishable from a genuine no-match and will be
+        read as data.
+    - decision: "Where does validation live?"
+      answer: >
+        At the layer that covers every implementation of the feature. Not in one of two
+        code paths, and never only in the client — the client is not in the path for any
+        other caller.
+    - decision: "Is the fallback reachable?"
+      answer: >
+        Say so explicitly. A match-all or default-everything branch reached by accident
+        from ordinary input is a different defect from the one that was reported.
+
+  ranking: >
+    Rank by what real users can reach **today**, not by how bad each finding reads. Name
+    which one is live in production now and which only appears in an environment nobody
+    ships from. The two need very different urgency and the difference is invisible unless
+    somebody states it.
+
+  the_plain_english_reply: >
+    The same content with no jargon, written for whoever decides whether to fund the fix:
+    what happens in a sentence they can picture; whether it is live and where; what the fix
+    is in outline, enough to size and not enough to design; where you agree with their
+    reading and precisely where you do not, and why. Close with the one item you would put
+    ahead of the rest and the reason — usually that it is the only one users are hitting
+    today. Writing this section is what gets the work scheduled.
+
+  disagreeing_well: >
+    When the reporter proposed a fix that would not work — most commonly guarding in the
+    client — agree with the part that is right, then say why the guard has to live on the
+    server: the cases in question cannot come from the app at all, they come from calling
+    the interface directly, and no client-side change can affect them.
+
+  anti_patterns:
+    - "One section per failing input instead of one per cause."
+    - "Expected behaviour written as a sentiment rather than an assertion."
+    - "Leaving reject-vs-clamp and error-vs-empty to the implementer."
+    - "Ranking by severity language instead of by who can reach it today."
+    - "Stopping before the plain-English reply, so the work never gets prioritised."

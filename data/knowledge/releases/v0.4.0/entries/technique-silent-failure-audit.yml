@@ -1,0 +1,86 @@
+id: technique-silent-failure-audit
+version: "0.4.0"
+type: technique
+name: "Silent Failure Audit — Failures That Render as Ordinary Results"
+description: >
+  The worst class of defect is not the crash; it is the crash reported as a normal,
+  legitimate-looking answer — a 500 shown as "0 results", an invalid filter answered
+  with an empty list, a missing translation rendered as an empty heading, a failed
+  fetch shown as a blank panel. The user cannot distinguish "we broke" from "nothing
+  matched", so nobody reports it and no alert fires. This technique enumerates the
+  shapes, gives a repeatable way to force each one, and explains why they recur as a
+  class rather than as individual bugs.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from repeated instances of the same defect class across UI and API sessions, 2026-05 to 2026-09"
+tags: [error-handling, silent-failure, api, backend, ui, data-integrity, observability, negative-testing, regression]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    For every read path, force the failure and look at what the user sees. If a
+    failure is indistinguishable from a legitimate empty or zero result, that is the
+    bug — independent of whatever caused the failure. Force it with a mocked 5xx, an
+    invalid enum value, an input the query layer cannot parse, and an offline
+    network, then check the rendered state, the count, the retry affordance and
+    whether anything was logged where an operator would see it.
+
+  core_principle: >
+    An error the user cannot see is worse than an error they can. A visible failure
+    gets reported and fixed; an invisible one becomes a false belief about the data —
+    and it propagates into decisions, escalations and support tickets aimed at the
+    wrong thing.
+
+  the_shapes:
+    - shape: "A 5xx rendered as an empty result"
+      how_it_happens: "An error handler on the request pipeline returns an empty collection with a zero count instead of setting an error state."
+      tell: "The failing input and a genuine no-match input produce byte-identical screens."
+      force_it: "Mock the endpoint to 500 and repeat the exact flow."
+    - shape: "An invalid enum or filter value answered with 200 and an empty list"
+      how_it_happens: "The value is passed through to a query that simply matches nothing."
+      tell: "A deliberately nonsense filter value returns 200 with zero results rather than 400."
+      why_it_matters: "Someone will read the empty result as data — 'there are none in that category' — and act on it."
+    - shape: "A count that disagrees with the page"
+      how_it_happens: "The total and the page come from different code paths, or a cap clamps the page to nothing."
+      tell: "200, count greater than zero, zero rows returned."
+    - shape: "A blank panel on a failed fetch"
+      how_it_happens: "No shared error component; each consumer improvises, and the improvisation is usually 'render nothing'."
+      tell: "The panel empties, any badge count drops, no message, no retry."
+    - shape: "A raw error string rendered to the user"
+      how_it_happens: "The opposite improvisation — the transport error's own message is bound straight into the template."
+      tell: "The screen shows the failing URL, the status line, or a stack frame. A defect and an information leak at once."
+    - shape: "A missing key rendered as empty space"
+      how_it_happens: "Translation and template lookups return an empty string for an unknown key, and nothing logs it."
+      tell: "Empty heading or paragraph elements in the DOM where copy should be."
+    - shape: "A silently dropped input"
+      how_it_happens: "A token below a minimum length, an unsupported character, an unknown field is discarded rather than rejected."
+      tell: "Two different inputs return an identical result because part of one was thrown away."
+
+  the_audit:
+    - "For every data-fetch surface, force a 5xx and record what renders, whether a retry exists, and whether the count is honest."
+    - "For every enum or filter, send a value that is definitely invalid. Expect 400 with an error body; a 200 with an empty list is a finding."
+    - "For every search or query input, send something the query layer cannot parse and compare the result against a genuine no-match."
+    - "Take the network offline mid-flow and repeat."
+    - "Check what an operator would see: is there a log line, a metric, an alert? A defect with no signal is one nobody will ever discover from the outside."
+
+  it_is_a_class_not_a_bug: >
+    These recur because there is no shared error-state component and each consumer
+    handles failure in its own way. Once two instances exist, expect one on every
+    not-yet-tested data-fetch surface — and predict which improvisation it will be.
+    Report the class alongside the instance: the fix is a single shared component,
+    and when it lands, every data-fetch surface needs re-verifying at once, not just
+    the one that was reported.
+
+  reporting_it:
+    - "Write the business impact as the false belief the user forms, not as the status code. 'The user is told the item does not exist' beats 'the endpoint returns 500'."
+    - "Show the two screens side by side — the failure and the genuine empty result — to make indistinguishability the finding."
+    - "Name the class and the earlier instances. A fourth instance of one pattern is a different conversation than a fourth unrelated bug."
+    - "Separate the two defects when both are present: the endpoint failing, and the client lying about it. They have different owners and either can be fixed without the other."
+
+  anti_patterns:
+    - "Recording an empty result as a pass without checking the status code underneath it."
+    - "Filing each instance as an unrelated bug and never naming the pattern."
+    - "Testing only the happy path of a read surface because 'there is nothing to break'."
+    - "Accepting 'it logs to the console' as observability — the user never sees it and neither does support."

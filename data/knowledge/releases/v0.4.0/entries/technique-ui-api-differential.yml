@@ -1,0 +1,97 @@
+id: technique-ui-api-differential
+version: "0.4.0"
+type: technique
+name: "UI-vs-API Differential — Running the Same Matrix at Both Surfaces"
+description: >
+  Run the overlapping cases through the screen and directly against the endpoint,
+  then sort every finding into four buckets: reproducible at both surfaces, API-only,
+  UI-only, and neither. The two surfaces disagree in exactly two ways, and both are
+  findings — the client hides real defects behind its own guards, and the client
+  invents defects the service does not have. This is also the pass that corrects the
+  most common false PASS in exploratory testing: recording a client-side guard as
+  evidence that the endpoint behaves correctly.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from paired UI and API sessions on the same feature, 2026-07 to 2026-09"
+tags: [api, backend, ui, verification, differential, error-handling, silent-failure, acceptance-criteria, regression]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Take the case matrix a UI session already ran and re-run the overlapping cases
+    directly against the endpoint, in the same environment. Where the two agree, the
+    UI is a faithful renderer and the fix belongs in the service. Where they differ,
+    you have found either a defect the browser was hiding or a defect the browser is
+    inventing — and each has a different owner.
+
+  core_principle: >
+    The browser is one client among several. Its guards are not the endpoint's
+    contract, and its rendering is not the endpoint's response. Testing only through
+    the screen measures the intersection of two systems and attributes the result to
+    the wrong one.
+
+  the_four_buckets:
+    - bucket: "Both"
+      meaning: "The UI faithfully reflects the endpoint. One defect, fix it in the service."
+      note: >
+        Confirming this is worth the run on its own: it tells the team that nothing
+        the UI session found was a frontend artifact, and none of those results need
+        redoing.
+    - bucket: "API only"
+      meaning: >
+        A real defect the client's own guard is hiding — an empty submit the button
+        prevents, a filter-only request the form will not build, a pagination value
+        the control cannot produce.
+      note: >
+        "API only" is not reassurance. The guard is the ONLY thing preventing it, and
+        mobile clients, partner integrations and scripts do not have it. Judge these
+        on the consequence of the call succeeding, not on how it was reached.
+    - bucket: "UI only"
+      meaning: >
+        The client invents or masks a behaviour the service does not have — an error
+        rendered as an empty result, a value re-scaled or re-formatted, a field
+        dropped before display.
+      note: >
+        A client defect with its own owner, independent of the backend verdict, and
+        invisible from any API tool. It needs its own report.
+    - bucket: "Neither"
+      meaning: "Environment or access noise, not a product defect."
+
+  the_two_corrections_this_pass_produces:
+    - correction: "A client-side guard recorded as a pass is not a pass."
+      detail: >
+        "The button is disabled until you type" and "the search box refuses to fire an
+        empty request" describe the client. They are frequently logged as passing
+        behaviour when the endpoint underneath returns a 500 for exactly that input.
+        Call the endpoint the way the guard is preventing before writing PASS.
+      generalised: >
+        A client-side guard may be hiding a server-side failure. Test the endpoint
+        directly before recording the guard as correct behaviour.
+    - correction: "A UI limitation logged as a usability issue may be a symptom."
+      detail: >
+        "Filters are unusable without a search term" reads as a product gap. The same
+        request built by hand returning a 500 shows it is a broken endpoint being
+        worked around. The UI session recorded the symptom; the API session finds the
+        cause.
+
+  how_to_run_it:
+    - "Use the SAME environment for both surfaces, and fingerprint it first — a difference caused by a deploy is not a difference between surfaces."
+    - "Re-run the overlapping cases, not a new set. The point is comparability."
+    - "Expect small drift on broad queries: data changes between the two runs. A few percent on a large result is drift, not a behaviour change."
+    - "Record both numbers side by side per case, with both dates. Matching results are evidence the earlier session can be trusted."
+    - "For each divergence, state which surface is honest. That determines the owner."
+
+  the_headline_it_produces: >
+    Stated plainly, the result of this pass is usually of the form: every issue the UI
+    session found is real and confirmed at the API; testing the API directly found N
+    more that the UI's own guards were hiding; and the UI adds M defects of its own by
+    turning failures into ordinary-looking results. That sentence is what makes the
+    finding actionable for two different teams at once.
+
+  anti_patterns:
+    - "Running the API matrix in a different environment than the UI matrix and comparing the results."
+    - "Comparing absolute counts across environments or across weeks instead of shapes and status codes."
+    - "Filing the same underlying defect twice because it appears at both surfaces — it is one bug unless the client adds a failure of its own."
+    - "Treating an API-only finding as low severity because 'the UI prevents it'."

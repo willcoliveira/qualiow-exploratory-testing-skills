@@ -179,6 +179,96 @@ Notes that save time:
 /qa-target-setup
 ```
 
+## How to Verify Backend Acceptance Criteria
+
+Not every acceptance criterion is visible in a browser. `/qa-verify-backend` covers tickets
+whose ACs live below the UI — tables and streams, queue consumers, Lambda triggers, IAM
+policies, webhooks, IaC, and the service's own HTTP endpoints — and produces an **AC
+traceability matrix** instead of a pass/fail claim.
+
+```bash
+# Copy the template, point it at your service, then verify a ticket branch
+cp data/targets/_example-backend.yml data/targets/local-my-service.yml
+
+/qa-verify-backend --target local-my-service --context output/context/TICKET-123-context.md
+/qa-verify-backend --target local-my-service --static-only   # no cloud credentials
+/qa-verify-backend --target local-my-service --api-only --parity local-my-service-staging
+```
+
+It runs four lanes:
+
+| Lane | What it does |
+|------|--------------|
+| **Static** | Reads the implementation branch against each AC with `git show` (never checks out) — spec drift, scope creep, failure paths, identity propagation, producer/consumer contract breaks |
+| **Live** | Read-only `aws-cli` probes, one per AC, raw output saved as evidence. Never mutates; hard stop on production |
+| **API** | Calls the service's own endpoints from the already-authenticated page, with a written case matrix covering everything the browser's guards prevent. Read-only, limited to the target's `api.probe_allowlist` |
+| **End-to-end** | Drives the real write path in a non-production environment, then re-probes the data layer — including same-tick writes, deletes, bulk saves, a second identity, and DLQ depth |
+
+Each AC gets a verdict with cited evidence — `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`,
+`NOT-REACHABLE` or `UNVERIFIABLE` — and the verdict **names the mode it was reached by and the
+environment it holds in**. `PASS (direct request, raw response attached)` and `PASS (read the
+diff)` are different claims, and a verdict backed only by a code reading is `UNVERIFIABLE`,
+never `PASS`. `BLOCKED` is a first-class outcome: when credentials are missing, the probe
+commands are written out ready to run rather than the verdict being inferred from source.
+
+### Two things it will not let you get away with
+
+**Believing a green result from an environment that does not run your code.** Before the first
+probe, the skill fingerprints every component of the request path: which build is deployed,
+whether the changed path is *selected* here, and whether the commit under test is genuinely an
+ancestor of what is running. One identical build can hold two implementations of the same
+feature with a flag choosing between them — *same build, different behaviour ⇒ configuration,
+not deploy lag*. An environment that does not run the change gets `NOT-REACHABLE`.
+
+**Recording a client-side guard as the endpoint's behaviour.** "The search box refuses to fire
+when empty" describes the browser. Every other client — mobile, partner integration, script —
+sends that request, and it is frequently the one that fails. When a ticket has both a screen
+and an endpoint, the same cases run at both surfaces and each finding is sorted into *both*,
+*API only* (a real defect the guard is hiding), *UI only* (the client invents or masks
+behaviour the service does not have) or *neither*.
+
+The API lane needs no token handling: the request runs inside the page that is already logged
+in, so it carries the same session cookie, CSRF token and interceptors as the UI — which also
+means it works with SSO and MFA that no scripted login can pass. Credentials stay in the
+browser profile under `.auth/` and never enter a script, a report or the repository.
+
+### Correct shape is not a correct answer
+
+Every derived value — a percentage, total, ratio, delta or aggregate — is recomputed from the
+raw figures in the same response, with the formula taken from the specification rather than from
+the code under test, and with cases chosen to stress sign, zero, scale and cardinality. Then the
+report states the limitation plainly: when both sides of the check come from one payload, the
+derivation is verified and the inputs are not, so the **independent oracle** that would close
+the gap is named along with whether it was run.
+
+The payload is also held next to the screen, because a correct response can still reach the user
+as a wrong number — a formatter that guesses what a value is, a unit applied twice, a truncated
+figure presented as a total. That defect is invisible from either surface alone, and it usually
+belongs to a different change than the one under test.
+
+### Findings with no acceptance criterion become a spec
+
+Most of what an API probe turns up has nothing to be filed against, so it turns into an argument
+rather than a fix. `data/templates/expected-behaviour.md` converts a pile of observations into
+one reviewable decision: observed against expected, grouped by cause, with the decisions the fix
+forces made explicit — reject rather than clamp, an error rather than a silent zero, validation
+at the layer that covers every implementation — ranked by what real users can reach today, and
+closed with a plain-English reply for whoever decides to fund the work.
+
+### Verifying a release rather than a ticket
+
+`.claude/skills/qa-verify-backend/references/release-readiness.md` changes the shape of the
+session: the deployment table first
+for every ticket, so a ticket whose backend is not in the build is marked *not testable here*
+rather than tested against a UI that will render convincing nonsense; a result vocabulary that
+keeps *not tested* visible; a coverage map where 🔍 *code-verified only* is marked as
+`UNVERIFIABLE` rather than green, with one sentence naming the untested item that carries the
+most risk; carry-over defects in their own section; and a disposition with the condition that
+would reverse it.
+
+Full guide: **`docs/BACKEND-VERIFICATION.md`**. Safety rules (read-only discipline, the
+production hard stop, redaction): `.claude/skills/qa-verify-backend/references/safety-rules.md`.
+
 ## How to Generate Reports
 
 qualiow produces three report formats from session data.
@@ -220,6 +310,7 @@ const csv = await generateJiraExport('output/sessions/2026-03-28-parabank');
 | `/qa-explore` | Full exploratory testing session (45 min) |
 | `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps or mobile web in the real device browser (iOS Safari / Android Chrome) |
 | `/qa-explore-quick` | Quick focused session on a single page or feature (15 min) |
+| `/qa-verify-backend` | Verify backend/API/infra acceptance criteria with no UI surface — branch review, read-only cloud probes, direct API probes, AC traceability matrix |
 | `/qa-explore-report` | Generate or regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |
 | `/qa-explore-cleanup` | Session cleanup and archival |
@@ -263,6 +354,7 @@ qualiow-exploratory-testing-skills/
     benchmarks/               # performance benchmarks
   docs/
     GETTING-STARTED.md        # detailed setup and usage guide
+    BACKEND-VERIFICATION.md   # verifying ACs with no UI surface
     ARCHITECTURE-DECISIONS.md # architecture decision records
 ```
 

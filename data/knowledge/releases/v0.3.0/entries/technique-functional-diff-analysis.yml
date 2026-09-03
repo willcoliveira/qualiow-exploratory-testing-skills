@@ -1,0 +1,119 @@
+id: technique-functional-diff-analysis
+version: "0.3.0"
+type: technique
+name: "Functional Diff Analysis — Reading a Backend Change for Behaviour, Not Style"
+description: >
+  Standard PR review asks "is this code good?". Verification asks a different
+  question: "what does the system do now that it did not do before, and who
+  feels it?". This technique reads a backend, API or LLM diff functionally —
+  tracing changed values to their consumers, hunting the failure paths the diff
+  does not show, and separating what the ticket asked for from what actually
+  shipped. It produces the hypotheses that the verification modes then go and
+  test.
+author: "Qualiow — BE/API verification layer"
+source: "Built out of /qa-verify-backend sessions, 2026-08"
+tags: [backend, api, code-review, static-analysis, acceptance-criteria, llm, scope-creep, regression]
+domains: [all]
+priority: high
+added: "2026-08-21"
+updated: "2026-08-21"
+
+content:
+  summary: >
+    Read the diff twice. The first pass is orientation: what changed, where, and
+    what the author says it does. The second pass is functional: for each changed
+    value, follow it to the edge of the service and ask what a consumer sees.
+    The output is not a list of code comments — it is a list of falsifiable
+    claims, each attached to an AC, each with a named way to observe it.
+
+  core_principle: >
+    A diff shows you the lines that changed. It does not show you the behaviour
+    that changed — that lives at the boundary of the service, several files
+    away, in the payload someone else consumes. Verification happens at the
+    boundary, so read from the boundary backwards.
+
+  what_this_is_not: >
+    This is not a code quality review. Naming, structure, duplication and style
+    belong to the PR reviewer, and mixing them in dilutes the findings that
+    affect behaviour. If a style issue causes a behavioural risk, report the
+    behaviour, and mention the style as the cause.
+
+  the_passes:
+    - pass: "1. Orientation"
+      questions:
+        - "What is the smallest set of files that could implement this ticket? Is the diff bigger than that, and why?"
+        - "Which files are generated, vendored, or lockfiles? Exclude them from the line count before judging size."
+        - "What does the commit message claim? Hold it as a hypothesis, not a summary."
+    - pass: "2. Spec drift — ticket vs code"
+      questions:
+        - "Take each AC literally. Does the code do that exact thing, or a nearby thing?"
+        - "Where the code differs from the ticket, which one is right? Say so — a better implementation than the AC asked for is still a spec that needs updating."
+        - "Does any AC name an artefact — a test suite, a scenario, a dashboard — that does not exist in the repo? That AC cannot pass as written."
+    - pass: "3. Value tracing"
+      questions:
+        - "For each value the diff changes, where does it leave the service? Published event, API response, written row, queue message, log."
+        - "Who reads it there? Another team, another service, a report, a downstream ticket?"
+        - "Does the changed value keep its old name, type, nullability, precision, and time zone? Type-compatible is not semantics-compatible."
+        - "Was a field REMOVED from a payload, or made conditional? Both are breaking for a strict consumer, and neither shows up as an error here."
+    - pass: "4. The failure paths"
+      questions:
+        - "The happy path is in the diff. What happens on timeout, on a 4xx from the dependency, on an empty result, on a partial batch failure?"
+        - "Is an error swallowed, retried, or propagated — and does the caller's wrapper turn the return value into the same outcome as a throw?"
+        - "Does a failure here poison a batch, drop a message silently, or produce a half-written record?"
+        - "What is the behaviour on replay or duplicate delivery? Most queue consumers get both."
+    - pass: "5. Identity, authorization, and tenancy"
+      questions:
+        - "If the change moves who calls what, is the caller's identity still propagated to the audit trail and the downstream authorization check?"
+        - "Does a broadened permission, a new role, or a new service principal appear in the diff without an AC asking for it?"
+        - "Can data cross a tenant, market, or environment boundary through the new path?"
+    - pass: "6. Contract with the other side"
+      questions:
+        - "If this is a producer, does the payload match what the consumer ticket expects — field names, key shape, ordering guarantees?"
+        - "If this is a consumer, does it tolerate fields it does not know, and does it fail loudly on fields it requires?"
+        - "Is there a version, a schema, or a compatibility mode? If not, the deploy order matters — say so."
+    - pass: "7. Scope"
+      questions:
+        - "Which hunks have nothing to do with any AC? List them explicitly."
+        - "Does an unrelated change touch a live path — validation rules, IAM, retention, a deletion script, CI that deletes things?"
+        - "Was a dependency lockfile regenerated? That is a behaviour change for every service in the repo, riding along unreviewed."
+    - pass: "8. The tests that came with it"
+      questions:
+        - "Do the new tests assert the thing the AC claims, or only that nothing threw?"
+        - "Could any of them fail if the change were wrong? Mentally break the code and see which test goes red."
+        - "See `technique-test-suite-audit` when the change rewrites its own evidence."
+
+  llm_and_agent_specifics:
+    note: >
+      Prompt, tool, model and retrieval changes are backend changes with an
+      unusually wide blast radius and unusually weak type checking. Read them with
+      the same passes, plus these.
+    questions:
+      - "A prompt edit is a spec edit. Which previously-specified behaviour did those words carry, and is it now unstated?"
+      - "Did an instruction move from the system prompt into a tool description, or vice versa? Precedence and persistence differ."
+      - "Did a tool's schema change — a field added, a description reworded, an enum widened? The model's behaviour is downstream of that text."
+      - "Did the model version, temperature, or context window change? That invalidates any prior output-based evidence, including green evals."
+      - "Are there few-shot examples that now contradict the edited instruction? The examples usually win."
+      - "Does the change affect what the agent is ALLOWED to do — new tool, broader permission, fewer confirmations? That is an authorization change, not a prompt change."
+      - "Is there an eval set, and does it contain cases that would fail if this edit were wrong? An eval that only covers the happy prompt proves nothing."
+
+  output_format: >
+    For each hypothesis produced: the AC it belongs to, a one-line statement of
+    what would be observed if it were true, the verification mode that could
+    observe it, and the file and line that prompted it. Hypotheses with no
+    observation channel go straight to the report as UNVERIFIABLE with a note —
+    they are still the most useful thing you can hand a reviewer.
+
+  red_flags:
+    - "A one-line diff on a read path that fans out to other teams, labelled low risk."
+    - "The ticket includes its own analysis table asserting what does and does not change. That is the claim to falsify, not the summary to trust."
+    - "Large generated files inflating the diff so the four lines that matter are invisible in review."
+    - "A change described as a refactor that also alters a default value, a timeout, a retry count, or a validation rule."
+    - "New code paths guarded by a feature flag whose default nobody states."
+    - "Test fixtures updated in the same commit as the behaviour they cover — the fixture may have been changed to match the new bug."
+
+  gotchas:
+    - "Do not review the merge-base you assume; compute it. A stale base makes unrelated main-branch changes look like part of this ticket."
+    - "Read branches with `git show <ref>:<path>` rather than checking out — someone may have uncommitted work in the tree."
+    - "Reading more diff is not the same as understanding more behaviour. Ten minutes tracing one value to its consumer beats an hour skimming every hunk."
+    - "Every hypothesis you cannot observe should still be written down. Silent omission looks identical to 'checked and fine'."
+    - "Kill your own findings before filing them. A report where every item survives scrutiny gets acted on; one with plausible-but-wrong items gets argued with."

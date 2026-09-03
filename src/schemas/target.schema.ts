@@ -55,6 +55,66 @@ export const SafetyConfigSchema = z.object({
   no_delete_actions: z.boolean().optional(),
 });
 
+// ─── Backend verification surface (/qa-verify-backend) ────────────────
+
+// What the skill is allowed to do in this environment. `kind: production`
+// forces read-only probes and skips the end-to-end write phase.
+export const EnvironmentConfigSchema = z.object({
+  kind: z.enum(['dev', 'ephemeral', 'staging', 'production']),
+  destroyed_automatically: z.boolean().optional(),
+});
+
+// Cloud resources to probe read-only. Credentials are referenced by env var
+// NAME (`aws_profile_env`, `region_env`) and never stored here.
+export const BackendConfigSchema = z.object({
+  provider: z.enum(['aws']).optional(),
+  aws_profile_env: z.string().optional(),
+  region_env: z.string().optional(),
+  region: z.string().optional(),
+  // Expected account. The skill compares it to `sts get-caller-identity` and
+  // stops the live lane on a mismatch rather than probing someone else's account.
+  account_id: z.string().optional(),
+  env_suffix: z.string().optional(),
+  // Free-form logical name -> deployed resource name (config_table, dlq, ...).
+  resources: z.record(z.string(), z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+// The service's own HTTP surface, probed read-only from the authenticated
+// session. Credentials are referenced by env var NAME or by profile directory —
+// never stored here.
+export const ApiSurfaceConfigSchema = z.object({
+  // Defaults to the target's base_url when omitted.
+  base_url: z.string().optional(),
+  auth: z.enum(['session-cookie', 'bearer-env', 'none']).optional(),
+  // NAME of the env var holding a bearer token, for `auth: bearer-env`.
+  token_env: z.string().optional(),
+  // Persistent browser profile directory holding the authenticated session,
+  // e.g. `.auth/my-service-dev-profile`. Gitignored.
+  browser_profile: z.string().optional(),
+  // Endpoint returning the deployed build, used to fingerprint the environment.
+  version_endpoint: z.string().optional(),
+  // Logical name -> "VERB /path", e.g. search: "POST /api/v1/search".
+  endpoints: z.record(z.string(), z.string()).optional(),
+  // The ONLY endpoints the read-only API lane may call without asking.
+  probe_allowlist: z.array(z.string()).optional(),
+  // Other target ids to run the same matrix against, for parity comparison.
+  parity_targets: z.array(z.string()).optional(),
+  // Flag name -> where its deployed value is declared for this environment.
+  // A flag can select between two implementations inside one identical build.
+  feature_flags: z.record(z.string(), z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+// The implementation branch reviewed statically. Read with `git show`, never
+// checked out — the user may have uncommitted work.
+export const SourceBranchConfigSchema = z.object({
+  repo_path: z.string(),
+  branch: z.string(),
+  base_branch: z.string().optional(),
+  components: z.record(z.string(), z.string()).optional(),
+});
+
 // ─── Web target (Playwright / playwright-cli — /qa-explore) ───────────
 
 export const WebTargetConfigSchema = z.object({
@@ -68,6 +128,12 @@ export const WebTargetConfigSchema = z.object({
   browser: BrowserConfigSchema,
   scope: ScopeConfigSchema,
   safety: SafetyConfigSchema.optional(),
+  // Optional blocks consumed by /qa-verify-backend. A target without them is
+  // still a valid /qa-explore target.
+  environment: EnvironmentConfigSchema.optional(),
+  backend: BackendConfigSchema.optional(),
+  api: ApiSurfaceConfigSchema.optional(),
+  source: SourceBranchConfigSchema.optional(),
   notes: z.string().optional(),
 });
 

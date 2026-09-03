@@ -1,0 +1,33 @@
+# Release metadata for v0.5.0
+version: "0.5.0"
+date: "2026-09-03"
+author: "qualiow"
+status: active
+
+notes: >
+  Payload correctness and release-level verification. v0.4.0 established how to reach an
+  endpoint and how to know which build is answering; this release covers what to do with
+  the answer once you have it, and how to report a set of tickets rather than one. Derived
+  Value Verification recomputes every percentage, total and aggregate from the raw figures
+  in the same response — and then says, in the report, that internal consistency is not
+  correctness and names the independent oracle that would close the gap. Presentation
+  Integrity holds the payload next to the screen, because a correct response can still
+  reach the user as a wrong number, and because that defect is routinely attributed to the
+  wrong change. Expected Behaviour Specification is the artifact for everything an API
+  probe turns up that has no acceptance criterion behind it: observed against expected, the
+  reject-or-clamp and error-or-empty decisions made explicit, ranked by what users can
+  reach today, and closed with a plain-English reply the person funding the fix can act on.
+  Config & Feature-Flag Surface Verification covers the case where the configuration
+  mechanism is itself the change. Release Readiness Verification handles many tickets in
+  one build: establish what is deployed before testing anything, keep not-testable and
+  not-tested visible, mark code-verified-only as UNVERIFIABLE rather than green, separate
+  carry-overs, and end with a disposition and the condition that would reverse it.
+
+entry_count: 5
+
+entries:
+  - technique-derived-value-verification
+  - technique-presentation-integrity
+  - technique-expected-behaviour-specification
+  - technique-config-surface-verification
+  - technique-release-readiness-verification

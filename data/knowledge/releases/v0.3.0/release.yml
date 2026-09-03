@@ -1,0 +1,25 @@
+# Release metadata for v0.3.0
+version: "0.3.0"
+date: "2026-08-21"
+author: "qualiow"
+status: active
+
+notes: >
+  The BE/API verification layer. Until now the capability could analyse a
+  backend change and drive a browser, but had no disciplined way to EXECUTE a
+  check against anything that has no screen — and no vocabulary for admitting
+  when a change cannot be observed at all. These three entries close that gap.
+  Verification Mode Selection routes each AC to the channel that can actually
+  falsify it (API-behind-the-screen, direct request, LLM output judgement, or
+  needs-a-human) and makes UNVERIFIABLE a first-class outcome rather than a
+  quiet PASS. Functional Diff Analysis deepens the static pass that feeds it,
+  reading a diff for behaviour at the service boundary instead of code quality.
+  LLM & Agent Output Verification covers the mode that has no type checker at
+  all, including how to report non-determinism honestly.
+
+entry_count: 3
+
+entries:
+  - technique-verification-mode-selection
+  - technique-functional-diff-analysis
+  - technique-llm-output-verification

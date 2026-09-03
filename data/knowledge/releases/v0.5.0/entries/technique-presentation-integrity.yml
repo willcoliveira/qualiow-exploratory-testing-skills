@@ -1,0 +1,78 @@
+id: technique-presentation-integrity
+version: "0.5.0"
+type: technique
+name: "Presentation Integrity — Does the Screen Show What the Service Sent?"
+description: >
+  A correct response can still reach the user as a wrong number. Formatting helpers that
+  inspect a value to guess what it is, units applied twice, rounding that crosses a
+  threshold, truncation presented as a total — each corrupts a payload that was right when
+  it left the service. The defect is invisible from any API tool and invisible from the
+  screen alone; it appears only when the raw response is held next to what is rendered. It
+  also gets attributed to the wrong change more often than any other kind.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from paired UI and API sessions on the same features, 2026-07 to 2026-09"
+tags: [ui, api, data-integrity, verification, differential, calculations, regression, error-handling]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    For every value on screen, open the raw response beside it and compare. Probe any
+    formatter that branches on the value itself by feeding it inputs on both sides of the
+    threshold it tests. When they differ, work out which change owns the corruption before
+    filing it — it is frequently not the change under test.
+
+  core_principle: >
+    "The API is correct" and "the user sees the correct value" are two verdicts. Proving
+    the first says nothing about the second, and a session that only ever looks at one
+    surface cannot tell which half is broken.
+
+  the_formatter_that_guesses:
+    shape: >
+      A helper that inspects the value to decide what kind of value it is — the classic
+      being a ratio-or-percentage test such as `value > 1 ? value : value * 100`.
+    why_it_survives_review: >
+      It is right across most of the range, so it looks correct in every casual check and
+      in every test written from the same assumption.
+    why_it_is_wrong: >
+      The threshold is a guess about data, not a fact about it. Every legitimate value on
+      the wrong side of it is rendered wrong — here, every percentage at or below 1 renders
+      one hundred times too large.
+    how_to_probe_it: >
+      Find the threshold in the helper, then obtain a payload with a value just either side
+      of it. If no reachable record has one, that is worth reporting on its own: the case
+      cannot be verified from the product.
+    the_tell: >
+      A tile that contradicts itself — a percentage printed above the fraction it was
+      derived from, and the two disagree.
+
+  other_shapes:
+    - "A unit or currency applied twice, or not at all."
+    - "Rounding that changes the answer rather than the display — a value rounded before a comparison or a threshold."
+    - "Truncation presented as a total, so a partial figure reads as the whole."
+    - "A field the client silently drops because it does not render it — invisible until a consumer needs it."
+    - "Locale and format settings whose output merely happens to match: consistent is not causal. Change the setting and watch the output follow, or record the AC as partial."
+    - "An error rendered as a legitimate value — see technique-silent-failure-audit."
+
+  attributing_it_correctly: >
+    A correct payload corrupted on its way to the screen is not the backend ticket's
+    defect. It usually belongs to a different commit — frequently one deployed on one
+    environment and not another, which is why the same feature can look broken in one place
+    and fine in another. Identify the owning change, state plainly that the change under
+    test is not at fault, and say which environments are exposed. Reviewers who see a
+    contradictory screen reject correct work; that is the business impact, and it is worth
+    writing in those terms.
+
+  reporting:
+    - "Show the payload value and the rendered value side by side. That pair is the finding."
+    - "Give the range over which the corruption occurs, not just the one example that was noticed."
+    - "Name the owning change and the environments it is deployed on."
+    - "Say explicitly whether the change under test is implicated, especially when it is not."
+
+  anti_patterns:
+    - "Signing off a value from the screen alone."
+    - "Signing off a value from the API alone and assuming the screen follows."
+    - "Filing a rendering defect against the backend ticket that happened to surface it."
+    - "Accepting a setting-driven format as verified without ever changing the setting."

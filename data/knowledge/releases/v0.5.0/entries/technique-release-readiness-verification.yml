@@ -1,0 +1,110 @@
+id: technique-release-readiness-verification
+version: "0.5.0"
+type: technique
+name: "Release Readiness Verification — Many Tickets, One Build"
+description: >
+  Verifying a release is not a longer ticket verification. The question is what is actually
+  in this build and what that makes each ticket's result mean — which is answered once, for
+  everything, before any testing starts. Adds a fixed result vocabulary that keeps
+  not-testable and not-tested visible, a coverage map with four states including
+  code-verified-only, a carry-over section that keeps pre-existing defects out of the
+  release's risk picture, and a disposition line with the condition that would change it.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from multi-ticket release verification sessions, 2026-08 to 2026-09"
+tags: [regression, release, deployment, reporting, coverage, risk, acceptance-criteria, verification, environment]
+domains: [all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Fingerprint the build once, list per ticket whether its commit is genuinely deployed,
+    and reclassify the session before touching anything. Then give every ticket a result
+    from a fixed vocabulary, keep a coverage map that admits what it did not do, separate
+    carry-overs, and end with a disposition and the condition that would reverse it.
+
+  core_principle: >
+    A result is only meaningful once you know what was running when you took it. Establish
+    that first, for the whole set, or half the session's conclusions will be about a build
+    that does not contain the change.
+
+  step_one_the_build_table: >
+    For every ticket, run the ancestry check against the deployed commit
+    (`git merge-base --is-ancestor`). A ticket whose backend is not deployed is NOT
+    TESTABLE here — not a failure. Testing its UI anyway produces a convincing and
+    meaningless result: the frontend ships the feature, the API does not answer, and it
+    renders as dashes, zeros or blanks that look exactly like a data defect and get filed
+    as one.
+
+  result_vocabulary:
+    - result: "Clean pass"
+      means: "Every AC met, with evidence."
+    - result: "Pass with caveats"
+      means: "The feature works; named ACs remain unproven, or a defect is open against it."
+    - result: "Fail"
+      means: "An AC is not met in this build."
+    - result: "Not testable here"
+      means: "The dependency is not deployed or not selected in this environment."
+    - result: "Not tested"
+      means: "In scope, not reached. Say so — never let it disappear into a summary."
+
+  coverage_map_states:
+    - state: "tested and passing"
+      means: "Observed, with evidence."
+    - state: "partially tested"
+      means: "Exercised, but a named part of the AC was not."
+    - state: "not tested"
+      means: "In scope, never reached."
+    - state: "code-verified only"
+      means: >
+        Read in the source and believed. This is UNVERIFIABLE, not a pass — mark it
+        distinctly so it cannot be skimmed as green.
+
+  two_pedantic_distinctions:
+    - distinction: "Consistent is not causal"
+      detail: >
+        A setting whose current value happens to match the output proves nothing. Change
+        the setting and watch the output follow, or record the AC as partial.
+    - distinction: "The data has to reach the case"
+      detail: >
+        "Negative values render in the negative colour" cannot be verified against records
+        that are all zero. If no reachable record exercises the AC, it is untested — find
+        one, create one, or say plainly it is unproven and name what data would settle it.
+
+  name_the_biggest_untested_item: >
+    One sentence identifying which gap carries the most risk. In a report full of green
+    rows it is the line the reader actually acts on, and it is the one most often left out.
+
+  carry_overs: >
+    Defects that pre-date the changes under test get their own section — pre-existing, not
+    caused by these tickets, tracked separately. Mixing them into the release's results
+    inflates the apparent risk of shipping and buries the findings that belong to it. The
+    reverse also holds: a defect that appears only because two changes met in this build
+    belongs to the release even though neither ticket owns it alone.
+
+  a_deploy_landing_mid_session:
+    - "Re-fingerprint immediately and record both build ids."
+    - "Keep pre-deploy findings in their own file — they are the evidence for what the previous build did."
+    - "Re-run the affected checks and state which build each result refers to."
+    - "Never merge pre- and post-deploy results into one table."
+
+  baselines: >
+    When a ticket's effect is a change in a number, take the before figure from the same
+    place as the after figure and state the tolerance — a few per cent on a large live
+    collection is churn, not a regression. Where a system-wide figure and a per-user figure
+    disagree, name which one describes the behaviour the feature actually changed.
+
+  the_disposition: >
+    Close with ship / ship-with-follow-ups / hold, plus the condition that would change your
+    mind, plus the scope of what you checked when it is narrower than the question being
+    asked. "Feature functionality verified; absolute value accuracy is out of scope and
+    validated by the product team" is a recommendation someone can act on. One with an
+    unstated scope is one someone will over-read.
+
+  anti_patterns:
+    - "Testing tickets before establishing what is deployed."
+    - "Letting 'not tested' vanish between 'passed' and 'failed'."
+    - "Reporting a code reading in the same colour as an observation."
+    - "Mixing carry-over defects into the release's risk picture."
+    - "A recommendation with no stated scope and no stated reversal condition."

@@ -1,0 +1,28 @@
+# Release metadata for v0.4.0
+version: "0.4.0"
+date: "2026-09-03"
+author: "qualiow"
+status: active
+
+notes: >
+  The HTTP/API verification lane. v0.3.0 gave the capability a way to CHOOSE how to
+  observe a backend change; this release supplies the observation itself for the most
+  common backend surface of all — the service's own endpoints — and the discipline that
+  makes the result mean anything. Environment Fingerprinting comes first and governs the
+  rest: a verdict is a claim about code, a probe is an observation of an environment, and
+  they coincide only when that environment actually runs the change. Authenticated API
+  Probing gets a real request context without handling a credential, and supplies the case
+  families worth firing at any endpoint. UI-vs-API Differential runs the same matrix at
+  both surfaces and sorts the findings by which surface is honest — the pass that corrects
+  the most common false PASS in exploratory testing, a client-side guard recorded as the
+  endpoint's behaviour. Silent Failure Audit covers the defect class all three keep
+  turning up: failures rendered as ordinary-looking empty, zero or neutral results, which
+  nobody reports because nobody can see them.
+
+entry_count: 4
+
+entries:
+  - technique-environment-fingerprinting
+  - technique-authenticated-api-probing
+  - technique-ui-api-differential
+  - technique-silent-failure-audit

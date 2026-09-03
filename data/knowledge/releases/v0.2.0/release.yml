@@ -1,0 +1,20 @@
+# Release metadata for v0.2.0
+version: "0.2.0"
+date: "2026-08-20"
+author: "qualiow"
+status: active
+
+notes: >
+  Backend and AC-verification techniques, derived from real /qa-verify-backend
+  sessions rather than from published literature.
+  Both entries target the same blind spot: changes that are silent by
+  construction. Contract Narrowing covers read-path swaps where a projection
+  replaces a full fetch and unrequested fields vanish without an error.
+  Auditing the Branch's Own Tests covers the case where the evidence for an
+  AC is itself part of the change under review.
+
+entry_count: 2
+
+entries:
+  - technique-contract-narrowing
+  - technique-test-suite-audit

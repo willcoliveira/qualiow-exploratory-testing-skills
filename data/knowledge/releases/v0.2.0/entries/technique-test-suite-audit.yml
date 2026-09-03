@@ -1,0 +1,116 @@
+id: technique-test-suite-audit
+version: "0.2.0"
+type: technique
+name: "Auditing the Branch's Own Tests"
+description: >
+  When a change rewrites the tests that are supposed to prove it works, those
+  tests stop being evidence and become part of the change under review. Read
+  them as production code: does each assertion still falsify what its name
+  claims? A suite can go green because the system works, or because the
+  assertion quietly stopped meaning anything.
+author: "Derived from a backend AC-verification session — a branch that rewrote the end-to-end suite cited by its own acceptance criteria"
+source: "Qualiow backend AC verification session, 2026-08-20"
+tags: [test-quality, verification, ci, acceptance-criteria, backend, regression]
+domains: [all]
+priority: high
+added: "2026-08-20"
+updated: "2026-08-20"
+
+content:
+  summary: >
+    An acceptance criterion of the form "the integration tests pass" is only as
+    good as what those tests assert. Whenever a branch touches its own test
+    suite — especially the suite cited by an AC — audit the assertions before
+    accepting a green run as proof. The highest-value checks are cheap: does
+    the artefact the AC names actually exist, and does each test's return value
+    still mean what its caller thinks it means?
+
+  core_principle: >
+    "A passing test proves something. Find out what."
+    Tests are the only part of a codebase people trust without reading. That
+    makes a weakened assertion the most durable kind of defect: it removes
+    protection permanently and reports success while doing it.
+
+  checks:
+    - name: "Do the cited artefacts exist?"
+      detail: >
+        An AC naming 'the existing Cucumber scenarios' or 'the integration
+        suite' is a falsifiable claim. Search for the files. If they do not
+        exist, that is an AC defect to report against the ticket — not a code
+        defect, and not something to quietly reinterpret as satisfied by
+        whatever tests do exist.
+    - name: "Did the meaning of a shared return value drift?"
+      detail: >
+        Look for a helper whose boolean/result is interpreted by several
+        callers. If the helper's definition changed but the callers' comments
+        still describe the old meaning, at least one caller is now wrong —
+        and an inverted caller (`const ok = !result`) will be wrong in the
+        direction that fails on a HEALTHY system.
+    - name: "Is the assertion at the right layer?"
+      detail: >
+        A producer cannot observe whether a downstream filter matched its
+        event. If a test claims to verify routing, filtering, or delivery, the
+        assertion must read the router/consumer (rule metrics, target state,
+        DLQ) — not the producer's own logs, which look identical either way.
+    - name: "Does pass/fail depend on observability config?"
+      detail: >
+        Assertions that grep logs inherit a hidden dependency on log level. If
+        the line asserted on is emitted at debug, the suite silently requires
+        debug logging in the target environment, and 'the flow is broken' and
+        'logging is turned down' become indistinguishable failures.
+    - name: "Were real assertions demoted to logging?"
+      detail: >
+        Watch for checks that used to decide pass/fail being reduced to console
+        output — often marked 'informational only'. The suite keeps its name
+        and its runtime and loses its teeth.
+    - name: "Can this test fail?"
+      detail: >
+        For each test, describe the concrete broken system that would turn it
+        red. If you cannot, it is decoration. Apply this hardest to negative
+        tests, which are the ones that silently stop discriminating.
+    - name: "Do the fixtures encode the same assumption as the code?"
+      detail: >
+        A fixture built by the author of the change shares the author's mental
+        model. If the code forgot a field, the fixture almost certainly omits
+        it too, and the test cannot see the gap.
+
+  failure_patterns:
+    - name: "Meaning drift across files"
+      example: >
+        A runner is changed to return 'the producer logged a publish line',
+        while its callers still treat the value as 'the event matched the
+        routing rule'. The negative scenario computes `!passed` and therefore
+        fails whenever the system behaves correctly.
+    - name: "Assertion inversion that hides in review"
+      example: >
+        Because the inverted case now fails on a healthy system, the team
+        learns to ignore that test — which also disables it for the real
+        regression it was written to catch.
+    - name: "Unconditional green"
+      example: >
+        A scenario asserts on behaviour that happens for every input, so it
+        passes regardless of the condition it claims to test.
+    - name: "Log-scraping as an oracle"
+      example: >
+        Pass/fail is decided by a debug log line, coupling the suite to a
+        LOG_LEVEL set in a build file nobody reads during review.
+
+  test_approach:
+    - "Diff the test files as carefully as the source files — read them last, when you already know what the code does."
+    - "For every rewritten helper, list its callers and check each caller's interpretation against the new definition."
+    - "For each negative/failure-path test, state the broken system that makes it red. No answer means no test."
+    - "Grep the AC's named artefacts (feature files, suite names) and confirm they exist before scoring the AC."
+    - "Run the suite. Then break the code deliberately in the way the test claims to catch, and confirm it goes red."
+
+  when_to_use:
+    - "Any AC of the form 'tests pass', 'existing scenarios still work', or 'covered by integration tests'."
+    - "Any branch whose diff includes non-trivial changes to its own test files."
+    - "Any refactor that rewrites a test harness or test runner rather than just updating expectations."
+    - "When coverage numbers are offered as evidence of behavioural equivalence."
+
+  gotchas:
+    - "High coverage and a weakened assertion coexist happily — coverage measures execution, not verification."
+    - "Property-based tests over random valid inputs are strong on shape and blind to missing optional fields."
+    - "A test failing on a correct system is not merely noise; it trains the team to ignore the file it lives in."
+    - "Do not report a test failure as a product defect until you have ruled out your own harness — a mis-resolved dependency or stale build produces errors that look exactly like real ones. Fix the harness, re-run, and only then file."
+    - "Separate AC defects from code defects in the write-up. 'The AC names something that does not exist' is feedback for the ticket author; 'the test is inverted' is feedback for the implementer."
