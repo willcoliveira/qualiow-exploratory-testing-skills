@@ -25,6 +25,13 @@ If the UI is unavailable, call the write API directly with the same auth — but
 in the report, because an API-only trigger does not prove the UI's identity
 propagation works.
 
+**For a service that has no UI at all, the write API *is* the real path** and no caveat is
+owed. Restrict every state-changing call to the target's `api.write_allowlist`; an endpoint
+absent from that list stays uncalled even when its verb looks harmless. Where the service
+offers a workspace reset, treat it as destructive: it is the one call that erases the
+evidence for everything already observed, so make it deliberate and never routine cleanup
+between cases.
+
 Conversely, if the UI trigger succeeds, that is not evidence the endpoint accepts what
 other clients will send. The client's own guards are still in the path. Phase 3b covers
 what happens without them.
@@ -61,6 +68,13 @@ and event pipelines actually break:
   another.
 - **DLQ after.** Re-check depth. Anything new means the pipeline dropped something
   while you watched.
+- **The replayed event.** Send the same event twice — sequentially, then concurrently, then
+  with one field altered. Which field the system deduplicates on is rarely the one the
+  documentation implies, and "deduplicated" is not the same claim as "applied exactly once":
+  check the effect, not just the status.
+- **The late event.** Deliver an event *after* a timeout, sweeper or retry has already
+  resolved the record. A system that closed the record and then still applies the arriving
+  event has two truths at once — and in a money system that is the expensive kind.
 
 Record each with its own evidence file. Any of these that fails is a bug report,
 whether or not an AC covers it — the ACs are a floor, not a ceiling.

@@ -82,12 +82,33 @@ it to a file **outside the repository**, and pass the path in by environment var
 Never inline a session credential into a script, a committed file, a report, or a
 message. It is a live credential for a real account.
 
+### API key from the environment — when there is no UI at all
+
+A service with no user interface has no session to inherit. The target declares
+`api.auth: api-key-env`, the variable holding the key in `api.token_env`, and the header
+carrying it in `api.header_name` (default `X-Api-Key`); the runner reads the value at run
+time. The script contains the variable name, never the key.
+
+```bash
+# node --env-file=.env probes/<case-family>.mjs   — key read from process.env, never written down
+const key = process.env[TOKEN_ENV];
+const res = await fetch(base + path, { method, headers: { 'X-Api-Key': key, ...h }, body });
+```
+
+Two things this mode owes you that a browser session gives for free. **Prove the credential
+is doing something**: one call without the header must be rejected, one with it must
+succeed. A service that answers identically either way is not authenticating, and every
+later "authenticated" result is worthless. **Record a request identifier per case** — a
+trace or request id from the response headers — because with no browser there is no
+DevTools timeline to reconstruct afterwards.
+
 ### Which mode proves what
 
 | Mode | Proves |
 |------|--------|
 | In-page `fetch` | The endpoint behaves this way **for a real logged-in session**, through the same client stack the UI uses |
 | Out-of-browser request | The endpoint behaves this way **for anyone holding that credential** — the client-side stack is out of the picture |
+| API key from the environment | The endpoint behaves this way **for any holder of the key**, with no client in the path at all. For a service with no UI this is not a weaker claim than the first row — it is the whole contract |
 | Public request, no credential | The endpoint is reachable unauthenticated — a finding in itself if it should not be |
 
 Name the mode next to every verdict. They are different claims.

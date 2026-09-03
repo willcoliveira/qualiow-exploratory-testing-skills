@@ -98,9 +98,14 @@ queues, Terraform — and the service's own HTTP endpoints. It runs four lanes:
 - **API** — calls the endpoints directly from the **already-authenticated page**
   (`playwright-cli eval` + `fetch(…, {credentials:'include'})`), so the request carries the
   session cookie, CSRF token and interceptors the UI has: no token plumbing, and it survives
-  SSO/MFA. A written case matrix covers what the browser's own guards prevent — empty and
-  null bodies, metacharacters, invalid enum values, pagination bounds, a second identity.
-  Read-only, limited to the target's `api.probe_allowlist`.
+  SSO/MFA. For a service with **no UI at all** (`api.auth: api-key-env`) the lane runs out of
+  browser instead, reading the key from the env var named in `api.token_env` and sending it in
+  `api.header_name` — prove the credential first (one call rejected without it, one accepted
+  with it) or a `401` rendered as JSON reads like a pass. A written case matrix covers what the
+  browser's own guards prevent — empty and null bodies, metacharacters, invalid enum values,
+  pagination bounds, a second identity. Read-only, limited to the target's
+  `api.probe_allowlist`; state-changing calls belong to the end-to-end lane and to
+  `api.write_allowlist`.
 - **End-to-end** — drives the real write path (UI or API) in an ephemeral environment, then
   re-probes the data layer, including the adversarial cases: same-tick writes, deletes, bulk
   saves, second identity, DLQ depth.
@@ -148,6 +153,9 @@ Modes: API-behind-the-screen (assert on the network calls, not the rendered scre
 request to a no-UI endpoint (webhooks, internal APIs, queue consumers) · LLM/agent output
 judged against a written rubric · needs-a-human for pure refactors with nothing observable.
 
+Target templates: `data/targets/_example-backend.yml` (service behind a UI),
+`data/targets/_example-api-only.yml` (HTTP API with no UI, key from the environment).
+
 Safety rules: `.claude/skills/qa-verify-backend/references/safety-rules.md`.
 Probe catalogues: `references/aws-readonly-probes.md` (cloud resources),
 `references/api-probes.md` (HTTP endpoints), `references/environment-fingerprinting.md`,
@@ -158,7 +166,10 @@ BE/API techniques: knowledge base v0.3.0 — `technique-verification-mode-select
 `technique-ui-api-differential`, `technique-silent-failure-audit`; v0.5.0 —
 `technique-derived-value-verification`, `technique-presentation-integrity`,
 `technique-expected-behaviour-specification`, `technique-config-surface-verification`,
-`technique-release-readiness-verification`.
+`technique-release-readiness-verification`; v0.6.0 — `technique-exactly-once-verification`,
+`technique-async-callback-contracts` (asynchronous money movement: assert the balance delta not
+the status field, attack identity collision and simultaneous redelivery, and probe what a callback
+endpoint does with an event it cannot match).
 
 ## Skills (continued)
 

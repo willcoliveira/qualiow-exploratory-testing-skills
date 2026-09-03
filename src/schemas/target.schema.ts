@@ -86,9 +86,13 @@ export const BackendConfigSchema = z.object({
 export const ApiSurfaceConfigSchema = z.object({
   // Defaults to the target's base_url when omitted.
   base_url: z.string().optional(),
-  auth: z.enum(['session-cookie', 'bearer-env', 'none']).optional(),
-  // NAME of the env var holding a bearer token, for `auth: bearer-env`.
+  auth: z.enum(['session-cookie', 'bearer-env', 'api-key-env', 'none']).optional(),
+  // NAME of the env var holding the credential, for `auth: bearer-env` (a bearer
+  // token) or `auth: api-key-env` (a static API key sent in its own header).
   token_env: z.string().optional(),
+  // Header carrying the credential for `auth: api-key-env`. Defaults to
+  // `X-Api-Key`. The VALUE always comes from `token_env`, never from here.
+  header_name: z.string().optional(),
   // Persistent browser profile directory holding the authenticated session,
   // e.g. `.auth/my-service-dev-profile`. Gitignored.
   browser_profile: z.string().optional(),
@@ -98,6 +102,10 @@ export const ApiSurfaceConfigSchema = z.object({
   endpoints: z.record(z.string(), z.string()).optional(),
   // The ONLY endpoints the read-only API lane may call without asking.
   probe_allowlist: z.array(z.string()).optional(),
+  // The ONLY endpoints phase 4 may call through the real write path, and only in
+  // a dev or ephemeral environment. Empty or absent means the API lane is
+  // read-only here and every state-changing AC needs a different channel.
+  write_allowlist: z.array(z.string()).optional(),
   // Other target ids to run the same matrix against, for parity comparison.
   parity_targets: z.array(z.string()).optional(),
   // Flag name -> where its deployed value is declared for this environment.

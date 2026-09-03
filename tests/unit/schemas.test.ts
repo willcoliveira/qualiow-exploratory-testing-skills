@@ -141,6 +141,26 @@ describe('TargetConfigSchema — backend verification blocks', () => {
     const bad = { ...withBackend, api: { ...withBackend.api, probe_allowlist: 'GET /x' } };
     expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
   });
+
+  it('should accept an api-key-env api block with a header name and write allowlist', () => {
+    const apiOnly = {
+      ...base,
+      api: {
+        auth: 'api-key-env' as const,
+        token_env: 'EXAMPLE_API_KEY',
+        header_name: 'X-Api-Key',
+        version_endpoint: '/health',
+        probe_allowlist: ['GET /health'],
+        write_allowlist: ['POST /items'],
+      },
+    };
+    expect(() => TargetConfigSchema.parse(apiOnly)).not.toThrow();
+  });
+
+  it('should reject a write allowlist that is not an array of strings', () => {
+    const bad = { ...withBackend, api: { ...withBackend.api, write_allowlist: 'POST /x' } };
+    expect(TargetConfigSchema.safeParse(bad).success).toBe(false);
+  });
 });
 
 describe('KnowledgeEntrySchema', () => {
