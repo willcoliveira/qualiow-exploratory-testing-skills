@@ -56,6 +56,10 @@ All changes in this release are **additive and backward-compatible** with v1.2.0
 - `references/safety-rules.md` gains a session-credential rule (an authenticated profile or a cookie taken from it is a live credential and never enters a script, a committed file, a report or a message), makes the API lane read-only in every environment with an allowlist and a volume limit, and extends untrusted-content handling to API response bodies and error strings.
 - `package.json` `files` now ships `data/targets/_example-backend.yml` and `docs/BACKEND-VERIFICATION.md`.
 
+### Fixed
+- `.gitignore` ignored `.auth/*.json` but not `.auth/<profile>/` directories. The API lane uses **persistent browser profile directories**, which hold live session cookies for a real account, so the pattern is now `.auth/*` with the `.gitkeep` placeholder negated. Without this, following the documented setup would stage a working credential.
+- `package.json` `files` shipped `data/domains/*.yml` only, so no `data/domains/<domain>.md` has ever reached an installed copy — while `qa-explore` and `qa-verify-backend` both instruct reading that file for the domain's data-integrity checks. Now ships `data/domains/`, which also covers the new `identity.md`.
+
 ### Known issues
 - `data/domains/identity.yml` fails `npm run validate`, in exactly the same way as the five domain files already in the repo (`_default`, `ecommerce`, `fintech`, `marketing`, `saas`): `DomainConfigSchema` has drifted from the shape every domain file actually uses (`risk_ranking` as a map, `journeys` without `id`/`description`/`risk`, `guidance` as a string). The new file follows the existing house format rather than a schema nothing conforms to. Reconciling the two is a separate change.
 

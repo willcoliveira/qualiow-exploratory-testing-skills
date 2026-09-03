@@ -14,7 +14,7 @@
     "bin/",
     "scripts/setup-mobile.sh",
     "scripts/doctor-mobile.sh",
-    "data/domains/*.yml",
+    "data/domains/",
     "data/knowledge/",
     "data/templates/",
     "data/targets/_default.yml",

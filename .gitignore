@@ -12,7 +12,11 @@ output/bugs/*.md
 !output/bugs/all-bugs.md
 
 # Auth & secrets
-.auth/*.json
+# `.auth/*.json` alone is not enough: /qa-verify-backend's API lane uses PERSISTENT
+# BROWSER PROFILE DIRECTORIES (`.auth/<profile>/`), which hold live session cookies
+# for a real account. Ignore everything under .auth/ and keep the placeholder.
+.auth/*
+!.auth/.gitkeep
 .env
 
 # Playwright

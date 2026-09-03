@@ -257,7 +257,8 @@ closed with a plain-English reply for whoever decides to fund the work.
 
 ### Verifying a release rather than a ticket
 
-`references/release-readiness.md` changes the shape of the session: the deployment table first
+`.claude/skills/qa-verify-backend/references/release-readiness.md` changes the shape of the
+session: the deployment table first
 for every ticket, so a ticket whose backend is not in the build is marked *not testable here*
 rather than tested against a UI that will render convincing nonsense; a result vocabulary that
 keeps *not tested* visible; a coverage map where 🔍 *code-verified only* is marked as

@@ -16,8 +16,8 @@ each one from the raw figures in the **same response**.
 
 ```
 metric      raw            ÷ base          computed    API      ✓
-margin A     12,500.00      ÷ 50,000.00     25.0000%    25.0     ok
-margin B     −4,000.00      ÷ 50,000.00     −8.0000%    −8.0     ok
+rate A       12,500.00      ÷ 50,000.00     25.0000%    25.0     ok
+rate B       −4,000.00      ÷ 50,000.00     −8.0000%    −8.0     ok
 ```
 
 Choose the cases deliberately:

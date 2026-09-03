@@ -19,9 +19,10 @@ git -C <repo> merge-base --is-ancestor <ticket-commit> <deployed-commit> \
 ```
 
 This single table reclassifies half the session before any testing happens. A ticket whose
-backend is not deployed is **not testable here** — it is not a failure, and testing its UI
-will produce a convincing, meaningless result: the frontend ships the feature, the API does
-not answer, and it renders as dashes, zeros or empty values that look exactly like a data bug.
+backend is not deployed is **not testable here** — the per-ticket wording for the same thing
+the AC matrix records as `NOT-REACHABLE`. It is not a failure, and testing its UI will produce
+a convincing, meaningless result: the frontend ships the feature, the API does not answer, and
+it renders as dashes, zeros or empty values that look exactly like a data bug.
 
 ## Step 2: Give Every Ticket a Result From a Fixed Vocabulary
 
@@ -30,7 +31,7 @@ not answer, and it renders as dashes, zeros or empty values that look exactly li
 | **Clean pass** | Every AC met, with evidence |
 | **Pass with caveats** | The feature works; named ACs remain unproven or a defect is open against it |
 | **Fail** | An AC is not met in this build |
-| **Not testable here** | The dependency is not deployed or not selected in this environment |
+| **Not testable here** | The dependency is not deployed or not selected in this environment. Per-AC, this is the `NOT-REACHABLE` verdict |
 | **Not tested** | In scope, not reached. Say so — never let it disappear into a summary |
 
 Lead with the counts, then one row per ticket carrying the evidence. A reader deciding

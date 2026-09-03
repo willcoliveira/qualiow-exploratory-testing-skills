@@ -137,7 +137,7 @@ And the payload is held next to the screen, because a correct response can still
 user as a wrong number — a formatter that guesses what a value is, a unit applied twice,
 rounding that crosses a threshold, a truncated figure shown as a total. That defect is
 invisible from either surface alone, and it usually belongs to a different change than the one
-under test. See `references/payload-verification.md`.
+under test. See `.claude/skills/qa-verify-backend/references/payload-verification.md`.
 
 ## Verdicts
 
@@ -230,7 +230,8 @@ Browse them with `/qa-knowledge-list`.
 ## Verifying a release rather than a ticket
 
 When the ask is "is this release good to go" instead of "does this ticket meet its ACs", follow
-`references/release-readiness.md`. It changes the shape of the session:
+`.claude/skills/qa-verify-backend/references/release-readiness.md`. It changes the shape of
+the session:
 
 - **The build table comes first, for everything.** Per ticket, is the commit it depends on
   genuinely an ancestor of what is deployed? This reclassifies half the session before any
