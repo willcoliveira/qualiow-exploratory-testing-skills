@@ -1,7 +1,7 @@
 # Qualiow Exploratory Testing Skills — Knowledge Base Manifest
 # This file is the master index. Skills read it to discover available entries.
 
-version: "0.5.0"
+version: "0.6.0"
 last_updated: "2026-09-03"
 
 active_releases:
@@ -10,11 +10,12 @@ active_releases:
   - "v0.3.0"
   - "v0.4.0"
   - "v0.5.0"
+  - "v0.6.0"
 
 stats:
-  total_entries: 27
+  total_entries: 29
   heuristics: 5
-  techniques: 19
+  techniques: 21
   checklists: 1
   references: 2
   domain_profiles: 0
@@ -34,7 +35,9 @@ loading_strategy:
   by_domain:
     ecommerce: []
     saas: []
-    fintech: []
+    fintech:
+      - technique-exactly-once-verification
+      - technique-async-callback-contracts
   by_tag:
     security:
       - technique-error-guessing
@@ -48,6 +51,7 @@ loading_strategy:
     risk:
       - technique-risk-based-testing
     data-integrity:
+      - technique-exactly-once-verification
       - technique-data-integrity-testing
       - technique-contract-narrowing
       - technique-derived-value-verification
