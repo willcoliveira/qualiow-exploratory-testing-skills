@@ -50,6 +50,32 @@ export interface SafetyConfig {
   no_delete_actions?: boolean;
 }
 
+export interface EnvironmentConfig {
+  kind: 'dev' | 'ephemeral' | 'staging' | 'production';
+  destroyed_automatically?: boolean;
+}
+
+export interface BackendConfig {
+  provider?: 'aws';
+  /** Env var NAME holding the AWS profile — never the credential itself. */
+  aws_profile_env?: string;
+  region_env?: string;
+  region?: string;
+  /** Expected account id; the live lane stops if the caller identity differs. */
+  account_id?: string;
+  env_suffix?: string;
+  /** Logical name -> deployed resource name. Asserted, confirmed before use. */
+  resources?: Record<string, string>;
+  notes?: string;
+}
+
+export interface SourceBranchConfig {
+  repo_path: string;
+  branch: string;
+  base_branch?: string;
+  components?: Record<string, string>;
+}
+
 export interface TargetConfig {
   id: string;
   name: string;
@@ -59,6 +85,9 @@ export interface TargetConfig {
   browser: BrowserConfig;
   scope: ScopeConfig;
   safety?: SafetyConfig;
+  environment?: EnvironmentConfig;
+  backend?: BackendConfig;
+  source?: SourceBranchConfig;
   notes?: string;
 }
 

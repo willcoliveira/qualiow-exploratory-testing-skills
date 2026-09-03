@@ -1,0 +1,138 @@
+id: identity
+name: "Identity & Access Platforms"
+
+risk_ranking:
+  p0: ["authentication", "consent & privacy", "audit trail integrity", "tenant configuration", "personal data handling"]
+  p1: ["registration journeys", "account recovery", "admin console RBAC", "config promotion between environments"]
+  p2: ["config search & filtering", "notifications", "reporting views"]
+  p3: ["static help content", "about/version pages"]
+
+completeness_checklist:
+  - "Every state-changing action on identity or configuration data produces an audit record (who, what, when)"
+  - "Audit records are immutable -- no update or delete path exists for the actor who wrote them"
+  - "Actor identity on an audit record is the authenticated user, never a service account or 'unknown'"
+  - "Consent capture records purpose, version, timestamp and locale for every tenant"
+  - "Personal data is never written to application logs, traces or error payloads"
+  - "Admin writes are gated by role -- a read-only operator cannot save configuration"
+  - "Configuration changes are scoped per tenant -- a change to one tenant cannot alter another"
+  - "Config promotion between environments preserves the audit chain and does not rewrite authorship"
+  - "Deletion of a configuration entity is auditable and reversible via the audit trail"
+  - "Every environment has the same audit guarantees -- ephemeral envs are not a special case"
+
+data_integrity_checks:
+  - "Audit entry exists per change -- After every save in the admin console, exactly one audit record per modified item appears in the audit store. Not zero, not duplicated."
+  - "Actor is correct -- The audit record's actor equals the logged-in user's identity, not 'unknown', not the previous editor, not a service role."
+  - "Timestamp ordering holds -- Two changes made in quick succession produce two distinct, chronologically ordered audit records. Neither overwrites the other."
+  - "Snapshot fidelity -- The stored post-change snapshot matches, field for field, what the config store holds after the save."
+  - "Delete attribution -- Deleting an entity attributes the audit record to the user who deleted it, not the user who last edited it."
+  - "Tenant isolation -- Changing tenant A produces audit records only for tenant A's entity, with no records touching tenant B."
+  - "No silent loss -- A change that fails downstream surfaces as an error or a DLQ message; it never disappears with a success response to the user."
+  - "Personal data containment -- The audit record, the log stream and the error path contain no personal data beyond what the audit design authorises."
+
+journeys:
+  - name: "Config Change to Audit Trail"
+    steps:
+      - "Login to the admin console as a known user"
+      - "Open a tenant configuration"
+      - "Change one identifiable field"
+      - "Save"
+      - "Verify the config store holds the new value"
+      - "Verify exactly one audit record was written for that entity"
+      - "Verify actor, timestamp, snapshot and version on the audit record"
+      - "Verify: the audit record is attributable, chronologically sortable, and matches the config store exactly"
+  - name: "Rapid Successive Edits"
+    steps:
+      - "Open a configuration"
+      - "Save a change"
+      - "Immediately save a second, different change"
+      - "Query the audit store for that entity"
+      - "Verify: TWO distinct audit records exist with distinct sort keys; neither overwrote the other"
+  - name: "Delete and Attribute"
+    steps:
+      - "Login as user A"
+      - "Edit and save an entity"
+      - "Logout, login as user B"
+      - "Delete that entity"
+      - "Verify: the deletion audit record names user B, not user A"
+  - name: "Unauthenticated / Degraded Identity"
+    steps:
+      - "Trigger a config write where the token carries no identity claim"
+      - "Verify: the write is rejected OR the audit record clearly flags the missing identity and an alert fires"
+      - "Verify: 'unknown' actors are not silently accepted into the audit trail"
+
+must_test_patterns:
+  audit_trail:
+    - "One change produces one audit record -- not zero, not N duplicates"
+    - "Bulk save of N items produces N attributable records"
+    - "Sort key uniqueness under same-second writes"
+    - "Actor resolution for create, update and delete separately"
+    - "Audit write failure surfaces (DLQ, alarm) rather than silently dropping"
+    - "Audit store is write-only for the producer -- no update/delete permission"
+    - "Reprocessing or replay does not duplicate or clobber existing records"
+    - "Records survive redeploys and stream position resets"
+  identity_propagation:
+    - "User identity flows from token -> API handler -> persisted item -> audit record"
+    - "Missing or malformed identity claim handled explicitly, not defaulted"
+    - "Service-initiated writes are distinguishable from human writes"
+    - "Impersonation or support-mode writes are labelled as such"
+  configuration_management:
+    - "Change to one tenant or scope does not affect another"
+    - "Concurrent edits by two operators -- last-write-wins is detected, not silent"
+    - "Validation rejects malformed config before it reaches the store"
+    - "Promotion between environments preserves or correctly re-authors the audit chain"
+  data_protection:
+    - "No personal data or secrets in the log platform at the configured log level"
+    - "Log level in production is not debug/trace"
+    - "Encryption at rest with a customer-managed key where required"
+    - "Retention on audit data matches the stated compliance period"
+    - "API responses do not leak internal audit metadata to unauthorised roles"
+  admin_rbac:
+    - "Read-only role cannot save, delete or promote"
+    - "UI hiding a control does not substitute for API enforcement"
+    - "Role change takes effect without needing a redeploy"
+
+common_bugs:
+  - "Audit gaps -- The trigger is enabled but a failure path drops entries silently; the trail looks complete but has holes nobody notices until an incident review"
+  - "Wrong actor -- Delete events attributed to the last editor, or every entry recorded as 'unknown' because the identity claim never reached the write path"
+  - "Sort key collisions -- Timestamps at second granularity cause two changes in the same second to share a key, so one overwrites the other"
+  - "Spec drift between producer and consumer -- Attribute names or types differ from what the reading UI expects, so the feature works in isolation but breaks on integration"
+  - "Over-collection -- Storing more than the design authorises (old images, full payloads) creating privacy exposure and item-size limits"
+  - "Trace logging in production -- Full event payloads written to logs, exporting configuration and personal data to the logging platform"
+  - "Stale documentation -- READMEs still describe the removed architecture, misleading the next engineer and failing the DoD"
+  - "Manual cleanup never executed -- A runbook is written and merged, but the data it was meant to clean is still there"
+
+compliance:
+  - "Data protection law -- Lawful basis, consent records, right to erasure, data minimisation on audit payloads"
+  - "Audit Trail Integrity -- Records attributable, tamper-evident, retained for the stated period"
+  - "Least Privilege -- Producers hold write-only permission; readers are separate principals"
+  - "Encryption -- At rest with managed keys, in transit end to end"
+  - "Log Hygiene -- No personal data or credentials in logs; production log levels constrained"
+  - "Separation of Environments -- Ephemeral and dev data never mixed with production"
+
+guidance: |
+  Identity-platform testing priority: attribution and completeness of the identity
+  and audit record. A platform whose audit trail has silent gaps cannot answer "who
+  changed this, and when" during an incident or a regulatory request -- which is the
+  entire point of the system.
+
+  Priority areas in order:
+  1. Audit trail integrity -- every change attributable, complete, ordered, immutable
+  2. Identity propagation -- the real human reaches the persisted record
+  3. Consent & privacy -- capture, versioning, data minimisation
+  4. Configuration correctness -- tenant isolation, validation, promotion
+  5. Admin RBAC -- write gating enforced at the API, not just the UI
+  6. Log & data hygiene -- no personal data leaking into logs or downstream platforms
+
+  Key heuristic focus for identity platforms:
+  - SFDIPOT: Data (what is stored vs what should be), Operations (who may write),
+    Time (ordering, same-second collisions, clock skew)
+  - FEW HICCUPPS: Claims (does it do what the ticket claims?), Standards (data
+    protection law, least privilege), Product (does the producer match the
+    consumer's contract?)
+  - Negative space: the strongest bugs here are absences -- the audit record that
+    was never written, the permission that was never checked, the cleanup that was
+    never run.
+
+  Critical rule: never accept "the happy path wrote a record" as evidence the audit
+  trail works. Test the failure path, the same-second path, the delete path and the
+  missing-identity path -- that is where audit trails actually break.

@@ -55,6 +55,40 @@ export const SafetyConfigSchema = z.object({
   no_delete_actions: z.boolean().optional(),
 });
 
+// ─── Backend verification surface (/qa-verify-backend) ────────────────
+
+// What the skill is allowed to do in this environment. `kind: production`
+// forces read-only probes and skips the end-to-end write phase.
+export const EnvironmentConfigSchema = z.object({
+  kind: z.enum(['dev', 'ephemeral', 'staging', 'production']),
+  destroyed_automatically: z.boolean().optional(),
+});
+
+// Cloud resources to probe read-only. Credentials are referenced by env var
+// NAME (`aws_profile_env`, `region_env`) and never stored here.
+export const BackendConfigSchema = z.object({
+  provider: z.enum(['aws']).optional(),
+  aws_profile_env: z.string().optional(),
+  region_env: z.string().optional(),
+  region: z.string().optional(),
+  // Expected account. The skill compares it to `sts get-caller-identity` and
+  // stops the live lane on a mismatch rather than probing someone else's account.
+  account_id: z.string().optional(),
+  env_suffix: z.string().optional(),
+  // Free-form logical name -> deployed resource name (config_table, dlq, ...).
+  resources: z.record(z.string(), z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+// The implementation branch reviewed statically. Read with `git show`, never
+// checked out — the user may have uncommitted work.
+export const SourceBranchConfigSchema = z.object({
+  repo_path: z.string(),
+  branch: z.string(),
+  base_branch: z.string().optional(),
+  components: z.record(z.string(), z.string()).optional(),
+});
+
 // ─── Web target (Playwright / playwright-cli — /qa-explore) ───────────
 
 export const WebTargetConfigSchema = z.object({
@@ -68,6 +102,11 @@ export const WebTargetConfigSchema = z.object({
   browser: BrowserConfigSchema,
   scope: ScopeConfigSchema,
   safety: SafetyConfigSchema.optional(),
+  // Optional blocks consumed by /qa-verify-backend. A target without them is
+  // still a valid /qa-explore target.
+  environment: EnvironmentConfigSchema.optional(),
+  backend: BackendConfigSchema.optional(),
+  source: SourceBranchConfigSchema.optional(),
   notes: z.string().optional(),
 });
 

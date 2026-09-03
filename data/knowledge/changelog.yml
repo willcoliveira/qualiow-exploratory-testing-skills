@@ -2,6 +2,40 @@
 # Tracks what changed in each release so /qa-knowledge-list can show history.
 
 releases:
+  - version: "0.3.0"
+    date: "2026-08-21"
+    summary: "The BE/API verification layer — how to actually observe a backend, API or LLM change, and how to say so when you cannot."
+    entries_added:
+      - id: technique-verification-mode-selection
+        type: technique
+        name: "Verification Mode Selection - Choosing How to Observe a Backend Change"
+        description: "Route each AC to the observation channel that can falsify it: API-behind-the-screen, direct request to a no-UI endpoint, LLM output judgement, or needs-a-human. Makes UNVERIFIABLE a first-class verdict instead of a PASS inferred from source."
+      - id: technique-functional-diff-analysis
+        type: technique
+        name: "Functional Diff Analysis - Reading a Backend Change for Behaviour, Not Style"
+        description: "Eight passes over a BE/API/LLM diff that produce falsifiable hypotheses rather than code comments: spec drift, value tracing to the service boundary, failure paths, identity propagation, producer/consumer contract, scope, and the tests that shipped with it."
+      - id: technique-llm-output-verification
+        type: technique
+        name: "LLM & Agent Output Verification - Running It and Judging the Result"
+        description: "Fixed input set, written rubric, before-and-after on the same inputs, N runs to expose variance, assertions on properties and tool trajectory rather than on generated text. Includes what not to claim from a passing run."
+    entries_modified: []
+    entries_removed: []
+    origin: "Built after two backend ticket verifications showed the gap: deep judgement and real test execution existed for the UI, but backend, API and LLM changes were being signed off by reading the diff."
+
+  - version: "0.2.0"
+    date: "2026-08-20"
+    summary: "Backend AC-verification techniques derived from real /qa-verify-backend sessions — both aimed at changes that fail silently by construction."
+    entries_added:
+      - id: technique-contract-narrowing
+        type: technique
+        name: "Contract Narrowing - Verifying a Swapped Data Source"
+        description: "When a full-record read is replaced by a projection, the request's field-selection list becomes the payload specification. Trace every consumed field to a selection token; unrequested fields vanish with no error, no DLQ, and a green suite."
+      - id: technique-test-suite-audit
+        type: technique
+        name: "Auditing the Branch's Own Tests"
+        description: "When a change rewrites the tests that are meant to prove it works, those tests become part of the change. Check that each assertion still falsifies what its name claims, and that artefacts named by an AC actually exist."
+    origin: "A read-path swap on an event-processing service — a full-record read replaced by a projection read. The contract-narrowing audit found a dropped webhook field that 175 green unit tests could not see; the test audit found an e2e negative scenario that could only pass when the system was broken."
+
   - version: "0.1.0"
     date: "2026-03-28"
     summary: "Initial knowledge base — core heuristics, techniques, checklists, and references for exploratory testing."

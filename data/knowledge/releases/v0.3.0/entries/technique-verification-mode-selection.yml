@@ -1,0 +1,153 @@
+id: technique-verification-mode-selection
+version: "0.3.0"
+type: technique
+name: "Verification Mode Selection — Choosing How to Observe a Backend Change"
+description: >
+  A verdict is only as good as the observation behind it. Most backend and API
+  changes are signed off by reading the diff, because the obvious way to observe
+  them — open the app and look — does not reach them. This technique picks the
+  observation channel from the SHAPE of the change: API-behind-the-screen,
+  no-UI endpoint, LLM/agent output, or genuinely unobservable. The last mode is
+  the important one: saying "a human has to look at this" is a real verdict, and
+  it is the honest alternative to inferring PASS from source code.
+author: "Qualiow — BE/API verification layer"
+source: "Built out of /qa-verify-backend sessions, 2026-08"
+tags: [backend, api, verification, evidence, llm, strategy, acceptance-criteria, test-execution]
+domains: [all]
+priority: high
+added: "2026-08-21"
+updated: "2026-08-21"
+
+content:
+  summary: >
+    Before verifying anything, answer one question: "what will I observe, and
+    where will I observe it?" Classify the change, pick the channel that can
+    actually falsify the AC, and if no channel exists, say so instead of
+    substituting a code reading for a test. Reading the diff is analysis; it
+    tells you what SHOULD happen. Only an observation tells you what DOES.
+
+  core_principle: >
+    The verdict must come from an observation of the changed behaviour, not from
+    a reading of the changed code. Static review generates hypotheses; it does
+    not close them. When you cannot observe, the verdict is UNVERIFIABLE or
+    BLOCKED — never PASS.
+
+  the_modes:
+    - mode: "API-behind-the-screen"
+      applies_when: >
+        The change is in a backend or API path, but a user-facing flow exercises
+        it. Common for handler changes, validation changes, response-shape
+        changes, and anything where the ticket says "verified in the app".
+      how: >
+        Drive the flow, but assert on the network layer underneath, not on the
+        rendered screen. Capture the request and response for each call the flow
+        makes. Check status, timing, headers, and — most importantly — the
+        response BODY field by field against the AC.
+      why_not_just_the_screen: >
+        The UI is a lossy renderer of the API. It hides fields it does not
+        display, coerces types, swallows partial failures, and shows cached or
+        optimistic state. A screen that looks correct is consistent with a
+        response that is wrong. Every field the AC mentions but the UI does not
+        render is invisible to a screen-only check.
+      evidence_to_capture:
+        - "The full request: method, path, headers that matter, body."
+        - "The full response body, saved raw — not summarized in prose."
+        - "Status code and, where the AC mentions it, latency."
+        - "Whether the call happened AT ALL — a removed call is a change too."
+
+    - mode: "Direct request — no UI surface"
+      applies_when: >
+        Webhooks, internal endpoints, queue consumers, scheduled jobs, service-
+        to-service APIs. Nothing in any product screen reaches this code.
+      how: >
+        Fire the request yourself against a non-production environment and assert
+        on the response and on the side effects. One call per AC. Save the raw
+        response as the evidence artefact. Where the endpoint is a producer,
+        follow through to what it produced — the published event, the written
+        row, the enqueued message.
+      why_it_matters: >
+        This is the mode that was missing. Its absence is why "no UI, so we read
+        the code" became the default, and why this class of AC is where silent
+        defects accumulate.
+      evidence_to_capture:
+        - "The exact command or request used, reproducible by someone else."
+        - "The raw response, unedited except for redaction."
+        - "The downstream artefact, read back from the data layer."
+        - "The negative case: malformed payload, wrong auth, replayed request."
+
+    - mode: "LLM / agent output judgement"
+      applies_when: >
+        The change touches a prompt, a tool definition, a retrieval step, a model
+        version, or agent orchestration. See `technique-llm-output-verification`
+        for the full method.
+      how: >
+        Run it on a fixed input set and judge the OUTPUT against a written
+        rubric. Never assert exact string equality on generated text; assert on
+        the properties the AC actually cares about.
+
+    - mode: "Unobservable — needs a human"
+      applies_when: >
+        A pure refactor, a rename, a dependency bump, a logging or comment
+        change, or a change whose only observable effect is internal structure.
+        Also: anything where the environment, credentials, or test data needed to
+        observe it are not available to you.
+      how: >
+        Say so, explicitly, and say WHY. Name what would have been observed and
+        what is missing. Then write out the exact commands or steps the person
+        who does have access should run, so the verdict is one step from being
+        closed rather than one investigation from being started.
+      verdict: >
+        UNVERIFIABLE (nothing to observe) or BLOCKED (something to observe,
+        no access). Both are respectable. Neither is PASS.
+      why_this_mode_exists: >
+        The failure mode it prevents is the most common one in AI-assisted QA:
+        producing a confident PASS backed by a code reading, which reads exactly
+        like a PASS backed by a measurement and is worth far less. Refusing to
+        fake it is what makes the other verdicts credible.
+
+  procedure:
+    - step: "1. Classify each AC — not each file — by what it claims."
+      detail: >
+        One ticket routinely spans modes. An AC about a response body is
+        API-behind-the-screen; an AC about a queue delay is a direct probe; an
+        AC about 'no behaviour change' is often unobservable by construction.
+        Classify per AC, and record the classification in the matrix.
+    - step: "2. Name the observation channel and the falsifier."
+      detail: >
+        Write the sentence 'This AC is FALSE if I see ___ at ___.' If you cannot
+        write that sentence, the AC is not testable as written — that is itself
+        a finding, and it belongs in the report before any code is read.
+    - step: "3. Prefer the narrowest channel that can still falsify."
+      detail: >
+        Direct request beats driving a UI, if both reach the code. Fewer layers
+        means fewer explanations for a failure and less flakiness. Use the UI
+        path only when the AC is about the integration itself.
+    - step: "4. Capture raw evidence at the moment of observation."
+      detail: >
+        Save the response, the probe output, the payload. Prose summaries decay
+        and cannot be re-read by a reviewer who disagrees with your conclusion.
+    - step: "5. Run the adversarial case in the same mode."
+      detail: >
+        Happy path plus one hostile variant: replay, malformed input, second
+        identity, same-tick write, empty collection. Most silent defects live
+        exactly one step off the happy path.
+    - step: "6. Report the mode alongside the verdict."
+      detail: >
+        'PASS (direct request, raw response attached)' and 'PASS (read the diff)'
+        are different claims. Making the mode visible lets a reader weigh the
+        verdict, and makes the weak ones obvious to everyone including you.
+
+  red_flags:
+    - "Every AC in the matrix was verified the same way. Real tickets span modes; one mode for everything usually means one habit applied everywhere."
+    - "A PASS whose evidence is a file path and a line number, for an AC that describes runtime behaviour."
+    - "'Verified in dev' with no artefact — no response body, no log line, no probe output."
+    - "The AC is about a field the UI does not display, and the evidence is a screenshot."
+    - "A refactor ticket where every AC passed. If nothing was observable, something was assumed."
+    - "The observation was made through the layer that was changed — e.g. asserting a new mapper is correct using output produced by that same mapper."
+
+  gotchas:
+    - "A UI flow can reach the changed code without exercising the changed BRANCH. Confirm the call actually took the new path — a log line, a distinctive field, or a debugger beats assuming."
+    - "Mocked transport is not an observation of the system; it is an observation of your own fixture. It can still be strong evidence about a mapping or a request shape — just label it honestly as a code-level measurement."
+    - "Absence of an error is not evidence of success. Ask what would have thrown, and whether anything would have."
+    - "Do not upgrade BLOCKED to PASS because the code looks right. Do write the probe command so someone else can close it in one step."
+    - "Environments lie about themselves. Confirm which build or branch is actually deployed before treating an observation there as evidence about this diff."

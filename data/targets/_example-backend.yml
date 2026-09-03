@@ -1,0 +1,76 @@
+# Example target for /qa-verify-backend — copy, rename, and fill in.
+#
+# A backend-verification target is an ordinary web target plus three optional
+# blocks: `backend:` (the cloud surface to probe read-only), `source:` (the repo
+# and branch to review statically) and `environment:` (what the skill is allowed
+# to do here). All three are optional — a target with none of them still works
+# for /qa-explore.
+#
+# NEVER put credentials in this file. Reference environment variables by NAME
+# and keep the values in .env (gitignored).
+
+id: _example-backend
+name: "Example Service — dev environment"
+base_url: "https://example-service-dev.example.com"
+domain: saas                     # or: identity, ecommerce, fintech, marketing, _default
+
+auth:
+  strategy: credentials          # switch to storage_state once .auth/ is primed
+  login_url: "https://example-service-dev.example.com/login"   # absolute URL
+  state_file: ".auth/_example-backend.json"
+  notes: >
+    If login needs SSO/MFA that cannot be automated, sign in once by hand, save
+    the storage state, then set strategy to storage_state.
+
+browser:
+  headless: false
+  viewport: {width: 1440, height: 900}
+
+scope:
+  start_pages: ["/"]
+  max_depth: 3
+
+safety:
+  read_only: false               # writes allowed — this is a dev environment
+  no_form_submit: false
+
+# --- What the skill may do here (consumed by /qa-verify-backend) -------------
+environment:
+  kind: dev                      # dev | ephemeral | staging | production
+  destroyed_automatically: false # true for short-lived ephemeral envs — capture
+                                 # evidence as you go, it will not be there later
+  # kind: production forces read-only probes and skips the end-to-end phase.
+  # See .claude/skills/qa-verify-backend/references/safety-rules.md
+
+# --- Cloud surface to probe (read-only) --------------------------------------
+backend:
+  provider: aws
+  aws_profile_env: QA_AWS_PROFILE   # NAME of the env var holding the profile
+  region_env: QA_AWS_REGION         # NAME of the env var holding the region
+  account_id: "000000000000"        # expected account — probes stop if it differs
+  env_suffix: dev
+  resources:
+    config_table: "example-service-dev-config"
+    audit_table: "example-service-dev-audit"
+    stream_lambda: "example-service-dev-change-processor"
+    stream_lambda_role: "example-service-dev-change-processor-role"
+    dlq: "example-service-dev-change-processor-dlq"
+  notes: >
+    Resource names here are ASSERTIONS, not proof. The skill confirms them with
+    `aws dynamodb list-tables` / `aws lambda list-functions` before trusting them —
+    a probe against a mistyped name returns an error that reads like a failure.
+
+# --- Implementation branch to review statically ------------------------------
+source:
+  repo_path: "/absolute/path/to/the/service/repo"
+  branch: "origin/feature/TICKET-123-short-description"
+  base_branch: "origin/main"
+  components:
+    iac: "infra/modules/audit, infra/modules/service"
+    stream_lambda: "services/audit/lambdas"
+    write_api: "services/api"
+    ui: "apps/console"
+
+notes: >
+  Ticket under verification and the primary journey — e.g. "change a setting in
+  the console, save, and confirm exactly one correct audit record is written."

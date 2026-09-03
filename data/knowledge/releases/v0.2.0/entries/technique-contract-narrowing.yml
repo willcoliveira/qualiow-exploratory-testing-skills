@@ -1,0 +1,150 @@
+id: technique-contract-narrowing
+version: "0.2.0"
+type: technique
+name: "Contract Narrowing — Verifying a Swapped Data Source"
+description: >
+  When a ticket replaces a data source that returns EVERYTHING with one that
+  returns ONLY WHAT YOU ASK FOR, the request's field-selection list silently
+  becomes the complete specification of the output. Every field any downstream
+  consumer reads must be traced to a selection token. Fields nobody remembered
+  to request vanish without an error, a log line, or a failed test.
+author: "Derived from a backend AC-verification session — an event-processing service whose full-record read was replaced by a projection read"
+source: "Qualiow backend AC verification session, 2026-08-20"
+tags: [backend, api-contract, integration, data-integrity, refactor, silent-failure, regression]
+domains: [all]
+priority: high
+added: "2026-08-20"
+updated: "2026-08-20"
+
+content:
+  summary: >
+    A whole class of high-impact, silent regressions comes from one kind of
+    change: swapping a "returns the full record" read for a "returns a
+    projection" read. The two look interchangeable in a diff — often a single
+    line — and every test can stay green while fields quietly stop being
+    published. The technique is a two-column audit: list every field the
+    downstream consumers read, and next to each one write the selection token
+    that requests it. Any row with a blank second column is a dropped field.
+
+  core_principle: >
+    "SELECT * has no contract. A projection IS the contract."
+    Before the change, the payload's shape was an emergent property of the
+    source record. After the change, the payload's shape is whatever the
+    request asked for. That moves the specification from the database into the
+    call site — and nobody reviews a call site as if it were a schema.
+
+  why_it_hides:
+    - name: "Optional-everywhere schemas"
+      detail: >
+        Validation layers (Zod, JSON Schema, TypeScript interfaces) usually mark
+        these fields optional, because the source genuinely omits them for some
+        records. So the response still parses, and a "does it conform to the
+        type?" test passes with the field missing.
+    - name: "Serializers drop undefined"
+      detail: >
+        A mapper that unconditionally assigns `field: source.thing` still
+        produces the key in memory when `source.thing` is undefined — but
+        JSON.stringify omits undefined keys. The object looks right in a
+        debugger and the field is absent on the wire. Always assert on the
+        SERIALIZED payload, not the object.
+    - name: "The wrong assertions are already written"
+      detail: >
+        Typical new tests assert (a) the output parses as the shared type and
+        (b) the downstream mapper does not throw. Both remain true when an
+        optional field goes missing. Neither can ever falsify "the payload is
+        unchanged."
+    - name: "No error surface"
+      detail: >
+        Nothing throws, no message reaches a DLQ, no alarm fires, error rates
+        are flat. The first signal is a downstream team noticing a column has
+        gone blank — typically weeks later, with the events unreplayable.
+
+  where_this_shape_appears:
+    - "SQL: `SELECT *` replaced with an explicit column list"
+    - "GraphQL: a query's selection set (adding a field to the schema does not add it to existing queries)"
+    - "Identity and account platforms: a full-record `search` call vs a `get account` call that returns only the sections named in an `include=` token list"
+    - "REST sparse fieldsets: `?fields=`, JSON:API `fields[type]=`"
+    - "gRPC / protobuf: `FieldMask` on read requests"
+    - "DynamoDB: adding a `ProjectionExpression`, or a GSI with KEYS_ONLY/INCLUDE projection"
+    - "Elasticsearch/OpenSearch: `_source` filtering or `stored_fields`"
+    - "MongoDB: the projection argument to `find()`"
+    - "Any cache or read-model rebuild that materializes 'the fields we currently need'"
+
+  procedure:
+    - step: "1. Find the true consumer, not the immediate caller."
+      detail: >
+        Follow the value from the swapped call all the way to what leaves the
+        service — the published event, the API response, the written row. The
+        mapper at the end of that chain is the real specification.
+    - step: "2. Enumerate every field the consumer reads."
+      detail: >
+        Read the mapper line by line. Include fields read from nested objects
+        and fields only used in a conditional branch — a branch that rarely
+        fires is still a payload difference when it does.
+    - step: "3. Build the two-column table: field -> selection token required."
+      detail: >
+        For each field, determine from the API's documentation which token
+        causes it to be returned. Distinguish three cases: returned in the base
+        response, returned only if requested, and requested via a DIFFERENT
+        parameter than the main selection list.
+    - step: "4. Diff the table against the actual request."
+      detail: >
+        Every consumed field must map to a token that is actually sent. Blanks
+        are the findings. Do this against the code's real constant, not the
+        list written in the ticket — they drift.
+    - step: "5. Write the differential test."
+      detail: >
+        One input record, both code paths, compare the SERIALIZED output.
+        This is the only assertion that can falsify 'structurally identical'.
+        It is usually ~20 lines and it is the deliverable the ticket was
+        missing.
+    - step: "6. Confirm the API's behaviour from its documentation, not by inference."
+      detail: >
+        'This token exists in the selection list' is strong evidence a field is
+        not returned by default — an option you must request is by definition
+        not free. But quote the vendor doc; do not assert from intuition.
+    - step: "7. Verify against a real response if you can reach one."
+      detail: >
+        A single live call, or one log line from a real published event, either
+        confirms the finding under production conditions or falsifies your
+        premise. Cheap, and it converts a static finding into a measured one.
+
+  red_flags:
+    - "The ticket contains a hand-written 'Gap Analysis' table asserting which fields differ. That table is a claim, not a measurement — it is exactly what to falsify."
+    - "The ticket says 'the mapper works unchanged' or 'no downstream changes needed'. That is the hypothesis under test."
+    - "The story is small (1-3 points) and labelled 'Low risk' while touching a read path that fans out to other teams."
+    - "The selection list in the code was copy-pasted from the ticket description — including any mistakes in it."
+    - "A token in the selection list is not a valid value for that parameter (it may belong to a different parameter). It will be ignored silently."
+    - "The new tests are property-based over random valid data. Excellent for shape, blind to missing optional fields."
+    - "The diff's headline line count is dominated by a lockfile or generated file, so the four lines that matter are invisible in review."
+
+  test_approach:
+    - "Construct one representative record with EVERY consumed field populated — including the rarely-set ones."
+    - "Run it through both the old and the new normalization/mapping chain, using the real production mapper, not a stub."
+    - "Compare JSON.stringify of both results with strict equality. Assert equality, then let it fail and read the diff."
+    - "Repeat for each branch of the mapper (e.g. per-market or per-country variants) — they may read different fields."
+    - "Add the test permanently. The same defect recurs the next time the mapper grows a field, and only this test will catch it."
+
+  business_impact_framing: >
+    Explain the finding by its silence, not its size. "One field is missing" reads
+    as trivial. What makes it severe is: it affects every event from the moment of
+    deploy, nothing errors so nobody is paged, the events are not replayable, and
+    the discovery path is a downstream team noticing blank data during a much later
+    reconciliation. Also state honestly what would DOWNGRADE it — if no consumer
+    actually reads the field, it is a documentation fix, not a code fix. That
+    question is usually answerable only by asking the consuming team.
+
+  when_to_use:
+    - "Any ticket whose title contains 'replace X with Y', 'migrate to', or 'switch to' on a read path."
+    - "Any change from an implicit full fetch to an explicit projection."
+    - "Any AC that says the output is 'identical', 'unchanged', 'backward compatible', or 'transparent to consumers'."
+    - "Adding an index, cache, read model, or materialized view that will serve reads previously served by the source of truth."
+    - "Whenever a shared library gains a second way to produce the same normalized type — the two ways will drift."
+
+  gotchas:
+    - "The base response of a projection API is not empty — some fields always come back. Do not report those as missing; check the doc for which are free."
+    - "A field may be requested through a DIFFERENT parameter than the main selection list (e.g. an 'extra fields' parameter). Finding it absent from the main list is not sufficient to call it missing."
+    - "Test fixtures are built from the same wrong assumption as the code. A green suite built on a fixture that omits the field proves nothing."
+    - "Do not claim a value 'never arrives' from static reading alone. Trace it to the serializer, and measure it if you can — over-claiming burns credibility on the findings that are real."
+    - "Conversely, do not accept 'the tests pass' as evidence of equivalence. Ask what assertion could possibly have failed."
+    - "The reverse direction is a finding too: a projection that returns MORE than the old path (e.g. 'all identities' vs 'active identities') adds fields, which can also break strict downstream consumers."

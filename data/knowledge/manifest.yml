@@ -1,16 +1,18 @@
 # Qualiow Exploratory Testing Skills — Knowledge Base Manifest
 # This file is the master index. Skills read it to discover available entries.
 
-version: "0.1.0"
-last_updated: "2026-03-28"
+version: "0.3.0"
+last_updated: "2026-08-21"
 
 active_releases:
   - "v0.1.0"
+  - "v0.2.0"
+  - "v0.3.0"
 
 stats:
-  total_entries: 13
+  total_entries: 18
   heuristics: 5
-  techniques: 5
+  techniques: 10
   checklists: 1
   references: 2
   domain_profiles: 0
@@ -43,6 +45,43 @@ loading_strategy:
       - technique-risk-based-testing
     data-integrity:
       - technique-data-integrity-testing
+      - technique-contract-narrowing
+    backend:
+      - technique-contract-narrowing
+      - technique-test-suite-audit
+      - technique-verification-mode-selection
+      - technique-functional-diff-analysis
+    api:
+      - technique-verification-mode-selection
+      - technique-functional-diff-analysis
+    api-contract:
+      - technique-contract-narrowing
+      - technique-functional-diff-analysis
+    verification:
+      - technique-verification-mode-selection
+      - technique-llm-output-verification
+    evidence:
+      - technique-verification-mode-selection
+      - technique-llm-output-verification
+    llm:
+      - technique-llm-output-verification
+      - technique-verification-mode-selection
+      - technique-functional-diff-analysis
+    agent:
+      - technique-llm-output-verification
+    code-review:
+      - technique-functional-diff-analysis
+      - technique-test-suite-audit
+    acceptance-criteria:
+      - technique-verification-mode-selection
+      - technique-functional-diff-analysis
+      - technique-test-suite-audit
+    test-quality:
+      - technique-test-suite-audit
+    refactor:
+      - technique-contract-narrowing
+      - technique-test-suite-audit
+      - technique-verification-mode-selection
     exploration:
       - reference-exploratory-testing-types
       - reference-heuristic-praxis
@@ -138,4 +177,39 @@ entries:
     type: reference
     priority: high
     tags: [heuristics, praxis, theory, meta-testing, reflection]
+    domains: [all]
+
+  - id: technique-contract-narrowing
+    file: releases/v0.2.0/entries/technique-contract-narrowing.yml
+    type: technique
+    priority: high
+    tags: [backend, api-contract, integration, data-integrity, refactor, silent-failure, regression]
+    domains: [all]
+
+  - id: technique-test-suite-audit
+    file: releases/v0.2.0/entries/technique-test-suite-audit.yml
+    type: technique
+    priority: high
+    tags: [test-quality, verification, ci, acceptance-criteria, backend, regression]
+    domains: [all]
+
+  - id: technique-verification-mode-selection
+    file: releases/v0.3.0/entries/technique-verification-mode-selection.yml
+    type: technique
+    priority: high
+    tags: [backend, api, verification, evidence, llm, strategy, acceptance-criteria, test-execution]
+    domains: [all]
+
+  - id: technique-functional-diff-analysis
+    file: releases/v0.3.0/entries/technique-functional-diff-analysis.yml
+    type: technique
+    priority: high
+    tags: [backend, api, code-review, static-analysis, acceptance-criteria, llm, scope-creep, regression]
+    domains: [all]
+
+  - id: technique-llm-output-verification
+    file: releases/v0.3.0/entries/technique-llm-output-verification.yml
+    type: technique
+    priority: high
+    tags: [llm, agent, api, verification, evidence, non-determinism, prompt, evaluation]
     domains: [all]

@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.3.0] - 2026-09-03
+
+All changes in this release are **additive and backward-compatible** with v1.2.0. No skill names, frontmatter fields, CLI commands, bin entries, library exports, or `files` whitelist entries were renamed or removed.
+
+### Added — Backend & infrastructure AC verification (`/qa-verify-backend`)
+- New skill `skills/qa-verify-backend/` (SKILL.md + 6 phase files + 2 references): verifies acceptance criteria that have **no UI surface** — tables and streams, queue consumers, Lambda triggers, IAM policies, webhooks, IaC. Three lanes: **static** (reads the implementation branch against each AC with `git show`, never checking out), **live** (read-only `aws-cli` probes, one per AC, raw output saved as evidence), and **end-to-end** (drives the real write path in a non-production environment, then re-probes the data layer — including same-tick writes, deletes, bulk saves, a second identity, and DLQ depth).
+- Output is an **AC traceability matrix** — `PASS` / `PARTIAL` / `FAIL` / `BLOCKED` / `UNVERIFIABLE`, each with cited evidence — plus one bug report per finding. Every verdict names the observation mode that produced it; a verdict backed only by a code reading is `UNVERIFIABLE`, never `PASS`. `BLOCKED` is a first-class outcome: missing credentials produce ready-to-run probe commands rather than a verdict inferred from source.
+- `references/aws-readonly-probes.md` — probe catalogue per resource type (DynamoDB streams and key schema, Lambda event source mappings, IAM `simulate-principal-policy` for both allows and denies, SQS DLQ depth, CloudWatch metrics and log hygiene, Terraform) with guidance on reading each output.
+- `references/safety-rules.md` — read-only discipline, the production hard stop, account confirmation before the first probe, destructive runbooks treated as findings rather than instructions, redaction before disk, and untrusted-content handling. Extends `data/security/SECURITY-POLICY.md`.
+
+### Added — Knowledge base v0.2.0 and v0.3.0 (13 → 18 entries)
+- `technique-contract-narrowing` (v0.2.0) — verifying a swapped data source. When a full-record read is replaced by a projection, the request's field-selection list silently becomes the payload specification; unrequested fields vanish with no error, no DLQ, and a green suite.
+- `technique-test-suite-audit` (v0.2.0) — auditing the branch's own tests. When a change rewrites the tests meant to prove it works, those tests become part of the change under review.
+- `technique-verification-mode-selection` (v0.3.0) — routing each AC to the channel that can actually falsify it: API-behind-the-screen, direct request to a no-UI endpoint, LLM output judgement, or needs-a-human. Makes `UNVERIFIABLE` a first-class verdict.
+- `technique-functional-diff-analysis` (v0.3.0) — eight passes that read a backend/API/LLM diff for behaviour at the service boundary rather than code quality, producing falsifiable hypotheses attached to ACs.
+- `technique-llm-output-verification` (v0.3.0) — fixed input set, written rubric, before-and-after on the same inputs, N runs to expose variance, assertions on properties and tool trajectory rather than generated text.
+- `data/knowledge/learned-patterns.md` now carries a backend/API/event-driven section and a set of **disqualifiers** — findings that look real on a first read and do not survive tracing.
+
+### Added — Configuration surface
+- New target template `data/targets/_example-backend.yml` documenting the three optional blocks consumed by the skill: `environment:` (what the skill may do here), `backend:` (cloud resources to probe read-only) and `source:` (the implementation branch to review). Credentials are referenced by env var **name**; values stay in `.env`.
+- New domain profile `data/domains/identity.{yml,md}` (identity and access platforms, and the admin consoles that configure them) — audit trail integrity, identity propagation, consent and privacy, configuration correctness, admin RBAC, log and data hygiene.
+- New doc `docs/BACKEND-VERIFICATION.md` — the end-to-end workflow, the three lanes, the verdict vocabulary, and the safety rules worth knowing before a first session.
+- `.env.example` documents `QA_AWS_PROFILE` / `QA_AWS_REGION`; `.gitignore` now excludes `data/targets/local-*.yml` and `output/context/*.md` so private target configs and gathered ticket content stay local.
+
+### Changed
+- Schema/library: new `EnvironmentConfigSchema`, `BackendConfigSchema` and `SourceBranchConfigSchema`, with matching `EnvironmentConfig`, `BackendConfig` and `SourceBranchConfig` TS types. `WebTargetConfigSchema` accepts the three blocks as optional — a target without them is still a valid `/qa-explore` target, so existing configs are unaffected.
+- `package.json` `files` now ships `data/targets/_example-backend.yml` and `docs/BACKEND-VERIFICATION.md`.
+
+### Known issues
+- `data/domains/identity.yml` fails `npm run validate`, in exactly the same way as the five domain files already in the repo (`_default`, `ecommerce`, `fintech`, `marketing`, `saas`): `DomainConfigSchema` has drifted from the shape every domain file actually uses (`risk_ranking` as a map, `journeys` without `id`/`description`/`risk`, `guidance` as a string). The new file follows the existing house format rather than a schema nothing conforms to. Reconciling the two is a separate change.
+
 ## [1.2.0] - 2026-07-09
 
 All changes in this release are **additive and backward-compatible** with v1.1.0. No skill names, frontmatter fields, CLI commands, bin entries, or library exports were renamed or removed.

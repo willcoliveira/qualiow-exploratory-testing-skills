@@ -1,0 +1,102 @@
+id: technique-llm-output-verification
+version: "0.3.0"
+type: technique
+name: "LLM & Agent Output Verification — Running It and Judging the Result"
+description: >
+  Prompt, tool, model and retrieval changes cannot be verified by reading the
+  diff, and cannot be verified by exact-match assertions either. This technique
+  covers the third way: run the changed behaviour on a fixed input set and judge
+  the output against a written rubric, with non-determinism handled explicitly
+  rather than hoped away. It also covers what NOT to claim — a passing run on
+  five inputs is evidence, not proof.
+author: "Qualiow — BE/API verification layer"
+source: "Built out of the /qa-verify-backend verification-mode work, 2026-08"
+tags: [llm, agent, api, verification, evidence, non-determinism, prompt, evaluation]
+domains: [all]
+priority: high
+added: "2026-08-21"
+updated: "2026-08-21"
+
+content:
+  summary: >
+    Treat the LLM step as a component with a contract that happens to be written
+    in prose. Fix the inputs, run it enough times to see the variance, and score
+    the outputs on properties the AC actually names — not on wording. Report the
+    variance alongside the verdict.
+
+  core_principle: >
+    You are not testing whether the model is good. You are testing whether THIS
+    CHANGE moved the behaviour in the direction the AC claims, without breaking
+    what already worked. That is a comparison, so you need a before and an after,
+    on the same inputs.
+
+  procedure:
+    - step: "1. Write the rubric before running anything."
+      detail: >
+        Turn the AC into properties that can be scored yes/no on a single output:
+        'names a source', 'refuses when the record is missing', 'returns valid
+        JSON matching the schema', 'does not invent an order ID', 'calls the
+        lookup tool before answering'. Vague rubrics ('is helpful') produce
+        vague verdicts.
+    - step: "2. Fix the input set, and include the hostile cases."
+      detail: >
+        A handful of representative inputs, plus the ones the change is most
+        likely to break - empty input, very long input, ambiguous request,
+        missing data, contradictory instructions, and content designed to
+        override the system prompt. Reuse the SAME set before and after.
+    - step: "3. Run before and after on the same inputs."
+      detail: >
+        Without a baseline you cannot tell an improvement from a regression, and
+        you will attribute pre-existing behaviour to this diff. If the old
+        version is no longer runnable, say that — it caps what the run can prove.
+    - step: "4. Run each input more than once."
+      detail: >
+        Same input, several runs. A property that holds 3 times out of 5 is not
+        a PASS; it is a documented flake rate, and it is usually the most
+        valuable number in the report. State N in the evidence.
+    - step: "5. Score against the rubric, on the properties, never on the text."
+      detail: >
+        Exact-string assertions on generated prose fail on rewording and pass on
+        nonsense. Assert on structure (schema validity, required fields), on
+        facts (does the cited ID exist), and on behaviour (which tools were
+        called, in what order).
+    - step: "6. Check the tool calls, not only the final answer."
+      detail: >
+        For agent changes, the trajectory IS the behaviour. Capture which tools
+        were called with which arguments. A correct answer reached by a
+        forbidden or unnecessary call is a finding.
+    - step: "7. Save the raw outputs as evidence."
+      detail: >
+        Inputs, outputs, model version, temperature, prompt version, timestamp.
+        Without the model version the run is unreproducible and the evidence
+        expires the next time the vendor updates anything.
+
+  what_to_assert:
+    - "Schema and format: does the output parse, and does it match the contract the caller expects?"
+    - "Groundedness: is every factual claim traceable to something the input actually contained?"
+    - "Refusal and fallback: on missing or bad data, does it decline cleanly instead of inventing?"
+    - "Tool trajectory: the right tools, the right arguments, the right order, and nothing extra."
+    - "Boundary behaviour: empty, oversized, and ambiguous inputs."
+    - "Injection resistance: content in the DATA that instructs the model. It must be treated as data — this is the same rule the session security policy applies to web content."
+    - "Cost and latency, when the AC mentions them — a prompt that doubled in length is a change to both."
+
+  what_not_to_claim:
+    - "'The output is correct' from one run. Say 'correct in N of M runs' and give N and M."
+    - "'The prompt change is safe' from happy-path inputs only."
+    - "'No regression' without a before-run on the same inputs."
+    - "A verdict that outlives the model version it was measured on. Record the version; treat a model bump as invalidating prior evidence."
+
+  red_flags:
+    - "An eval suite that only contains inputs the current prompt already handles."
+    - "Assertions that compare generated text with `toEqual` on a fixed string."
+    - "A prompt edit shipped with no eval change at all — the spec moved and the evidence did not."
+    - "Temperature or model version changed in the same diff as behaviour, so neither can be attributed."
+    - "Few-shot examples that contradict the edited instruction. In practice the examples usually win."
+    - "The rubric was written after reading the outputs. That is scoring the target around the arrow."
+
+  gotchas:
+    - "A judge model scoring the outputs is itself a component with variance and bias. State that it was used, and spot-check its verdicts by hand."
+    - "Green evals after a model bump can be stale — confirm the runs actually executed against the new version."
+    - "Non-determinism hides regressions AND manufactures them. Re-run a failure before filing it."
+    - "Retrieval changes look like prompt changes but fail differently: check what was retrieved, not only what was said about it."
+    - "If the change is only in wording with no behavioural claim attached, this may be an UNVERIFIABLE — see `technique-verification-mode-selection`. Do not invent a rubric to manufacture a PASS."

@@ -179,6 +179,39 @@ Notes that save time:
 /qa-target-setup
 ```
 
+## How to Verify Backend Acceptance Criteria
+
+Not every acceptance criterion is visible in a browser. `/qa-verify-backend` covers tickets
+whose ACs live below the UI — tables and streams, queue consumers, Lambda triggers, IAM
+policies, webhooks, IaC — and produces an **AC traceability matrix** instead of a pass/fail
+claim.
+
+```bash
+# Copy the template, point it at your service, then verify a ticket branch
+cp data/targets/_example-backend.yml data/targets/local-my-service.yml
+
+/qa-verify-backend --target local-my-service --context output/context/TICKET-123-context.md
+/qa-verify-backend --target local-my-service --static-only   # no cloud credentials
+```
+
+It runs three lanes:
+
+| Lane | What it does |
+|------|--------------|
+| **Static** | Reads the implementation branch against each AC with `git show` (never checks out) — spec drift, scope creep, failure paths, identity propagation, producer/consumer contract breaks |
+| **Live** | Read-only `aws-cli` probes, one per AC, raw output saved as evidence. Never mutates; hard stop on production |
+| **End-to-end** | Drives the real write path in a non-production environment, then re-probes the data layer — including same-tick writes, deletes, bulk saves, a second identity, and DLQ depth |
+
+Each AC gets a verdict with cited evidence — `PASS`, `PARTIAL`, `FAIL`, `BLOCKED` or
+`UNVERIFIABLE` — and the verdict **names the mode it was reached by**. `PASS (direct request,
+raw response attached)` and `PASS (read the diff)` are different claims, and a verdict backed
+only by a code reading is `UNVERIFIABLE`, never `PASS`. `BLOCKED` is a first-class outcome:
+when credentials are missing, the probe commands are written out ready to run rather than the
+verdict being inferred from source.
+
+Full guide: **`docs/BACKEND-VERIFICATION.md`**. Safety rules (read-only discipline, the
+production hard stop, redaction): `.claude/skills/qa-verify-backend/references/safety-rules.md`.
+
 ## How to Generate Reports
 
 qualiow produces three report formats from session data.
@@ -220,6 +253,7 @@ const csv = await generateJiraExport('output/sessions/2026-03-28-parabank');
 | `/qa-explore` | Full exploratory testing session (45 min) |
 | `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps or mobile web in the real device browser (iOS Safari / Android Chrome) |
 | `/qa-explore-quick` | Quick focused session on a single page or feature (15 min) |
+| `/qa-verify-backend` | Verify backend/infra acceptance criteria with no UI surface — branch review, read-only AWS probes, AC traceability matrix |
 | `/qa-explore-report` | Generate or regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |
 | `/qa-explore-cleanup` | Session cleanup and archival |
@@ -263,6 +297,7 @@ qualiow-exploratory-testing-skills/
     benchmarks/               # performance benchmarks
   docs/
     GETTING-STARTED.md        # detailed setup and usage guide
+    BACKEND-VERIFICATION.md   # verifying ACs with no UI surface
     ARCHITECTURE-DECISIONS.md # architecture decision records
 ```
 

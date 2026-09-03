@@ -24,3 +24,11 @@ output/bugs/*.md
 
 # OS
 .DS_Store
+
+# Local target configs and gathered ticket context.
+# These hold internal hostnames, account ids and ticket content — keep them local.
+# Name a private target `local-*.yml` (or add your own prefix here) and it stays
+# out of version control.
+data/targets/local-*.yml
+output/context/*.md
+!output/context/.gitkeep

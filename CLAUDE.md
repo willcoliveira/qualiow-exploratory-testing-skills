@@ -13,6 +13,7 @@ Claude uses **Playwright CLI** (`playwright-cli`) for browser control and its ow
 | `/qa-explore` | Full exploratory testing session (45 min) |
 | `/qa-explore-mobile` | Exploratory session on a simulator/emulator — native apps OR web apps in the real device browser (iOS Safari / Android Chrome), via mobile-cli; mode selected by the target config |
 | `/qa-explore-quick` | Quick focused session on a single page/feature (15 min) |
+| `/qa-verify-backend` | Verify backend/infra acceptance criteria with no UI surface — IaC + code review, read-only AWS probes, AC traceability matrix |
 | `/qa-explore-report` | Generate/regenerate report from existing session |
 | `/qa-explore-feedback` | Post-session feedback capture (false positives, missed bugs) |
 | `/qa-explore-cleanup` | Session cleanup and archival |
@@ -82,6 +83,38 @@ Playwright mobile emulation (no simulator, via `/qa-explore`) — `data/targets/
 Toolchain: `scripts/setup-mobile.sh` installs everything scriptable (Maestro, JDK 17, Android
 SDK + Play-image AVD, iOS sim device); `scripts/doctor-mobile.sh` is the read-only preflight.
 Full guide: `docs/MOBILE-SETUP.md`.
+
+## Backend Verification
+
+Not every acceptance criterion is visible in a browser. `/qa-verify-backend` covers tickets
+whose ACs live below the UI — DynamoDB tables and streams, Lambda triggers, IAM policies,
+queues, Terraform. It runs three lanes:
+
+- **Static** — reads the implementation branch against each AC via `git show` (never checks
+  out), looking for spec drift, scope creep, failure paths, identity propagation and
+  producer/consumer contract breaks.
+- **Live** — read-only `aws-cli` probes, one per AC, raw output saved as evidence. Never
+  mutates; hard stop on production.
+- **End-to-end** — drives the real write path (UI or API) in an ephemeral environment, then
+  re-probes the data layer, including the adversarial cases: same-tick writes, deletes, bulk
+  saves, second identity, DLQ depth.
+
+Output is an **AC traceability matrix** (`PASS` / `PARTIAL` / `FAIL` / `BLOCKED` /
+`UNVERIFIABLE`, each with cited evidence) plus one bug report per finding. `BLOCKED` is a
+first-class verdict — when credentials are missing the probe commands are written out ready
+to run rather than the verdict being inferred from the code.
+
+Each AC is routed to the observation channel that can actually falsify it, and the mode is
+named in the verdict — `PASS (direct request, raw response attached)` and `PASS (read the diff)`
+are different claims. A verdict backed only by a code reading is `UNVERIFIABLE`, never `PASS`.
+Modes: API-behind-the-screen (assert on the network calls, not the rendered screen) · direct
+request to a no-UI endpoint (webhooks, internal APIs, queue consumers) · LLM/agent output
+judged against a written rubric · needs-a-human for pure refactors with nothing observable.
+
+Safety rules: `.claude/skills/qa-verify-backend/references/safety-rules.md`.
+Probe catalogue: `.claude/skills/qa-verify-backend/references/aws-readonly-probes.md`.
+BE/API techniques: knowledge base v0.3.0 — `technique-verification-mode-selection`,
+`technique-functional-diff-analysis`, `technique-llm-output-verification`.
 
 ## Skills (continued)
 
