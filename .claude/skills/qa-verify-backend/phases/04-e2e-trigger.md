@@ -39,7 +39,10 @@ state. Check, in this order:
 2. **Attribution** — the actor equals the user you logged in as. Not a role, not a
    placeholder, not the previous editor.
 3. **Fidelity** — the stored snapshot matches what the source store now holds, field for
-   field. Compare the actual documents; do not eyeball two summaries.
+   field. Compare the actual documents; do not eyeball two summaries. Where the record
+   carries derived values, recompute them from the raw figures beside them
+   (`references/payload-verification.md`) rather than trusting that they were computed
+   once and correctly.
 4. **Key shape** — the sort key format matches what the consumer will query and sort by.
 5. **Completeness** — every attribute the ACs require is present, with the required type.
    A missing attribute here is a `FAIL` on that AC no matter how well the rest works.

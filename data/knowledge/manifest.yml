@@ -1,7 +1,7 @@
 # Qualiow Exploratory Testing Skills — Knowledge Base Manifest
 # This file is the master index. Skills read it to discover available entries.
 
-version: "0.4.0"
+version: "0.5.0"
 last_updated: "2026-09-03"
 
 active_releases:
@@ -9,11 +9,12 @@ active_releases:
   - "v0.2.0"
   - "v0.3.0"
   - "v0.4.0"
+  - "v0.5.0"
 
 stats:
-  total_entries: 22
+  total_entries: 27
   heuristics: 5
-  techniques: 14
+  techniques: 19
   checklists: 1
   references: 2
   domain_profiles: 0
@@ -49,6 +50,27 @@ loading_strategy:
     data-integrity:
       - technique-data-integrity-testing
       - technique-contract-narrowing
+      - technique-derived-value-verification
+      - technique-presentation-integrity
+    calculations:
+      - technique-derived-value-verification
+      - technique-presentation-integrity
+    oracles:
+      - technique-derived-value-verification
+      - heuristic-few-hiccupps
+    requirements:
+      - technique-expected-behaviour-specification
+    reporting:
+      - technique-expected-behaviour-specification
+      - technique-release-readiness-verification
+    release:
+      - technique-release-readiness-verification
+      - technique-environment-fingerprinting
+    coverage:
+      - technique-release-readiness-verification
+    configuration:
+      - technique-config-surface-verification
+      - technique-environment-fingerprinting
     backend:
       - technique-contract-narrowing
       - technique-test-suite-audit
@@ -81,8 +103,11 @@ loading_strategy:
       - technique-environment-fingerprinting
     deployment:
       - technique-environment-fingerprinting
+      - technique-config-surface-verification
+      - technique-release-readiness-verification
     feature-flags:
       - technique-environment-fingerprinting
+      - technique-config-surface-verification
     error-handling:
       - technique-silent-failure-audit
       - technique-error-guessing
@@ -95,6 +120,7 @@ loading_strategy:
     ui:
       - technique-ui-api-differential
       - technique-silent-failure-audit
+      - technique-presentation-integrity
     observability:
       - technique-silent-failure-audit
     negative-testing:
@@ -117,6 +143,8 @@ loading_strategy:
       - technique-verification-mode-selection
       - technique-functional-diff-analysis
       - technique-test-suite-audit
+      - technique-expected-behaviour-specification
+      - technique-release-readiness-verification
     test-quality:
       - technique-test-suite-audit
     refactor:
@@ -281,4 +309,39 @@ entries:
     type: technique
     priority: high
     tags: [error-handling, silent-failure, api, backend, ui, data-integrity, observability, negative-testing, regression]
+    domains: [all]
+
+  - id: technique-derived-value-verification
+    file: releases/v0.5.0/entries/technique-derived-value-verification.yml
+    type: technique
+    priority: high
+    tags: [data-integrity, api, backend, calculations, verification, evidence, oracles, acceptance-criteria]
+    domains: [all]
+
+  - id: technique-presentation-integrity
+    file: releases/v0.5.0/entries/technique-presentation-integrity.yml
+    type: technique
+    priority: high
+    tags: [ui, api, data-integrity, verification, differential, calculations, regression, error-handling]
+    domains: [all]
+
+  - id: technique-expected-behaviour-specification
+    file: releases/v0.5.0/entries/technique-expected-behaviour-specification.yml
+    type: technique
+    priority: high
+    tags: [acceptance-criteria, api, backend, requirements, reporting, communication, contract, verification]
+    domains: [all]
+
+  - id: technique-config-surface-verification
+    file: releases/v0.5.0/entries/technique-config-surface-verification.yml
+    type: technique
+    priority: medium
+    tags: [backend, api, feature-flags, environment, security, configuration, deployment, verification]
+    domains: [all]
+
+  - id: technique-release-readiness-verification
+    file: releases/v0.5.0/entries/technique-release-readiness-verification.yml
+    type: technique
+    priority: high
+    tags: [regression, release, deployment, reporting, coverage, risk, acceptance-criteria, verification, environment]
     domains: [all]

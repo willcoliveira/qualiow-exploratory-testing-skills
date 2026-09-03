@@ -117,6 +117,24 @@ ticket has both a screen and an endpoint, run the overlapping cases at both and 
 into *both* (fix in the service), *API only* (a real defect the client's guard is hiding),
 *UI only* (the client invents or masks behaviour the service does not have) and *neither*.
 
+**A well-shaped `200` is not a correct answer.** Recompute every derived value from the raw
+figures in the same response, using the formula from the spec rather than the code under test —
+then write down that internal consistency is not correctness, and name the independent oracle
+that would close it. Hold the payload next to the screen too: a correct response still reaches
+the user wrong when a formatter guesses what a value is, a unit is applied twice, or a truncated
+figure is shown as a total — and that defect usually belongs to a different change than the one
+under test.
+
+**Findings with no AC become a spec, not ten bugs.** `data/templates/expected-behaviour.md` —
+observed against expected, grouped by cause, with the decisions made explicit (reject don't
+clamp; an error not a silent zero; validation at the layer covering every implementation),
+ranked by what users can reach today, and closed with a plain-English reply.
+
+**A release is a different session shape.** `references/release-readiness.md`: the deployment
+table first for every ticket, a result vocabulary that keeps *not testable here* and *not
+tested* visible, a coverage map where 🔍 code-verified-only is marked as `UNVERIFIABLE` rather
+than green, carry-overs in their own section, and a disposition with its reversal condition.
+
 Output is an **AC traceability matrix** (`PASS` / `PARTIAL` / `FAIL` / `BLOCKED` /
 `NOT-REACHABLE` / `UNVERIFIABLE`, each with cited evidence, each scoped to the environment it
 holds in) plus one bug report per finding. `BLOCKED` is a
@@ -132,11 +150,15 @@ judged against a written rubric · needs-a-human for pure refactors with nothing
 
 Safety rules: `.claude/skills/qa-verify-backend/references/safety-rules.md`.
 Probe catalogues: `references/aws-readonly-probes.md` (cloud resources),
-`references/api-probes.md` (HTTP endpoints), `references/environment-fingerprinting.md`.
+`references/api-probes.md` (HTTP endpoints), `references/environment-fingerprinting.md`,
+`references/payload-verification.md`, `references/release-readiness.md`.
 BE/API techniques: knowledge base v0.3.0 — `technique-verification-mode-selection`,
 `technique-functional-diff-analysis`, `technique-llm-output-verification`; v0.4.0 —
 `technique-environment-fingerprinting`, `technique-authenticated-api-probing`,
-`technique-ui-api-differential`, `technique-silent-failure-audit`.
+`technique-ui-api-differential`, `technique-silent-failure-audit`; v0.5.0 —
+`technique-derived-value-verification`, `technique-presentation-integrity`,
+`technique-expected-behaviour-specification`, `technique-config-surface-verification`,
+`technique-release-readiness-verification`.
 
 ## Skills (continued)
 

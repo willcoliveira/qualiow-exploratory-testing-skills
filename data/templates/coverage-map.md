@@ -23,6 +23,20 @@
 - **tested** -- Area was fully explored with the planned heuristics.
 - **partial** -- Area was visited but not all heuristics or paths were exercised.
 - **not-tested** -- Area was in scope but was not reached during the session.
+- **code-verified-only** -- Believed correct from reading the source, never observed
+  running. This is `UNVERIFIABLE`, **not** a pass -- keep it visually distinct so it
+  cannot be skimmed as green.
+
+Two distinctions that routinely produce a false **tested**:
+
+- **Consistent is not causal.** A setting whose current value happens to match the output
+  proves nothing until the setting is changed and the output is watched to follow.
+- **The data has to reach the case.** An area whose behaviour depends on values no
+  reachable record has -- a negative, a zero, an empty collection -- is **not-tested** for
+  that behaviour. Find such a record, create one, or say plainly what data would settle it.
+
+Name the single **not-tested** item that carries the most risk. In a map full of green rows
+that is the line the reader acts on.
 
 ---
 

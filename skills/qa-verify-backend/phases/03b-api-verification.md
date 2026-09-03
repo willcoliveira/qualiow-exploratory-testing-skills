@@ -8,8 +8,10 @@ Run it whenever the ticket touches a request/response contract: a search or list
 endpoint, validation rules, pagination, filter values, an error contract, a payload
 shape a consumer reads. Skip it when the change has no HTTP surface at all.
 
-Read `references/api-probes.md` for the mechanics and the case catalogue, and
-`references/environment-fingerprinting.md` before you believe any result.
+Read `references/api-probes.md` for the mechanics and the case catalogue,
+`references/environment-fingerprinting.md` before you believe any result, and
+`references/payload-verification.md` once you have one — a well-shaped `200` says nothing
+about whether the numbers in it are right.
 
 ## Step 1: Prove Which Implementation You Are Probing
 
@@ -100,6 +102,18 @@ A divergence in *shape* between two environments running the same build is a
 configuration finding — go back to step 1 and name the switch. A divergence in *counts*
 is usually nothing.
 
+## Step 5b: Check the Values, Not Just the Shape
+
+A `200` with a well-formed body has proven the contract, not the content. For every derived
+value the ACs mention — a percentage, total, ratio, delta or aggregate — recompute it from
+the raw figures in the same response, using the formula from the **specification** rather
+than from the code under test. Pick cases that stress sign, zero, scale and cardinality,
+and add the structural invariants the values must satisfy regardless of magnitude.
+
+Then write down what the check does not prove: when both sides come from one payload you
+have verified the derivation, not the inputs. Name the independent oracle that would close
+it, and say whether you ran it. Full guidance in `references/payload-verification.md`.
+
 ## Step 6: The Differential Pass — the Same Matrix at Both Surfaces
 
 If the ticket also has a UI, run the overlapping cases through the screen too, and sort
@@ -111,6 +125,12 @@ every finding into four buckets:
 | **API only** | A real defect the UI's own guard is hiding. Reachable by every non-browser client. |
 | **UI only** | The client invents or masks a behaviour the service does not have — an error rendered as an empty result, a value re-formatted, a field dropped. |
 | **Neither** | Environment or access noise, not a product defect. |
+
+Hold the raw response next to every number on screen while you do this. A correct payload
+can still reach the user as a wrong value — a formatter that guesses what a value is, a
+unit applied twice, rounding that crosses a threshold, truncation shown as a total. When it
+happens, work out which change owns the corruption before filing it; it is frequently not
+the change under test, and it is frequently deployed on one environment and not another.
 
 Two corrections this pass reliably produces, both worth stating explicitly in the
 report:

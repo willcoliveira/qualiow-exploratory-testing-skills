@@ -152,3 +152,60 @@ disqualifier before filing any of these.
 - **Run the request from inside the authenticated page.** `fetch` with the session's own cookies
   needs no token plumbing, survives SSO and MFA, and keeps the credential in the browser where it
   belongs. See `technique-authenticated-api-probing`.
+
+### Calculated values and what reaches the screen
+
+- **Recompute every derived value from the raw figures in the same response**, using the formula
+  from the spec — not from the code under test. Recomputing the implementation's own arithmetic
+  proves only that arithmetic is deterministic.
+- **Then say what that does not prove.** Both sides came from one payload, so you verified the
+  derivation and not the inputs. Name the independent oracle that would close it and whether you
+  ran it. See `technique-derived-value-verification`.
+- **Pick a negative, a zero, a very large and a very small value, and a single-item case.** Sign
+  handling is where derivation breaks; a single-item aggregate is the cleanest comparison against
+  any second system, with no aggregation ambiguity.
+- **Add the structural invariants** — a total equal to the sum of its parts, one metric bounded by
+  another, a derived cost positive. Cheap, and they generalise past the cases you picked.
+- **Hold the raw response next to the screen.** A correct payload still reaches the user wrong when
+  a formatter guesses what a value is (`value > 1 ? value : value * 100`), a unit is applied twice,
+  rounding crosses a threshold, or a truncated figure is presented as a total.
+- **A self-contradicting tile is the tell** — a percentage printed above the fraction it came from,
+  and the two disagree. One of them is a lie.
+- **Attribute a rendering defect to the change that owns it.** It is usually not the backend ticket
+  that surfaced it, and it is frequently deployed on one environment and not another. Say plainly
+  when the change under test is not at fault. See `technique-presentation-integrity`.
+- **Consistent is not causal.** A locale, currency or format setting whose current value happens to
+  match the output proves nothing until you change the setting and watch the output follow.
+- **Measure timing in the page, cold and warm.** Wrap the request in `performance.now()` and record
+  the first, second and third call. A cold path an order of magnitude slower is the number every
+  user gets first, and no averaged dashboard shows it.
+
+### Reporting a set of tickets
+
+- **Establish what is deployed before testing anything.** A ticket whose backend is not in the
+  build is *not testable here* — testing its UI produces a convincing, meaningless result that
+  looks exactly like a data bug and gets filed as one.
+- **Keep "not tested" visible.** It disappears between "passed" and "failed" unless the vocabulary
+  has a slot for it, and so does "not testable here".
+- **Mark a code reading differently from an observation.** 🔍 code-verified-only is `UNVERIFIABLE`,
+  not green.
+- **Carry-overs get their own section.** Pre-existing defects mixed into a release's results
+  inflate the apparent risk of shipping it and bury the findings that belong to it.
+- **A deploy landing mid-session invalidates everything measured before it.** Re-fingerprint, keep
+  the pre-deploy findings in their own file, and never merge the two into one table.
+- **State the tolerance on any baseline comparison.** A few per cent on a large live collection is
+  churn. And when a system-wide figure and a per-user figure disagree, name which one describes the
+  behaviour the change actually altered.
+- **Close with a disposition and its reversal condition**, plus the scope of what you checked when
+  it is narrower than the question being asked. See `technique-release-readiness-verification`.
+
+### Findings with no acceptance criterion
+
+- **Write the spec instead of filing ten bugs.** Group by cause, put observed against expected, and
+  make the decisions explicit: reject or clamp (reject — silent correction breaks callers that
+  trust the value back); an error or an empty result (an error — a silent zero is read as data);
+  where validation lives (the layer covering every implementation, never only the client).
+- **Rank by what users can reach today**, not by how bad each finding reads. Name which one is live
+  in production and which only exists in an environment nobody ships from.
+- **Finish with a plain-English reply.** The section that gets the work scheduled is the one the
+  person funding the fix can read. See `technique-expected-behaviour-specification`.

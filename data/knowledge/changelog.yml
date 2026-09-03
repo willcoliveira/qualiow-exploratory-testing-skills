@@ -2,6 +2,34 @@
 # Tracks what changed in each release so /qa-knowledge-list can show history.
 
 releases:
+  - version: "0.5.0"
+    date: "2026-09-03"
+    summary: "Payload correctness and release-level verification — what to do with the answer once you have it, and how to report a set of tickets rather than one."
+    entries_added:
+      - id: technique-derived-value-verification
+        type: technique
+        name: "Derived Value Verification - Recomputing the Number and Naming What It Does Not Prove"
+        description: "Recompute every percentage, total, ratio and aggregate from the raw figures in the same response, using the formula from the spec rather than the code. Choose cases that stress sign, zero, scale and cardinality, add the structural invariants, then state explicitly that internal consistency is not correctness and name the independent oracle that would close the gap."
+      - id: technique-presentation-integrity
+        type: technique
+        name: "Presentation Integrity - Does the Screen Show What the Service Sent?"
+        description: "A correct payload can still reach the user as a wrong number. Formatting helpers that guess what a value is, units applied twice, rounding across a threshold, truncation shown as a total. Invisible from either surface alone, and routinely attributed to the wrong change."
+      - id: technique-expected-behaviour-specification
+        type: technique
+        name: "Expected Behaviour Specification - Writing the Spec That Should Have Existed"
+        description: "Observed against expected, per area rather than per case, with the reject-or-clamp and error-or-empty decisions made explicit, ranked by what users can reach today, and closed with a plain-English reply for whoever decides to fund the fix."
+      - id: technique-config-surface-verification
+        type: technique
+        name: "Config & Feature-Flag Surface Verification"
+        description: "When the configuration mechanism is itself the change: values matching the deployed config rather than the source default, nothing leaking alongside them, the runtime genuinely reading through the surface rather than around it, and the route existing in every environment the change will be promoted to."
+      - id: technique-release-readiness-verification
+        type: technique
+        name: "Release Readiness Verification - Many Tickets, One Build"
+        description: "Establish what is deployed before testing anything, give every ticket a result from a fixed vocabulary that keeps not-testable and not-tested visible, mark code-verified-only as UNVERIFIABLE rather than green, separate carry-overs, and end with a disposition and the condition that would reverse it."
+    entries_modified: []
+    entries_removed: []
+    origin: "Sessions that verified calculated values, multi-ticket releases and a feature-flag surface exposed the gaps: derived values signed off from a single payload, screens signed off without the payload beside them, findings with no acceptance criterion to file them against, and release reports where a code reading looked the same colour as an observation."
+
   - version: "0.4.0"
     date: "2026-09-03"
     summary: "The HTTP/API verification lane — how to probe a service's own endpoints with real credentials, and how to know the environment is running the code you are judging."

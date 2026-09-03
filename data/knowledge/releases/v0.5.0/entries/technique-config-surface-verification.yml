@@ -1,0 +1,77 @@
+id: technique-config-surface-verification
+version: "0.5.0"
+type: technique
+name: "Config & Feature-Flag Surface Verification"
+description: >
+  When the change under test is the configuration mechanism itself — a feature-flag
+  endpoint, a settings surface, a shared config library — the thing to verify is not only
+  that it answers, but that it answers with the deployed values, exposes nothing it should
+  not, is genuinely the single source of truth for the behaviour it advertises, and is
+  reachable by the same route in every environment it will be promoted to.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from backend and API verification sessions, 2026-07 to 2026-09"
+tags: [backend, api, feature-flags, environment, security, configuration, deployment, verification]
+domains: [all]
+priority: medium
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Call the config surface authenticated and unauthenticated. Compare every value against
+    the environment's own deployment configuration. Check the response carries nothing but
+    what it advertises. Then check that the code actually reads the flag through that
+    surface rather than reaching around it — and that the route exists in the environments
+    the change will be promoted to.
+
+  core_principle: >
+    A config surface that reports a value the runtime does not use is worse than no config
+    surface: it is a source of confident, wrong answers, and every later verification built
+    on it inherits the error.
+
+  the_checks:
+    - check: "Values match the deployed configuration"
+      how: >
+        Compare each returned value against the environment's own deployment config file or
+        equivalent — not the default in the source. A mismatch means the surface and the
+        runtime disagree, which invalidates every conclusion drawn from either.
+    - check: "Nothing else leaks"
+      how: >
+        Read the whole response body. A config or flag endpoint that also returns
+        connection strings, secrets, internal hostnames or unrelated settings is a
+        disclosure finding regardless of the ticket's ACs.
+    - check: "Authentication and method"
+      how: >
+        Call it unauthenticated — it should not answer if it is not meant to. Call it with
+        the wrong verbs and expect 405. Confirm the response content type is what callers
+        will parse, and that an unauthenticated call does not silently redirect to a login
+        page that returns 200.
+    - check: "Single source of truth"
+      how: >
+        Grep the codebase for direct reads of the same key. A service that reads the
+        underlying configuration directly bypasses the interface: the flag appears on the
+        surface, but the surface is not authoritative for the behaviour it advertises. This
+        is a finding even when every AC passes, and it is exactly the shape that makes a
+        later verification session draw a confident wrong conclusion.
+    - check: "Route reachability, per environment"
+      how: >
+        Build a small matrix of path against result and meaning. Then confirm the same
+        routing or ingress rule exists in every environment the change will be promoted to
+        — a route added in one environment and not the others turns into a production
+        incident at promotion time, and it is invisible until then.
+    - check: "The flag actually switches something"
+      how: >
+        With the flag on, confirm the behaviour it selects is the behaviour observed.
+        Reporting a flag as true is not evidence that the path it selects is running — see
+        technique-environment-fingerprinting.
+
+  reporting:
+    - "Distinguish ACs satisfied by measurement from ACs satisfied by inference. 'The endpoint auto-exposes implemented flags, so the interface must be implemented' is inference — mark it, and say what would confirm it."
+    - "Carry the promotion risk forward explicitly: which environments still need the route, the value, or both."
+    - "Keep pre-existing findings on the same surface in a separate carry-over section."
+
+  anti_patterns:
+    - "Reading the flag's value from the source default instead of the environment's deployed config."
+    - "Accepting a 200 without reading the body — a login redirect answers 200 too."
+    - "Verifying the surface and never checking that the runtime reads through it."
+    - "Confirming a route in one environment and assuming it exists in the next."

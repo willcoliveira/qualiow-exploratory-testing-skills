@@ -119,6 +119,26 @@ finding into **both** (the UI is faithful — fix it in the service), **API only
 defect the client's guard is hiding, reachable by every other client), **UI only** (the client
 invents or masks behaviour the service does not have) and **neither**.
 
+### A well-shaped `200` is not a correct answer
+
+Once the contract holds, the values are still an open question. Every derived number — a
+percentage, total, ratio, delta or aggregate — is recomputed from the raw figures in the same
+response, using the formula from the **specification** rather than from the code under test,
+with cases chosen to stress sign, zero, scale and cardinality, plus the structural invariants
+that must hold regardless of magnitude.
+
+Then the report says what that does not prove. When both sides of the check come from one
+payload, the *derivation* is verified and the *inputs* are not — so the limitation is written
+down and the **independent oracle** that would close it is named, along with whether it was
+run. "Internal consistency verified; the outstanding oracle is X and has not been run" is an
+honest, useful verdict. "The numbers are correct" is not.
+
+And the payload is held next to the screen, because a correct response can still reach the
+user as a wrong number — a formatter that guesses what a value is, a unit applied twice,
+rounding that crosses a threshold, a truncated figure shown as a total. That defect is
+invisible from either surface alone, and it usually belongs to a different change than the one
+under test. See `references/payload-verification.md`.
+
 ## Verdicts
 
 | Verdict | Means |
@@ -199,11 +219,58 @@ Knowledge base entries loaded by the skill (`data/knowledge/`):
 | `technique-authenticated-api-probing` | Any AC about an endpoint's own behaviour: validation, filters, pagination, error contract, payload shape |
 | `technique-ui-api-differential` | The ticket has both a screen and an endpoint |
 | `technique-silent-failure-audit` | Any read path with an error branch — failures rendered as ordinary-looking empty or zero results |
+| `technique-derived-value-verification` | The AC concerns a calculated value — percentage, total, ratio, delta, aggregate |
+| `technique-presentation-integrity` | The value is also shown on a screen |
+| `technique-expected-behaviour-specification` | The session found behaviour no AC covers |
+| `technique-config-surface-verification` | The change under test *is* the configuration mechanism |
+| `technique-release-readiness-verification` | The ask is "is this release good to go" |
 
 Browse them with `/qa-knowledge-list`.
 
+## Verifying a release rather than a ticket
+
+When the ask is "is this release good to go" instead of "does this ticket meet its ACs", follow
+`references/release-readiness.md`. It changes the shape of the session:
+
+- **The build table comes first, for everything.** Per ticket, is the commit it depends on
+  genuinely an ancestor of what is deployed? This reclassifies half the session before any
+  testing happens. A ticket whose backend is not deployed is **not testable here** — and testing
+  its UI anyway produces a convincing, meaningless result, because the frontend ships the
+  feature, the API does not answer, and it renders as dashes or zeros that look exactly like a
+  data bug.
+- **A fixed result vocabulary** — clean pass · pass with caveats · fail · not testable here ·
+  not tested — so the last two stay visible instead of vanishing between passed and failed.
+- **A coverage map with four states**, where 🔍 *code-verified only* is marked distinctly
+  because it is `UNVERIFIABLE`, not a pass. Plus the one sentence naming which untested item
+  carries the most risk.
+- **Carry-overs in their own section** — pre-existing defects mixed into a release's results
+  inflate the apparent risk of shipping it and bury what belongs to it.
+- **A disposition with its reversal condition**, and the scope of what was checked stated
+  explicitly when it is narrower than the question being asked.
+
+## Writing the spec where none exists
+
+Most of what an API probe turns up has no acceptance criterion behind it, so there is nothing to
+file it against and it becomes an argument rather than a fix.
+`data/templates/expected-behaviour.md` is the artifact for that: observed against expected,
+grouped by cause rather than by case, with the decisions the fix forces made explicit —
+
+- **Reject, or clamp?** Reject. Silently serving something other than what was asked for breaks
+  every caller that trusts the value back.
+- **An error, or an empty result?** An error. A silent zero is indistinguishable from a genuine
+  no-match and will be read as data.
+- **Where does validation live?** At the layer covering every implementation of the feature —
+  never only in the client, which is not in the path for any other caller.
+
+— ranked by what real users can reach *today* rather than by how bad each one reads, and closed
+with the same content in plain English, ready to paste into a ticket comment. That last section
+is what gets the work scheduled.
+
 ## Templates
 
-`data/templates/api-probe-matrix.md` — the environment fingerprint, the case table with a
-column per environment, the four-bucket findings table, and the evidence index. Copy it into
-the session directory at the start of the API lane.
+| Template | Use |
+|----------|-----|
+| `data/templates/api-probe-matrix.md` | The environment fingerprint, the case table with a column per environment, the four-bucket findings table, the evidence index. Copy it in at the start of the API lane |
+| `data/templates/expected-behaviour.md` | The specification that should have existed, plus the plain-English reply |
+| `data/templates/coverage-map.md` | Coverage with four states, including code-verified-only |
+| `data/templates/bug-report.md` | One bug per report, with Business Impact |

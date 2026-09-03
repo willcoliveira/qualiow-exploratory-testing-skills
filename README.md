@@ -232,6 +232,39 @@ in, so it carries the same session cookie, CSRF token and interceptors as the UI
 means it works with SSO and MFA that no scripted login can pass. Credentials stay in the
 browser profile under `.auth/` and never enter a script, a report or the repository.
 
+### Correct shape is not a correct answer
+
+Every derived value — a percentage, total, ratio, delta or aggregate — is recomputed from the
+raw figures in the same response, with the formula taken from the specification rather than from
+the code under test, and with cases chosen to stress sign, zero, scale and cardinality. Then the
+report states the limitation plainly: when both sides of the check come from one payload, the
+derivation is verified and the inputs are not, so the **independent oracle** that would close
+the gap is named along with whether it was run.
+
+The payload is also held next to the screen, because a correct response can still reach the user
+as a wrong number — a formatter that guesses what a value is, a unit applied twice, a truncated
+figure presented as a total. That defect is invisible from either surface alone, and it usually
+belongs to a different change than the one under test.
+
+### Findings with no acceptance criterion become a spec
+
+Most of what an API probe turns up has nothing to be filed against, so it turns into an argument
+rather than a fix. `data/templates/expected-behaviour.md` converts a pile of observations into
+one reviewable decision: observed against expected, grouped by cause, with the decisions the fix
+forces made explicit — reject rather than clamp, an error rather than a silent zero, validation
+at the layer that covers every implementation — ranked by what real users can reach today, and
+closed with a plain-English reply for whoever decides to fund the work.
+
+### Verifying a release rather than a ticket
+
+`references/release-readiness.md` changes the shape of the session: the deployment table first
+for every ticket, so a ticket whose backend is not in the build is marked *not testable here*
+rather than tested against a UI that will render convincing nonsense; a result vocabulary that
+keeps *not tested* visible; a coverage map where 🔍 *code-verified only* is marked as
+`UNVERIFIABLE` rather than green, with one sentence naming the untested item that carries the
+most risk; carry-over defects in their own section; and a disposition with the condition that
+would reverse it.
+
 Full guide: **`docs/BACKEND-VERIFICATION.md`**. Safety rules (read-only discipline, the
 production hard stop, redaction): `.claude/skills/qa-verify-backend/references/safety-rules.md`.
 

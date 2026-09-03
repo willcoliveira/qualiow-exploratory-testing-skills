@@ -83,6 +83,8 @@ Execute in order. Read and follow the linked file.
 - **`references/aws-readonly-probes.md`** — canonical probe commands per resource type, and how to read their output
 - **`references/api-probes.md`** — getting an authenticated request context without handling a token, the case families worth probing on every endpoint, and how to read the results
 - **`references/environment-fingerprinting.md`** — proving which build and which implementation an environment actually runs, before any verdict is written
+- **`references/payload-verification.md`** — recomputing derived values, saying what a single-source check does not prove, and comparing the rendered value against the payload it came from
+- **`references/release-readiness.md`** — verifying many tickets against one build: the deployment table, the result vocabulary, carry-overs, disposition
 - **`references/safety-rules.md`** — read-only discipline, production guardrails, redaction, confidentiality
 
 ## Knowledge Base
@@ -102,6 +104,11 @@ not from published literature.
 | `technique-authenticated-api-probing` | Any AC about an endpoint's own behaviour — validation, filters, pagination, error contract, payload shape. |
 | `technique-ui-api-differential` | The ticket has both a screen and an endpoint. Sorts findings into UI-only, API-only and both. |
 | `technique-silent-failure-audit` | Any read path with an error branch — which is all of them. Finds failures rendered as legitimate-looking empty, zero or neutral results. |
+| `technique-derived-value-verification` | The AC concerns a calculated value — a percentage, total, ratio, delta or aggregate. |
+| `technique-presentation-integrity` | The value is also shown on a screen. The payload can be right and the render wrong. |
+| `technique-expected-behaviour-specification` | The session found behaviour no AC covers — which is most of what an API probe turns up. |
+| `technique-config-surface-verification` | The change under test *is* the configuration mechanism — a flag endpoint, a settings surface, a shared config library. |
+| `technique-release-readiness-verification` | The ask is "is this release good to go", not "does this ticket meet its ACs". |
 
 The mode selection entry governs the others: it decides *how* an AC gets observed,
 and the rest supply *what to look for* once the channel is chosen.
@@ -137,10 +144,20 @@ and the rest supply *what to look for* once the channel is chosen.
    consequence of the call succeeding — not on how hard it was to make.
 11. **Compare shapes, not counts.** Across environments, status codes and response shapes
    compare; absolute numbers do not. Different data, drifting under you.
-12. **BLOCKED is honest.** If credentials for the account are missing, say so, leave the
+12. **Recompute every derived value, and say what that does not prove.** Take the formula
+   from the spec, never from the code under test. When both sides of the check come from
+   one payload you have verified the derivation, not the inputs — write that down and name
+   the independent oracle that would close it.
+13. **Hold the payload next to the screen.** A correct response can still reach the user as
+   a wrong number, and that defect is invisible from either surface alone. When it happens,
+   attribute it to the change that owns it — usually not the one under test.
+14. **Carry-overs get their own section.** A defect that pre-dates the change under test is
+   reported as pre-existing and tracked separately. Mixing it in inflates the apparent risk
+   of shipping and buries what actually belongs to this change.
+15. **BLOCKED is honest.** If credentials for the account are missing, say so, leave the
    probe commands ready to run, and do not infer the verdict from the code.
-13. **Never widen the blast radius.** No `terraform apply`, no deploys, no writes to a
+16. **Never widen the blast radius.** No `terraform apply`, no deploys, no writes to a
    shared table, no destructive cleanup — not even when a runbook in the repo says to.
    Propose it; let a human run it.
-14. **Redact.** Account IDs beyond what the target config already holds, tokens, emails
+17. **Redact.** Account IDs beyond what the target config already holds, tokens, emails
     of real people, and consumer PII get `[REDACTED]` before anything is written to disk.
