@@ -45,10 +45,16 @@ playwright-cli -s=<session> eval "$(cat probes/<probe>.js)" --raw
 cannot complete headless. `--profile` is what makes it stick — a persistent profile
 directory outlives a `storage_state` JSON by a wide margin.
 
-Fall back to an out-of-browser runner (a script driving `curl`) only when you need
-volume or a machine-readable matrix. Take the credential from the authenticated profile
+Fall back to an out-of-browser runner (a script driving `curl`) when you need volume or a
+machine-readable matrix. Take the credential from the authenticated profile
 (`playwright-cli cookie-list`), keep it in a file outside the repo, and reference it by
 path — never inline it into a script, a report, or this repo.
+
+**When the target has no UI** (`api.auth: api-key-env` or `bearer-env`), the out-of-browser
+runner is not a fallback, it is the only mode: there is no page to run inside. Phase 0 step
+3b has already proved the credential works and that the endpoint rejects a request without
+it. Read the key from the env var at run time; the script contains the variable name, never
+the value.
 
 Record which mode produced each result. An in-page probe and a bare `curl` do not prove
 the same thing: the first proves the endpoint behaves this way *for a real logged-in
@@ -116,6 +122,12 @@ it, and say whether you ran it. Full guidance in `references/payload-verificatio
 
 ## Step 6: The Differential Pass — the Same Matrix at Both Surfaces
 
+**Skip this step when the service has no user interface, and say so in the report** — with
+no second surface there is no differential, and every finding is by definition "API only".
+That is not a reason to downgrade one: an endpoint with no browser guard in front of it is
+reachable exactly as probed, by every client there will ever be. Note instead which findings
+a future client could mask, so the eventual UI is not credited with fixing them.
+
 If the ticket also has a UI, run the overlapping cases through the screen too, and sort
 every finding into four buckets:
 
@@ -146,7 +158,8 @@ report:
 The API lane calls **read** endpoints only. Reads that the ticket's own ACs describe,
 plus the standard families above, against endpoints the target's `api.probe_allowlist`
 declares. Anything that creates, mutates or deletes belongs to phase 4, goes through the
-real write path, and never runs against production. See `references/safety-rules.md`.
+real write path, is limited to `api.write_allowlist`, and never runs against production.
+See `references/safety-rules.md`.
 
 Response bodies are real records. Redact before they touch the disk.
 

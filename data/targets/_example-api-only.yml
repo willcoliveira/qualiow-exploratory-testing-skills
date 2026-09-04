@@ -1,0 +1,80 @@
+# Example target for /qa-verify-backend against a service with NO user interface —
+# an HTTP API you hold a key for. Copy, rename, and fill in.
+#
+# The difference from `_example-backend.yml`: there is no browser session to inherit.
+# The API lane runs OUT OF BROWSER, sending a static credential from an environment
+# variable, so `auth`, `browser` and `scope` below are schema-required stubs that no
+# phase actually uses.
+#
+# NEVER put the key in this file. Reference the environment variable by NAME and keep
+# the value in .env (gitignored). A target holding real endpoints belongs in
+# `data/targets/local-*.yml`, which is gitignored.
+
+id: _example-api-only
+name: "Example Payments API — sandbox workspace"
+base_url: "https://example-api.sandbox.example.com"
+domain: fintech                  # pulls data/domains/fintech.md's data-integrity checks
+
+# --- Schema-required stubs. No browser is opened for an API-only target. ---------
+auth:
+  strategy: none
+browser:
+  headless: true
+  viewport: { width: 1280, height: 720 }
+scope:
+  max_depth: 0                   # nothing to crawl
+
+safety:
+  read_only: false               # writes allowed — see write_allowlist below
+  no_form_submit: true
+
+# --- What the skill may do here ------------------------------------------------
+environment:
+  kind: ephemeral                # dev | ephemeral | staging | production
+  destroyed_automatically: false
+  # An isolated per-tester workspace behind one key is `ephemeral`: writes are
+  # permitted and the blast radius is the tester's own data. `kind: production`
+  # would force read-only probes and skip the end-to-end phase.
+
+# --- The service's own HTTP surface --------------------------------------------
+api:
+  # base_url: defaults to the target's base_url above when omitted.
+  auth: api-key-env              # session-cookie | bearer-env | api-key-env | none
+  token_env: EXAMPLE_API_KEY     # NAME of the env var holding the key
+  header_name: X-Api-Key         # header carrying it; defaults to X-Api-Key
+
+  # No browser_profile: an API-only target has no session to persist. The request
+  # context is a script reading the key from the environment. Prove the credential
+  # before the first probe — one unauthenticated call must fail, one authenticated
+  # read must succeed — and record both, or a 401 rendered as JSON will read like a
+  # passing case for the rest of the session.
+
+  version_endpoint: "/health"    # the closest thing to a build id this service has
+
+  endpoints:
+    health: "GET /health"
+    get_item: "GET /items/{id}"
+    create_item: "POST /items"
+    callback: "POST /callbacks/provider"
+    set_config: "POST /admin/config"
+    reset: "POST /admin/reset"
+
+  # Read-only. The API lane may call these without asking.
+  probe_allowlist:
+    - "GET /health"
+    - "GET /items/{id}"
+
+  # State-changing. Phase 4 only, dev/ephemeral only, and never in production.
+  # Anything absent here is off limits even when the verb looks harmless — note
+  # that `POST /admin/reset` is deliberately NOT listed: it destroys the workspace
+  # and every piece of evidence gathered in it. Add it only for a session that
+  # means to test reset itself.
+  write_allowlist:
+    - "POST /items"
+    - "POST /callbacks/provider"
+    - "POST /admin/config"
+
+  notes: >
+    Keep the matrix proportionate: a few dozen requests is verification, thousands
+    is a load test nobody agreed to. Response bodies are real records — redact
+    before anything touches the disk.

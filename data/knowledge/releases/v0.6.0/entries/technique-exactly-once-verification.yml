@@ -1,0 +1,116 @@
+id: technique-exactly-once-verification
+version: "0.6.0"
+type: technique
+name: "Exactly-Once Verification — Proving a Payment Moved Money Once"
+description: >
+  "Deduplicated" is a claim about a status field. "Credited exactly once" is a claim about a
+  ledger, and they are not the same claim. This is how to attack an asynchronous money flow
+  where the effect, not the response, is what has to be verified: identity collision, the
+  concurrent redelivery, the contradicting event, the late event, and the workaround that
+  makes the system testable while the defect is still open.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from a black-box assessment of an asynchronous mobile-money top-up service, 2026-09"
+tags: [money, payments, concurrency, idempotency, callbacks, webhooks, data-integrity, api, backend]
+domains: [fintech, all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Test the effect, not the acknowledgement. Read the balance before and after every case and
+    assert the delta; drive the same event twice sequentially, then simultaneously; then drive
+    two different events that collide on whatever the system uses to identify them. Sequential
+    correctness tells you almost nothing about a system whose entire purpose is asynchronous.
+
+  core_principle: >
+    A system that is correct on every sequential path and wrong on every concurrent one will
+    pass ordinary testing, pass manual testing and pass a demo. Concurrency is not an edge
+    case in a payments system — it is the operating condition, and it is the first thing to
+    reach for, not the last.
+
+  the_oracle_is_the_ledger: >
+    Never assert on the status field alone. A payment marked SUCCESS proves that a status was
+    written, not that money moved; a payment marked FAILED sitting on a credited balance is a
+    defect that neither field reveals on its own. Read the balance before the case and after
+    it and assert the DELTA — an absolute balance assertion breaks the moment the environment
+    holds prior data, which it always eventually does.
+
+  the_five_attacks:
+    - attack: "The identity collision"
+      run: >
+        Create two independent records at the same instant, for two different customers, then
+        settle only one of them.
+      looking_for: >
+        Whether the system's idea of "which record does this event belong to" is actually
+        unique. Identifiers built from a timestamp, a counter or a natural key collide under
+        exactly the conditions that make them convenient. One settlement event applying to two
+        records is money created from nothing, and the second customer is never involved.
+    - attack: "The concurrent redelivery"
+      run: "Send N byte-identical events with Promise.all / parallel workers, not in a loop."
+      looking_for: >
+        Whether deduplication is atomic or read-then-write. A sequential duplicate is caught by
+        almost any implementation; simultaneous duplicates are caught only by a uniqueness
+        constraint or a lock inside the same transaction as the effect. Count the responses:
+        "N-1 applied, 1 duplicate" is the signature of a check that lost the race.
+    - attack: "The contradiction"
+      run: "Settle successfully, then send a failure for the same record. Then the reverse."
+      looking_for: >
+        Whether terminal states are terminal, and whether the status and the ledger move
+        together. The common defect is a status that flips while the balance stays, leaving
+        two records that disagree with no indication either is wrong.
+    - attack: "The late event"
+      run: >
+        Let a timeout, sweeper or reconciliation job close the record, then deliver the event
+        it was waiting for.
+      looking_for: >
+        Whether the timeout is a decision or a pause. If a closed record can still be settled,
+        every customer told "this failed" who then retried has paid twice — and the timeout,
+        which is a designed and routine event, is the mechanism that produces the double charge.
+    - attack: "The amount that does not match"
+      run: >
+        Settle with an amount different from the one requested — larger, smaller, zero, negative.
+      looking_for: >
+        Whether anything reconciles what was requested against what the provider says it
+        collected. Crediting the requested amount regardless is the quiet version: partial
+        collection credits in full, nothing is recorded, and the shortfall is found in a
+        statement weeks later.
+
+  when_the_defect_blocks_the_testing: >
+    An identity collision defect will corrupt your own test run: parallel workers create
+    colliding records and one test's event settles another test's data, so the suite fails
+    somewhere different every time and reads as flake. Do not make the assertions tolerant —
+    that hides the most serious finding behind the tooling built to find it. Serialise, add a
+    barrier that spaces record creation past the collision window, and mark BOTH as workarounds
+    at the point of use, naming the defect id and stating that they are removed when it is fixed.
+    Then say it in the report: the defect that makes the system unsafe is usually the same one
+    that makes it hard to test, and that is a finding about the design, not an inconvenience.
+
+  what_to_record_per_case:
+    - "balance before, balance after, and the delta — in minor units, never floats"
+    - "the status of every record the event touched, not just the one you aimed at"
+    - "every response body, because {applied} vs {duplicate} vs {ignored} is the observation"
+    - "the identifier the system returned, so a collision is visible in the evidence itself"
+
+  reading_the_results:
+    - signal: "N events, N-1 applied, 1 duplicate"
+      means: "Read-then-write dedup. Not a tuning problem — the check and the effect are not in one transaction."
+    - signal: "One event settles more than one record"
+      means: "The identifier is not unique. Look at how it is constructed before looking anywhere else."
+    - signal: "Status changed, balance did not"
+      means: "Two sources of truth with no invariant tying them. Ask which one the finance team reads."
+    - signal: "A closed record became open again"
+      means: "The closing job is advisory. Find out what the customer was told when it closed."
+
+  common_mistakes:
+    - "Asserting the status and calling it verified."
+    - "Sending duplicates in a loop and concluding dedup works."
+    - "Using an absolute balance assertion, which passes on a clean environment and fails forever after."
+    - "Reusing one customer identity across cases, so every result contaminates the next."
+    - "Retrying a failing test until it passes, which is how a genuine race becomes 'flake'."
+
+  relationship_to_other_entries: >
+    Extends technique-business-logic-race-conditions from the logic layer to the ledger, and
+    technique-data-integrity-testing by naming the balance as the surface that must agree.
+    Pairs with technique-async-callback-contracts, which covers what a callback endpoint owes
+    its caller.

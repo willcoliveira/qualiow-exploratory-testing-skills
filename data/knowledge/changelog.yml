@@ -2,6 +2,22 @@
 # Tracks what changed in each release so /qa-knowledge-list can show history.
 
 releases:
+  - version: "0.6.0"
+    date: "2026-09-03"
+    summary: "Asynchronous money movement — verifying that a payment credited a ledger exactly once, and what a callback endpoint owes the caller it cannot control."
+    entries_added:
+      - id: technique-exactly-once-verification
+        type: technique
+        name: "Exactly-Once Verification - Proving a Payment Moved Money Once"
+        description: "Assert the balance delta, never the status field, then attack the flow with the five cases that break it: an identity collision between records created in the same instant, the same event redelivered simultaneously rather than sequentially, a contradicting event, an event arriving after a timeout closed the record, and a settlement amount that does not match the request. Includes what to do when the defect corrupts your own parallel test run."
+      - id: technique-async-callback-contracts
+        type: technique
+        name: "Asynchronous Callback Contracts - What a Webhook Endpoint Owes Its Caller"
+        description: "Is the endpoint authenticated, which field does it actually deduplicate on rather than which one is documented, what does it do with an event matching no record, and can the caller distinguish applied from duplicate from discarded. The unmatched-event case is where collected money goes uncredited with nothing to show for it."
+    entries_modified: []
+    entries_removed: []
+    origin: "A black-box assessment of an asynchronous mobile-money top-up service. Every sequential path through it was correct and every concurrent one was not, so the existing request-and-response techniques reported it as healthy while two independent defects were crediting wallets with money no provider had collected."
+
   - version: "0.5.0"
     date: "2026-09-03"
     summary: "Payload correctness and release-level verification — what to do with the answer once you have it, and how to report a set of tickets rather than one."

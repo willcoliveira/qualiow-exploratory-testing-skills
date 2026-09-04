@@ -1,0 +1,30 @@
+# Release metadata for v0.6.0
+version: "0.6.0"
+date: "2026-09-03"
+author: "qualiow"
+status: active
+
+notes: >
+  Asynchronous money movement. Everything up to v0.5.0 assumes a request and a response: you ask
+  the system something and judge the answer. A payment rail does not work that way — the platform
+  asks a provider to move money, the provider answers minutes later over a channel it will not
+  retry, a sweeper closes whatever never arrived, and the thing that has to be right is a balance
+  nobody returned in any of those responses. Exactly-Once Verification is the ledger half: read
+  the balance before and after every case and assert the delta, then attack the flow with the five
+  cases that actually break it — an identity collision between two records created at the same
+  instant, the same event redelivered simultaneously rather than in a loop, a contradicting event,
+  an event arriving after a timeout already closed the record, and a settlement amount that does
+  not match what was requested. Asynchronous Callback Contracts is the receiving half: whether the
+  endpoint is authenticated at all, which field it really deduplicates on as opposed to which one
+  the documentation claims, what it does with an event matching no record, and whether its
+  response lets the caller tell applied from duplicate from discarded. Both carry the same warning,
+  learned the hard way: a system correct on every sequential path and wrong on every concurrent one
+  passes ordinary testing, and when its identity defect starts corrupting your own parallel test
+  run, the answer is to serialise and say so — never to make the assertions tolerant, and never to
+  retry until it goes green.
+
+entry_count: 2
+
+entries:
+  - technique-exactly-once-verification
+  - technique-async-callback-contracts

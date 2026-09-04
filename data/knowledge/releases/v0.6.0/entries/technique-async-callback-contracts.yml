@@ -1,0 +1,98 @@
+id: technique-async-callback-contracts
+version: "0.6.0"
+type: technique
+name: "Asynchronous Callback Contracts — What a Webhook Endpoint Owes Its Caller"
+description: >
+  A callback endpoint is an API whose caller you do not control, cannot ask to retry, and
+  cannot expect to behave. This covers what to probe on the receiving end: the identity it
+  keys on, what it does with an event it cannot match, whether it distinguishes acknowledging
+  from applying, whether its answer is honest enough for the sender to act on, and whether an
+  event that arrives out of order is applied, rejected or silently swallowed.
+author: "Qualiow — BE/API verification layer"
+source: "Derived from a black-box assessment of an asynchronous mobile-money top-up service, 2026-09"
+tags: [webhooks, callbacks, api, backend, contracts, silent-failure, integration, payments]
+domains: [fintech, all]
+priority: high
+added: "2026-09-03"
+updated: "2026-09-03"
+
+content:
+  summary: >
+    Establish four things before anything else: is the endpoint authenticated, what field does
+    it key on, what does it do with an event that matches nothing, and can the caller tell the
+    difference between accepted, duplicate and discarded. Everything else about the integration
+    is downstream of those answers.
+
+  core_principle: >
+    The endpoint is the entire contract. There is no client in front of it, no form validation,
+    no retry the receiver controls. Judge every case on the consequence of the call succeeding,
+    never on how hard it was to make.
+
+  first_question_authentication: >
+    Probe the callback endpoint with no credential and with a wrong one, before anything else.
+    A callback endpoint that accepts unauthenticated requests is a "credit any account" endpoint
+    on a payments platform, and every other finding is secondary to it. It is also the single
+    most commonly unprotected route in an integration, because it is written to be called by
+    someone else's system and is easy to think of as inbound plumbing rather than as an API.
+    When it IS protected, say so explicitly and prominently — it is worth as much to the reader
+    as a defect.
+
+  second_question_the_dedup_key: >
+    The documentation says "duplicates are deduplicated" and never says duplicate of what. Find
+    out empirically by varying one field at a time against a settled record: same everything;
+    same reference with a new receipt; same receipt against a different reference; same reference
+    with a different amount. The field it actually keys on is frequently not the one that is
+    unique in the sender's system. A receipt that is globally unique upstream but keyed on
+    locally, or a reference that is unique locally but reused upstream, both produce silent
+    misapplication.
+
+  third_question_the_unmatched_event: >
+    Send an event whose identifier matches nothing — well-formed, then malformed. Three answers
+    are possible and they are not equally good:
+    a 4xx that makes a retrying sender retry forever against a record that will never exist;
+    a 200 that claims it was applied, which is a broken error contract; and a 200 that is
+    explicitly distinguishable, such as an "ignored" flag, which is usually right for a sender
+    that does not retry. Whichever it does, the question that follows is the one you cannot see
+    from outside — does anything count or alert on it? An unmatched callback for a real payment
+    means money collected and never credited, and if nothing counts them the platform learns
+    from the customer. Report that as a suspected finding about an absence and say plainly that
+    it is not observable through the API.
+
+  fourth_question_the_honest_acknowledgement: >
+    The response body has to let the sender distinguish applied, already-applied and discarded.
+    Collapsing them into one 200 is a silent-failure shape: it means no sender, no monitor and
+    no engineer can tell a working integration from a broken one. Check what a response says
+    when the event applied to MORE records than intended, too — a body listing the records it
+    touched is the cheapest possible detection for an identity collision, and a body that just
+    says "ok" hides it completely.
+
+  ordering_and_lateness:
+    - "Deliver two events for one record in the wrong order and see which one wins."
+    - "Deliver an event after the record has been closed by a timeout or reconciliation job."
+    - "Deliver two contradicting events simultaneously and see whether the result is stable."
+    - >
+      Ask, for each: what was the customer or the downstream system told at the moment of the
+      first event? Every out-of-order defect gets its severity from what had already been
+      promised, not from the record's final state.
+
+  simulating_the_provider: >
+    Where the system under test offers provider behaviour profiles — healthy, silent, duplicate,
+    late, contradictory — those are the specification of what the integration is supposed to
+    survive, and they should be exercised one by one and named in the coverage map. Where it does
+    not offer them, the equivalent is a mode where the platform schedules nothing and the tester
+    sends every event by hand: that mode is worth more than all the others combined, because it
+    is the only one that gives deterministic control of timing, ordering and concurrency. Reach
+    for it by default, and use a real profile only when the provider's own behaviour is the
+    subject of the test.
+
+  common_mistakes:
+    - "Testing the callback endpoint only through the happy path the platform itself triggers."
+    - "Assuming the documented dedup key is the implemented one."
+    - "Reading a 200 as success without checking what the body says was actually done."
+    - "Treating an unmatchable event as a low-value case; it is how collected money goes uncredited."
+    - "Reporting 'the endpoint is authenticated' nowhere, so the reader cannot tell it was checked."
+
+  relationship_to_other_entries: >
+    The receiving half of technique-exactly-once-verification, which covers the ledger effects.
+    Shares its result-reading vocabulary with technique-silent-failure-audit, and its
+    identity-and-scope discipline with technique-authenticated-api-probing.

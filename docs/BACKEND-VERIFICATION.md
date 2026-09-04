@@ -38,10 +38,13 @@ implements it.
 ### 2. Create a target config
 
 ```bash
-cp data/targets/_example-backend.yml data/targets/local-my-service.yml
+cp data/targets/_example-backend.yml data/targets/local-my-service.yml   # service behind a UI
+cp data/targets/_example-api-only.yml data/targets/local-my-api.yml      # HTTP API, no UI
 ```
 
 Fill in `base_url`, `environment.kind`, the `backend.resources` names, and `source.branch`.
+For an API-only service most of that is empty: what matters is the `api:` block — its
+`auth` mode, the env var holding the key, and the two allowlists.
 
 Two rules:
 
@@ -108,6 +111,20 @@ and it works with SSO and MFA that no scripted login can pass:
 playwright-cli -s=my-env open https://service.example.com/ --headed --profile .auth/my-env
 playwright-cli -s=my-env eval "$(cat probes/search-cases.js)" --raw
 ```
+
+**When the service has no UI**, none of that applies: there is no page to run inside. Declare
+`api.auth: api-key-env` with `token_env` naming the variable and `header_name` naming the
+header, and the lane runs out of browser, reading the key from the environment at run time.
+Two obligations come with it. Prove the credential is doing something before the first probe —
+one call without the header must be rejected, one with it must succeed, both recorded — or a
+`401` rendered as JSON will read like a passing case all session. And skip the differential
+pass with the reason stated: with no second surface every finding is "API only", which is not
+a downgrade but the whole contract, since there is no client guard in front of the endpoint
+for anyone.
+
+State-changing calls are limited to `api.write_allowlist` and belong to phase 4. Where a
+service offers a workspace reset, it stays deliberate: it is the one call that erases the
+evidence for everything already observed.
 
 Cases come from the ACs plus the standard families — length boundaries, tokenisation,
 metacharacters of whatever query language sits underneath, the four different kinds of

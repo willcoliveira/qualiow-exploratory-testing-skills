@@ -72,9 +72,11 @@ export interface BackendConfig {
 export interface ApiSurfaceConfig {
   /** Defaults to the target's base_url when omitted. */
   base_url?: string;
-  auth?: 'session-cookie' | 'bearer-env' | 'none';
-  /** Env var NAME holding a bearer token — never the token itself. */
+  auth?: 'session-cookie' | 'bearer-env' | 'api-key-env' | 'none';
+  /** Env var NAME holding the credential — never the credential itself. */
   token_env?: string;
+  /** Header carrying the credential for `api-key-env`. Defaults to `X-Api-Key`. */
+  header_name?: string;
   /** Persistent browser profile directory holding the authenticated session. */
   browser_profile?: string;
   /** Endpoint returning the deployed build, used to fingerprint the environment. */
@@ -83,6 +85,9 @@ export interface ApiSurfaceConfig {
   endpoints?: Record<string, string>;
   /** The only endpoints the read-only API lane may call without asking. */
   probe_allowlist?: string[];
+  /** The only endpoints phase 4 may call through the real write path, in a dev
+   *  or ephemeral environment. Absent means the API lane is read-only here. */
+  write_allowlist?: string[];
   /** Other target ids to run the same matrix against, for parity comparison. */
   parity_targets?: string[];
   /** Flag name -> where its deployed value is declared for this environment. */

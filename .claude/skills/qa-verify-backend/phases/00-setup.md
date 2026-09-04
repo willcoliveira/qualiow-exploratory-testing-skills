@@ -43,8 +43,13 @@ Compare the returned account to `backend.account_id`.
 
 ## Step 3b: Establish the API Lane (skip if the ticket has no HTTP surface)
 
-From `target.api`, confirm the endpoints under test and the probe allowlist. Open an
-authenticated session once — headed, against a persistent profile, because an
+From `target.api`, confirm the endpoints under test, the `probe_allowlist` (read-only,
+callable now) and the `write_allowlist` (state-changing, phase 4 only). How you get a
+request context depends on `api.auth`:
+
+### `session-cookie` — the service sits behind a UI
+
+Open an authenticated session once — headed, against a persistent profile, because an
 interactive identity provider cannot complete headless:
 
 ```bash
@@ -54,7 +59,29 @@ playwright-cli -s=<target-id> open <base_url> --headed --profile .auth/<profile>
 Confirm the session is live before building any matrix — a probe run against a logged-out
 page returns a login page with a `200`, which reads exactly like a passing case.
 
-If the target declares `api.parity_targets` or `--parity` was passed, prime that session
+### `api-key-env` / `bearer-env` — the service has no UI
+
+**Open no browser.** There is no session to inherit and no profile to persist. The request
+context is an out-of-browser runner under `probes/` that reads the credential from the env
+var named by `api.token_env` and sends it in `api.header_name` (default `X-Api-Key`), or as
+`Authorization: Bearer` for `bearer-env`. The value is read from the environment at run
+time and never written into a script, a report or this repo.
+
+Prove the credential before the first probe, and record both calls in
+`evidence/fingerprint.md`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "$BASE/<a read endpoint>"                    # expect 401/403
+curl -s -o /dev/null -w '%{http_code}\n' -H "X-Api-Key: $KEY" "$BASE/<same endpoint>"  # expect 200
+```
+
+A service that answers the same either way is not authenticating, which is a finding
+before it is a setup step. If the key is missing the lane is **BLOCKED**, not failed —
+write the commands into the report and continue.
+
+Charter line for this shape: `api: GO (out-of-browser, api-key)`.
+
+If the target declares `api.parity_targets` or `--parity` was passed, prime that context
 too. Same matrix, both environments, or the comparison is not one.
 
 ## Step 3c: Fingerprint the Environment
