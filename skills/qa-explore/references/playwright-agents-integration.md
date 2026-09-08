@@ -93,11 +93,11 @@ reached from a `playwright-cli` session:
 
 | Feature | Version | Used in | How |
 |---|---|---|---|
-| `npx playwright init-agents` | 1.56 | `phases/00-setup.md`, this file | shell |
-| `page.consoleMessages()`, `page.pageErrors()`, `page.requests()` | 1.59 | `phases/03-discovery.md` | `playwright-cli run-code "async page => …"` |
-| `page.accessibility` **removed** | 1.57 | `phases/06-edge-cases.md` | use `snapshot` (aria tree) or `run-code` + `page.ariaSnapshot()` |
-| `locator.ariaSnapshot()` (1.49), `page.ariaSnapshot()` (1.59) | 1.49 / 1.59 | `phases/06-edge-cases.md` | `run-code` |
-| `page.pickLocator()` | 1.59 | `phases/05-features.md` | human-only (opens a picker in a headed browser); agents use `generate-locator <ref>` |
-| `page.screencast` | 1.59 | `phases/07-reporting.md` | `video-start` / `video-chapter`, or a `run-code --filename` hero script |
-| `npx playwright trace open <trace>` | 1.59 | `phases/07-reporting.md` | shell |
+| `npx playwright init-agents` | 1.56 | `${CLAUDE_SKILL_DIR}/phases/00-setup.md`, this file | shell |
+| `page.consoleMessages()`, `page.pageErrors()`, `page.requests()` | 1.59 | `${CLAUDE_SKILL_DIR}/phases/03-discovery.md` | `playwright-cli run-code "async page => …"` |
+| `page.accessibility` **removed** | 1.57 | `${CLAUDE_SKILL_DIR}/phases/06-edge-cases.md` | use `snapshot` (aria tree) or `run-code` + `page.ariaSnapshot()` |
+| `locator.ariaSnapshot()` (1.49), `page.ariaSnapshot()` (1.59) | 1.49 / 1.59 | `${CLAUDE_SKILL_DIR}/phases/06-edge-cases.md` | `run-code` |
+| `page.pickLocator()` | 1.59 | `${CLAUDE_SKILL_DIR}/phases/05-features.md` | human-only (opens a picker in a headed browser); agents use `generate-locator <ref>` |
+| `page.screencast` | 1.59 | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | `video-start` / `video-chapter`, or a `run-code --filename` hero script |
+| `npx playwright trace open <trace>` | 1.59 | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | shell |
 | `--debug=cli`, `browser.bind()` | 1.59 | reference only | not used by the session |
