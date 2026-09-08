@@ -1,6 +1,6 @@
 # Phase 4: End-to-End User Journeys (Mobile)
 
-Follow `../../qa-explore/phases/04-journeys.md` for goal and the data-integrity
+Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/04-journeys.md` for goal and the data-integrity
 discipline. Build the journey templates from the charter's top user goals. Generic
 mobile journey shapes to instantiate (apply to both modes):
 
@@ -10,7 +10,7 @@ mobile journey shapes to instantiate (apply to both modes):
 2. **Create / edit / save** — create or edit a record, save it, navigate away and back, confirm the change is reflected (not just an optimistic UI that drops on reload/relaunch).
 3. **Multi-step flow / wizard** — go through a multi-step flow start to finish; then go partway, back out, and resume — does it preserve or correctly reset state?
 4. **Cross-screen consistency** — a value shown on one screen (a count, total, status, balance, name) matches everywhere else it appears.
-5. **Deep entry** — reach a deep screen directly (NATIVE: deep link via `$MCLI deep-link`; WEB: `open-url` a deep view) rather than navigating from home — does it load with auth/context intact, or break?
+5. **Deep entry** — reach a deep screen directly (NATIVE: deep link via `qa/bin/mcli deep-link`; WEB: `open-url` a deep view) rather than navigating from home — does it load with auth/context intact, or break?
 
 Concrete examples:
 - **WEB:** login/SSO → landing; the core transactional journey end-to-end (e.g. search → product → basket → checkout); any onboarding wizard; editing settings and confirming persistence; exercising the mobile form elements (pickers, toggles, date/number inputs).
@@ -31,16 +31,16 @@ Log every check: `[DATA CHECK] <oracle> — expected: <X>, actual: <Y> — MATCH
 ## Lifecycle interleaving (mobile-only addition)
 
 For at least ONE journey, interrupt mid-flow and verify recovery:
-- Background the app/browser via `$MCLI press HOME` (Android) / home gesture (iOS), wait 30s, return — does state restore, or reload-and-lose-input?
-- Kill via `$MCLI stop`, relaunch via `$MCLI launch` (WEB: + `open-url`) — does in-progress work survive? Does auth survive?
-- Toggle airplane mode mid-submit (`bin/wadb shell svc wifi disable; bin/wadb shell svc data disable`) — does the app surface the failure cleanly or hang/silently drop the action? Re-enable to undo.
+- Background the app/browser via `qa/bin/mcli press HOME` (both platforms — iOS goes through Maestro `pressKey: Home`), wait 30s, return — does state restore, or reload-and-lose-input?
+- Kill via `qa/bin/mcli stop`, relaunch via `qa/bin/mcli launch` (WEB: + `open-url`) — does in-progress work survive? Does auth survive?
+- Toggle airplane mode mid-submit (`qa/bin/wadb shell svc wifi disable; qa/bin/wadb shell svc data disable`) — does the app surface the failure cleanly or hang/silently drop the action? Re-enable to undo.
 
 These lifecycle results often surface the most impactful bugs (data loss, stuck states,
 silent failures, duplicate submissions).
 
 ## After Journeys
 
-Write findings to `phase-2-user-journeys.md` with:
+Write findings to `phase-4-journeys.md` (confidentiality header first) with:
 - Journey-by-journey result (passed / failed / partial — and the WHY)
 - Data integrity table (oracle, expected, actual, pass/fail)
 - Lifecycle test results

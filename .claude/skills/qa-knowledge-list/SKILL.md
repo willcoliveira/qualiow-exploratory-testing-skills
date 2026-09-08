@@ -5,16 +5,25 @@ description: >
   Show changelog and stats.
   Use when user says: "list knowledge", "show heuristics", "what's in the knowledge base",
   "knowledge stats", "show changelog".
+argument-hint: "[--domain <id>] [--tag <tag>] [--type <type>] [--entry <id>] [--changelog] [--stats]"
 allowed-tools: Read, Glob, Grep
 ---
 
 # Browse QA Knowledge Base
 
+Read the base from `<data>/knowledge/` (resolution order in
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`), plus any `$PWD/data/knowledge/custom/*.yml`.
+Never paste a full entry into a session report or a website; the knowledge base is internal
+(`${CLAUDE_SKILL_DIR}/../qa-explore/references/security-rules.md`). Cite an entry by id in
+the `## Observations` section of a session report instead — see
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md`.
+
 ## Commands
 
 ### List All
-Read `data/knowledge/manifest.yml` and display:
-- Total entries by type (heuristics, techniques, checklists, references, patterns)
+Read `<data>/knowledge/manifest.yml` and display:
+- Total entries by type (heuristics, techniques, checklists, references, patterns), counted
+  from the `entries:` registry; if `stats` disagrees with the count, say so (run `npx qualiow kb sync`)
 - Active releases
 - Last updated date
 
@@ -47,7 +56,7 @@ Read and display the full YAML entry content.
 
 ### Show Changelog
 `/qa-knowledge-list --changelog`
-Read `data/knowledge/changelog.yml` and display recent changes.
+Read `<data>/knowledge/changelog.yml` and display recent changes.
 
 ### Show Stats
 `/qa-knowledge-list --stats`

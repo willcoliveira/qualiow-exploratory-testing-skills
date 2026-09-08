@@ -33,7 +33,7 @@ content:
       - "Look for commented-out features, feature flags, A/B test routes"
       - "Try common endpoint patterns: /admin, /debug, /status, /health, /metrics"
     playwright_cli_approach:
-      - "npx playwright-cli network — capture all API calls during normal usage"
+      - "npx playwright-cli requests — capture all API calls during normal usage"
       - "npx playwright-cli eval \"Array.from(document.querySelectorAll('script[src]')).map(s => s.src)\" — find JS bundles"
       - "npx playwright-cli eval \"performance.getEntriesByType('resource').filter(r => r.name.includes('api')).map(r => r.name)\" — find API calls"
 

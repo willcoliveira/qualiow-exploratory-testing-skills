@@ -4,7 +4,7 @@ How the `--context` parameter changes the session.
 
 ## Mode 1: Context File (`--context <file>`)
 
-Read the file. It may be a `tool-qa-workflow` output (structured markdown with Jira data, Confluence specs, GitLab MR diffs, Figma design notes) or any document describing what to test.
+Read the file. It may be a `/qa-gather` context file (structured markdown with ticket data, specs, MR diffs, design notes) or any document describing what to test.
 
 Extract and use:
 

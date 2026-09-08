@@ -8,9 +8,9 @@ Run it whenever the ticket touches a request/response contract: a search or list
 endpoint, validation rules, pagination, filter values, an error contract, a payload
 shape a consumer reads. Skip it when the change has no HTTP surface at all.
 
-Read `references/api-probes.md` for the mechanics and the case catalogue,
-`references/environment-fingerprinting.md` before you believe any result, and
-`references/payload-verification.md` once you have one — a well-shaped `200` says nothing
+Read `${CLAUDE_SKILL_DIR}/references/api-probes.md` for the mechanics and the case catalogue,
+`${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md` before you believe any result, and
+`${CLAUDE_SKILL_DIR}/references/payload-verification.md` once you have one — a well-shaped `200` says nothing
 about whether the numbers in it are right.
 
 ## Step 1: Prove Which Implementation You Are Probing
@@ -64,7 +64,7 @@ session*, the second proves it behaves this way *for whoever holds that credenti
 
 Write the cases down first, as data, so the run is repeatable and the evidence is a
 table rather than a scroll of output. Derive them from the ACs, then add the standard
-families from `references/api-probes.md` — the ACs are a floor:
+families from `${CLAUDE_SKILL_DIR}/references/api-probes.md` — the ACs are a floor:
 
 boundary lengths · tokenisation and whitespace · metacharacters of whatever query
 language sits underneath · empty, null, absent and whitespace-only · enum values that
@@ -118,7 +118,7 @@ and add the structural invariants the values must satisfy regardless of magnitud
 
 Then write down what the check does not prove: when both sides come from one payload you
 have verified the derivation, not the inputs. Name the independent oracle that would close
-it, and say whether you ran it. Full guidance in `references/payload-verification.md`.
+it, and say whether you ran it. Full guidance in `${CLAUDE_SKILL_DIR}/references/payload-verification.md`.
 
 ## Step 6: The Differential Pass — the Same Matrix at Both Surfaces
 
@@ -159,7 +159,7 @@ The API lane calls **read** endpoints only. Reads that the ticket's own ACs desc
 plus the standard families above, against endpoints the target's `api.probe_allowlist`
 declares. Anything that creates, mutates or deletes belongs to phase 4, goes through the
 real write path, is limited to `api.write_allowlist`, and never runs against production.
-See `references/safety-rules.md`.
+See `${CLAUDE_SKILL_DIR}/references/safety-rules.md`.
 
 Response bodies are real records. Redact before they touch the disk.
 
@@ -167,4 +167,4 @@ Response bodies are real records. Redact before they touch the disk.
 
 Update `ac-matrix.md` as you go, one row per AC, each verdict naming the environment it
 holds in. Write the case table to `evidence/api-probe-matrix.md` using
-`data/templates/api-probe-matrix.md`.
+`<data>/templates/api-probe-matrix.md`.

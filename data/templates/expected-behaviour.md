@@ -1,6 +1,7 @@
-# Expected Behaviour Specification
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
 
-> CONFIDENTIAL — internal QA artifact.
+# Expected Behaviour Specification
 
 Use this when a verification session finds behaviour nobody wrote an acceptance criterion
 for — which is most of what an API probe turns up. A bug report says *this is wrong*. This

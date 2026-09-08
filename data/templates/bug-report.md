@@ -1,178 +1,56 @@
-# Bug Report
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
 
-## Title
+# BUG-NNN: [Component] fails [Condition] causing [Impact]
 
-`[Component] fails [Condition] causing [Impact]`
+> _Title example: `[Login Form] fails [when password contains special characters] causing [authentication error and user lockout]`. Number bugs from BUG-001 per session; one file per bug at `bugs/BUG-NNN.md`._
 
-> _Example: [Login Form] fails [when password contains special characters] causing [authentication error and user lockout]_
+**Severity:** Critical | High | Medium | Low
+**Priority:** P0 | P1 | P2 | P3
+**Component:** [Component]
+**URL:** [exact URL where the bug was found — mobile: screen name or deep link — backend: endpoint or resource]
+**Environment:** [e.g. Playwright CLI, Chromium, 1280x720, logged in as X — mobile: mode / platform / device / OS — backend: env kind + build]
+**Reproduction rate:** Always | Intermittent (~X%) | Once
 
----
+> _Severity per `severity-guide.md`: Critical = data loss, security breach, financial loss, system unusable; High = major feature broken, no reasonable workaround; Medium = partial break, workaround exists, or an important missing feature; Low = cosmetic, rare edge case. **When in doubt, go one level LOWER.** Priority = severity adjusted by workaround and blast radius (P0 hours · P1 this sprint · P2 next sprint · P3 backlog)._
 
-## Severity
+## Summary
 
-> Select one. See definitions below.
-
-- [ ] **Critical**
-- [ ] **High**
-- [ ] **Medium**
-- [ ] **Low**
-
-### Severity Level Definitions
-
-| Level    | Definition                                                                 | Examples                                                                                      |
-|----------|----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| Critical | System down, data loss, security breach. Blocks all users immediately.     | Payment gateway crashes on all transactions; user passwords exposed in API response; database corruption losing customer orders. |
-| High     | Major feature broken, many users affected. No reasonable workaround.       | Checkout fails for all credit card payments; search returns zero results for every query; login broken on mobile devices.         |
-| Medium   | Partial break, workaround exists. Some users affected under certain paths. | Discount code applies twice if user clicks fast; filter resets after pagination; profile photo upload fails on Safari only.       |
-| Low      | Cosmetic issue, rare edge case. Minimal user or business impact.           | Footer alignment off by 2px on wide screens; tooltip text truncated in German locale; hover state missing on disabled button.     |
-
-> **Note: When in doubt, go one level LOWER. Severity inflation destroys credibility.** A bug report rated "Critical" that turns out to be cosmetic undermines every future report you file. Reserve Critical for genuine emergencies. If you hesitate between two levels, pick the lower one and let the evidence speak for itself.
-
----
-
-## URL
-
-`[URL where the bug was found]`
-
-## Environment
-
-| Property  | Value                     |
-|-----------|---------------------------|
-| Browser   | [e.g., Chrome 125.0]     |
-| Viewport  | [e.g., 1920x1080]        |
-| OS        | [e.g., macOS 15.x]       |
-| Auth      | [e.g., logged in as X]   |
-| Device    | [e.g., Desktop / Mobile] |
-
----
+[Two sentences: what breaks, and why it matters to the business.]
 
 ## Expected Behavior
 
-_What should happen according to requirements, conventions, or reasonable user expectations._
-
-> [Describe the expected outcome clearly.]
+[What should happen according to requirements, conventions, or reasonable user expectations.]
 
 ## Actual Behavior
 
-_What actually happens instead._
-
-> [Describe the actual outcome. Be precise -- include error messages verbatim if applicable.]
-
----
+[What actually happens instead. Be precise; include error messages verbatim.]
 
 ## Steps to Reproduce
 
 1. Navigate to `[URL]`
 2. [Action 2]
 3. [Action 3]
-4. [Action 4]
-5. Observe: [what goes wrong]
-
-> _Reproduction rate: [Always / Intermittent (~X%) / Once]_
-
----
+4. Observe: [what goes wrong]
 
 ## Business Impact
 
-> This section is **mandatory**. Every bug exists in a business context. Articulating impact helps engineering prioritize correctly and helps stakeholders understand the risk without needing to read technical details.
+> _Mandatory. Answer at least one bullet; write "none identified" for the rest. Quantify where you can ("blocks all guest checkout, ~30% of orders")._
 
-### Revenue Impact
-
-> [Does this bug prevent purchases, cause incorrect charges, block upgrades, or reduce conversion? Quantify if possible -- e.g., "Blocks all guest checkout, which represents ~30% of orders."]
-
-### Trust Impact
-
-> [Would a user lose confidence in the product? Would they contact support, leave a negative review, or churn? e.g., "User sees a $0.00 balance briefly before correct amount loads -- creates panic."]
-
-### Regulatory Risk
-
-> [Does this violate any compliance requirements? Specify the regulation. e.g., "Credit card number visible in URL query string -- PCI DSS violation." If none, write "No known regulatory risk."]
->
-> Common frameworks to consider: SOX, PCI DSS, GDPR, CCPA, HIPAA, WCAG 2.1 AA, CAN-SPAM, KYC/AML, Regulation E.
-
-### Data Risk
-
-> [Is data corrupted, lost, or exposed? e.g., "Order total saved as $0 in database when coupon equals cart value -- data integrity failure." If none, write "No data risk identified."]
-
-### Scale
-
-> [How many users are affected and under what conditions? e.g., "All users on iOS Safari 17+ (~18% of mobile traffic)" or "Only affects accounts created before the migration on 2025-01-15 (~200 accounts)."]
-
----
-
-## Risk Priority
-
-> Use this matrix to communicate urgency objectively.
-
-| Factor      | Rating           | Justification                                     |
-|-------------|------------------|----------------------------------------------------|
-| Likelihood  | High / Med / Low | [How likely is a user to hit this? Every time? Rare edge case?] |
-| Impact      | High / Med / Low | [How bad is it when they do? Data loss? Mild annoyance?]        |
-| **Risk**    | **[Result]**     | **Risk = Likelihood x Impact** (see matrix below)  |
-
-### Risk Matrix
-
-|                    | **Impact: Low** | **Impact: Med** | **Impact: High** |
-|--------------------|-----------------|-----------------|-------------------|
-| **Likelihood: High** | Medium        | High            | Critical          |
-| **Likelihood: Med**  | Low           | Medium          | High              |
-| **Likelihood: Low**  | Low           | Low             | Medium            |
-
----
-
-## Recommended Fix Priority
-
-> **Priority: [P0 / P1 / P2 / P3]**
-
-| Priority | Meaning                              | Typical SLA          |
-|----------|--------------------------------------|----------------------|
-| P0       | Fix immediately, interrupt sprint    | Hours                |
-| P1       | Fix this sprint                      | Days                 |
-| P2       | Fix next sprint                      | 1-2 weeks            |
-| P3       | Backlog, fix when convenient         | When capacity allows |
-
-**Justification:** [Explain why this priority level is appropriate given the risk assessment and business impact above. e.g., "Risk is High (likely + revenue-impacting), but a workaround exists (users can switch payment method), so P1 rather than P0."]
-
----
-
-## Impact
-
-### User Impact
-
-> [How does this affect the end user? Can they complete their task? What is the degraded experience?]
-
-### Business Impact Summary
-
-> [One-sentence summary referencing the detailed Business Impact section above. e.g., "Blocks ~30% of revenue through guest checkout with no workaround."]
-
----
+- **Revenue impact:** [prevents purchases, incorrect charges, blocked upgrades, reduced conversion?]
+- **Trust impact:** [would a user lose confidence, contact support, churn?]
+- **Regulatory risk:** [SOX, PCI DSS, GDPR, CCPA, HIPAA, WCAG 2.1 AA, KYC/AML, Regulation E — name the regulation, or "none identified"]
+- **Data risk:** [corrupted, lost, or exposed data?]
+- **Scale:** [how many users, under what conditions]
 
 ## Evidence
 
-### Screenshots
+- Screenshot: `screenshots/BUG-NNN.png`
+- Video: `videos/BUG-NNN.webm` (if recorded; `.mp4` on mobile)
+- Log: `logs/BUG-NNN.log` (mobile) / `evidence/<file>` (backend), or "none"
+- Console errors: [verbatim, redacted, or "none"]
+- Network failures: [method, URL, status, response excerpt — redacted — or "none"]
 
-> _Path: `output/sessions/[session-id]/screenshots/[filename].png`_
+## Recommended Fix Priority
 
-### Console Errors
-
-```
-[Paste any relevant console errors here]
-```
-
-### Network Failures
-
-```
-[Paste any failed requests -- method, URL, status code, response body excerpt]
-```
-
-### Additional Logs
-
-```
-[Any other diagnostic output -- application logs, state dumps, etc.]
-```
-
----
-
-## Additional Context
-
-> [Any other relevant information: related bugs, recent deploys, feature flags, user reports, etc.]
+[Why this priority relative to the other findings: risk (likelihood × impact, see `severity-guide.md`), workaround, blast radius, and anything related — recent deploys, feature flags, user reports.]

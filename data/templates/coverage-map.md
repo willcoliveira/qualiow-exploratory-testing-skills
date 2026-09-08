@@ -1,10 +1,13 @@
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+
 # Coverage Map
 
 ## Session Reference
 
 | Property   | Value                          |
 |------------|--------------------------------|
-| Session ID | [e.g., SESSION-2026-03-28-001] |
+| Session ID | [session directory, e.g. 2026-09-08-1420-explore-parabank] |
 | Target     | [application or feature name]  |
 | Date       | [YYYY-MM-DD]                   |
 
@@ -12,11 +15,11 @@
 
 ## Overall Coverage
 
-| Area | Status | Heuristics Applied | Bugs Found | Notes |
-|------|--------|--------------------|------------|-------|
-| [Area 1] | tested / partial / not-tested | [list] | 0 | [notes] |
-| [Area 2] | tested / partial / not-tested | [list] | 0 | [notes] |
-| [Area 3] | tested / partial / not-tested | [list] | 0 | [notes] |
+| Area | Risk | Status | Bugs | Notes |
+|---|---|---|---|---|
+| [Area 1] | P0 | tested | 0 | [heuristics applied, notes] |
+| [Area 2] | P1 | partial | 0 | [what was not reached and why] |
+| [Area 3] | P2 | not-tested | — | [reason] |
 
 ### Status Legend
 

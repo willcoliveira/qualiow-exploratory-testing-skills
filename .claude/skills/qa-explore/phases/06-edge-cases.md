@@ -1,6 +1,6 @@
-# Phase 6: Edge Cases, Security & Negative Testing (~20% of time)
+# Phase 6: Edge Cases, Security & Negative Testing (6 min)
 
-**Goal:** Saboteur tour -- actively try to break things.
+**Goal:** Saboteur tour: actively try to break things. Every command carries `-s=<sid>` (omitted here). In read-only mode, fill but never submit.
 
 ## Input Attacks (from error-guessing knowledge)
 
@@ -17,15 +17,21 @@ playwright-cli fill <ref> "   "
 playwright-cli fill <ref> "A repeated 5000 times..."
 ```
 
+After an XSS payload, check whether it executed: `playwright-cli console error` plus
+`playwright-cli run-code "async page => (await page.pageErrors()).length"`, and look for a
+dialog (`dialog-dismiss` if one opened).
+
 ## Race Conditions (if applicable)
 
 ```bash
-# Open a second session
-playwright-cli -s=race open <url>
-playwright-cli -s=race state-load .auth/<target>.json
-# Set up identical action in both sessions
+# Open a second, separately isolated session alongside the main one
+playwright-cli -s=<sid>-race open <url>
+playwright-cli -s=<sid>-race state-load .auth/<target>.json
+# Set up the identical action in both sessions
 # Submit both as close to simultaneously as possible
-# Check for double-processing
+# Check for double-processing, then close the second session:
+playwright-cli -s=<sid>-race close
+playwright-cli -s=<sid>-race delete-data
 ```
 
 ## State Manipulation
@@ -33,14 +39,15 @@ playwright-cli -s=race state-load .auth/<target>.json
 - Navigate directly to pages that require prior steps
 - Use browser back/forward mid-flow
 - Double-click submit buttons
-- Simulate network errors: `playwright-cli route "**/*" --status=500`
+- Simulate network errors: `playwright-cli route "**/*" --status=500` (then `playwright-cli unroute` to restore)
+- Simulate offline: `playwright-cli network-state-set offline` / `online`
 
 ## Security
 
 - Check for session tokens in URLs
 - Try accessing admin/internal pages directly
-- Check if authenticated endpoints work without auth
-- Test brute force: 5+ failed login attempts -- check for lockout
+- Check whether authenticated endpoints work without auth (`playwright-cli -s=<sid>-anon open <api-url>` in a fresh session, then close and `delete-data` it)
+- Test brute force: 5+ failed login attempts; check for lockout
 
 ## Accessibility (quick check)
 
@@ -54,7 +61,11 @@ playwright-cli snapshot
 playwright-cli resize 1280 720  # restore
 ```
 
-> **Note on `page.accessibility` (Playwright 1.57 deprecation):** Upstream Playwright deprecated the `page.accessibility` snapshot API in 1.57. The replacement, available as of Playwright 1.59, is `page.ariaSnapshot()` — an aria-tree-based accessibility snapshot that is both more accurate and directly usable as a locator base. If a session upgrades to deeper a11y checks than the quick-pass above, prefer `page.ariaSnapshot()` over `page.accessibility`. The CLI checks above are unaffected and remain the primary path. See `../references/playwright-agents-integration.md` for a feature cross-reference.
+The CLI `snapshot` **is** an aria snapshot: roles, names and states as assistive technology
+sees them, so missing names and duplicate landmarks show up directly. For the raw YAML aria
+tree of a region, `playwright-cli run-code "async page => page.locator('main').ariaSnapshot()"`.
+Note: Playwright **removed** `page.accessibility` in 1.57; anything still calling it will
+throw.
 
 ## Empty States
 
@@ -65,7 +76,7 @@ playwright-cli resize 1280 720  # restore
 
 ## After Edge Cases
 
-Write to `phase-4-edge-cases.md`.
+Write `phase-6-edge-cases.md` (confidentiality header first).
 
-**Update progress:** Set edge_cases phase complete in progress.json. Append to session-log.md:
+**Update progress:** set the edge_cases phase complete in `progress.json`. Append to `session-log.md`:
 `[<timestamp>] [PHASE] Edge cases complete — <N> input attacks, <N> security checks, <N> a11y checks, <N> bugs so far`

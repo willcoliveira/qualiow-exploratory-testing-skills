@@ -10,7 +10,8 @@ description: >
   "review the infra change", "does this meet the acceptance criteria", "test the backend",
   "test the API", "check the endpoint", or gives a backend/API/infra ticket whose ACs
   cannot be seen in a browser.
-allowed-tools: Read, Write, Glob, Grep, Bash(git:*), Bash(aws:*), Bash(jq:*), Bash(curl:*), Bash(playwright-cli:*), Bash(terraform validate:*), Bash(terraform fmt:*)
+argument-hint: "[--target <id>] [--context <file>] [--static-only] [--api-only] [--no-e2e] [--parity <target-id>]"
+allowed-tools: Read, Write, Glob, Grep, Bash(git:*), Bash(aws:*), Bash(jq:*), Bash(grep:*), Bash(curl:*), Bash(node:*), Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(terraform validate:*), Bash(terraform fmt:*)
 ---
 
 # Backend & Infrastructure AC Verification
@@ -70,26 +71,29 @@ Execute in order. Read and follow the linked file.
 
 | Phase | File | Summary |
 |-------|------|---------|
-| **Setup** | `phases/00-setup.md` | Resolve target, ticket context, repo branch, AWS access. Decide which lanes are runnable. |
-| **AC Decomposition** | `phases/01-ac-decomposition.md` | Turn each AC into a falsifiable check with a named evidence source. Flag untestable ACs. |
-| **Static Review** | `phases/02-static-review.md` | Read the branch diff against every AC. Producer/consumer contract. Spec drift. Negative space. |
-| **Live Verification** | `phases/03-live-verification.md` | Read-only aws-cli probes of the cloud resources. One probe per AC. Capture raw evidence. |
-| **API Verification** | `phases/03b-api-verification.md` | Fingerprint the environment, then call the endpoints directly from the authenticated session. Case matrix, cross-environment parity, UI-vs-API differential. |
-| **End-to-End Trigger** | `phases/04-e2e-trigger.md` | Drive the real write path (UI or API), then re-probe the data layer. Covers "verified in env" ACs. |
-| **Reporting** | `phases/05-reporting.md` | AC traceability matrix, bug reports with business impact, DoD gaps. |
+| **Setup** | `${CLAUDE_SKILL_DIR}/phases/00-setup.md` | Resolve target, ticket context, repo branch, AWS access. Decide which lanes are runnable. |
+| **AC Decomposition** | `${CLAUDE_SKILL_DIR}/phases/01-ac-decomposition.md` | Turn each AC into a falsifiable check with a named evidence source. Flag untestable ACs. |
+| **Static Review** | `${CLAUDE_SKILL_DIR}/phases/02-static-review.md` | Read the branch diff against every AC. Producer/consumer contract. Spec drift. Negative space. |
+| **Live Verification** | `${CLAUDE_SKILL_DIR}/phases/03-live-verification.md` | Read-only aws-cli probes of the cloud resources. One probe per AC. Capture raw evidence. |
+| **API Verification** | `${CLAUDE_SKILL_DIR}/phases/03b-api-verification.md` | Fingerprint the environment, then call the endpoints directly from the authenticated session. Case matrix, cross-environment parity, UI-vs-API differential. |
+| **End-to-End Trigger** | `${CLAUDE_SKILL_DIR}/phases/04-e2e-trigger.md` | Drive the real write path (UI or API), then re-probe the data layer. Covers "verified in env" ACs. |
+| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/05-reporting.md` | AC traceability matrix, bug reports with business impact, DoD gaps. |
 
 ## References
 
-- **`references/aws-readonly-probes.md`** — canonical probe commands per resource type, and how to read their output
-- **`references/api-probes.md`** — getting an authenticated request context without handling a token, the case families worth probing on every endpoint, and how to read the results
-- **`references/environment-fingerprinting.md`** — proving which build and which implementation an environment actually runs, before any verdict is written
-- **`references/payload-verification.md`** — recomputing derived values, saying what a single-source check does not prove, and comparing the rendered value against the payload it came from
-- **`references/release-readiness.md`** — verifying many tickets against one build: the deployment table, the result vocabulary, carry-overs, disposition
-- **`references/safety-rules.md`** — read-only discipline, production guardrails, redaction, confidentiality
+- **`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`** — target resolution (`--target` → `data/targets/<id>.yml`; none → `qa/target.yml`), data directory, credentials, session-directory scheme, index rows
+- **`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md`** — bug-report, session-report and `stats.json` format, confidentiality header
+- **`${CLAUDE_SKILL_DIR}/../qa-explore/references/security-rules.md`** — the production rule with its exclude list, the redaction list, output classification; `references/safety-rules.md` below adds the backend-specific rules on top
+- **`${CLAUDE_SKILL_DIR}/references/aws-readonly-probes.md`** — canonical probe commands per resource type, and how to read their output
+- **`${CLAUDE_SKILL_DIR}/references/api-probes.md`** — getting an authenticated request context without handling a token, the case families worth probing on every endpoint, and how to read the results
+- **`${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md`** — proving which build and which implementation an environment actually runs, before any verdict is written
+- **`${CLAUDE_SKILL_DIR}/references/payload-verification.md`** — recomputing derived values, saying what a single-source check does not prove, and comparing the rendered value against the payload it came from
+- **`${CLAUDE_SKILL_DIR}/references/release-readiness.md`** — verifying many tickets against one build: the deployment table, the result vocabulary, carry-overs, disposition
+- **`${CLAUDE_SKILL_DIR}/references/safety-rules.md`** — read-only discipline, account confirmation, destructive runbooks, session credentials, repo hygiene, untrusted content
 
 ## Knowledge Base
 
-Load these from `data/knowledge/` before the static and live lanes. They are the
+Load these from `<data>/knowledge/` (resolved per `paths.md`) before the static and live lanes. They are the
 BE/API verification layer — techniques derived from real sessions with this skill,
 not from published literature.
 
@@ -109,6 +113,8 @@ not from published literature.
 | `technique-expected-behaviour-specification` | The session found behaviour no AC covers — which is most of what an API probe turns up. |
 | `technique-config-surface-verification` | The change under test *is* the configuration mechanism — a flag endpoint, a settings surface, a shared config library. |
 | `technique-release-readiness-verification` | The ask is "is this release good to go", not "does this ticket meet its ACs". |
+| `technique-exactly-once-verification` | Any money movement or ledger write: assert the balance delta, not the status field; attack identity collision and simultaneous redelivery. |
+| `technique-async-callback-contracts` | The change consumes callbacks or webhooks: what the endpoint does with an event it cannot match, a duplicate, or a late one. |
 
 The mode selection entry governs the others: it decides *how* an AC gets observed,
 and the rest supply *what to look for* once the channel is chosen.
@@ -129,7 +135,7 @@ and the rest supply *what to look for* once the channel is chosen.
    size limits. Audit and event systems fail silently by default.
 6. **Absence is a finding.** An AC that nothing implements, a cleanup that was written
    but never run, a doc that still describes the deleted architecture.
-7. **One bug = one report**, each with Business Impact, per `data/templates/bug-report.md`.
+7. **One bug = one report**, each with Business Impact, in the format of `${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` (`bugs/BUG-NNN.md`).
 8. **Name the observation mode in every verdict.** `PASS (direct request, raw
    response attached)` and `PASS (read the diff)` are different claims. A verdict
    whose only evidence is a code reading is `UNVERIFIABLE`, not `PASS` — see
@@ -160,4 +166,7 @@ and the rest supply *what to look for* once the channel is chosen.
    shared table, no destructive cleanup — not even when a runbook in the repo says to.
    Propose it; let a human run it.
 17. **Redact.** Account IDs beyond what the target config already holds, tokens, emails
-    of real people, and consumer PII get `[REDACTED]` before anything is written to disk.
+    of real people, and consumer PII get `[REDACTED]` before anything is written to disk
+    (the full list is in `security-rules.md`).
+18. **Session directory and header.** `output/sessions/<YYYY-MM-DD-HHmm>-backend-<ticket>/`,
+    and the confidentiality header is the first two lines of every artefact.
