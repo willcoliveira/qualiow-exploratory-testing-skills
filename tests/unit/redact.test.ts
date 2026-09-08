@@ -8,7 +8,7 @@ describe('redact', () => {
     const result = redact(input);
 
     expect(result.text).toBe('Authorization: Bearer [JWT_REDACTED]');
-    expect(result.redactions).toContain('JWT token');
+    expect(result.redactions).toContain('JWT');
     expect(result.text).not.toContain('eyJ');
   });
 
@@ -16,7 +16,7 @@ describe('redact', () => {
     const input = 'api_key=fake_key_abc123def456ghi789jkl012';
     const result = redact(input);
 
-    expect(result.text).toBe('api_key=[API_KEY_REDACTED]');
+    expect(result.text).toBe('api_key=[REDACTED]');
     expect(result.redactions).toContain('API key');
   });
 
@@ -24,7 +24,7 @@ describe('redact', () => {
     const input = 'api-key: fake_key_abc123def456ghi789jkl012';
     const result = redact(input);
 
-    expect(result.text).toBe('api_key=[API_KEY_REDACTED]');
+    expect(result.text).toBe('api-key: [REDACTED]');
     expect(result.redactions).toContain('API key');
   });
 
@@ -41,7 +41,7 @@ describe('redact', () => {
     const input = 'password: my_secret_pass';
     const result = redact(input);
 
-    expect(result.text).toBe('password=[REDACTED]');
+    expect(result.text).toBe('password: [REDACTED]');
     expect(result.redactions).toContain('Password');
   });
 
@@ -49,7 +49,7 @@ describe('redact', () => {
     const input = 'token=abcdef1234567890abcdef1234567890';
     const result = redact(input);
 
-    expect(result.text).toBe('token=[TOKEN_REDACTED]');
+    expect(result.text).toBe('token=[REDACTED]');
     expect(result.redactions).toContain('Token');
   });
 
@@ -80,14 +80,14 @@ describe('redact', () => {
   });
 
   it('should redact 13-digit card numbers', () => {
-    const input = 'Number: 4222222222225';
+    const input = 'Number: 4222222222222';
     const result = redact(input);
 
     expect(result.text).toContain('[CARD_NUMBER_REDACTED]');
   });
 
   it('should redact 19-digit card numbers', () => {
-    const input = 'Card: 1234567890123456789';
+    const input = 'Card: 6221260000000000001';
     const result = redact(input);
 
     expect(result.text).toContain('[CARD_NUMBER_REDACTED]');
@@ -106,10 +106,46 @@ describe('redact', () => {
     expect(result.text).not.toContain('Secret123');
     expect(result.text).not.toContain('111-22-3333');
     expect(result.text).not.toContain('4111111111111111');
-    expect(result.redactions).toContain('JWT token');
+    expect(result.redactions).toContain('JWT');
     expect(result.redactions).toContain('Password');
     expect(result.redactions).toContain('SSN');
     expect(result.redactions).toContain('Credit card number');
+  });
+
+  it('should NOT redact prose that merely contains the words password/secret/token', () => {
+    for (const input of [
+      'Password field accepts unlimited length input.',
+      'The secret sauce of exploratory testing',
+      'the token is invalid after logout',
+    ]) {
+      expect(redact(input).text).toBe(input);
+    }
+  });
+
+  it('should NOT redact long numbers that fail the Luhn check (timestamps, order ids)', () => {
+    for (const input of ['POST /api/login took 1743183294821 ns', 'order 20260908123456']) {
+      expect(redact(input).text).toBe(input);
+    }
+  });
+
+  it('should redact bare JWTs, AWS keys, vendor tokens, private keys, headers and emails', () => {
+    const cases: [string, string][] = [
+      ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop', '[JWT_REDACTED]'],
+      ['AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE', 'AWS_ACCESS_KEY_ID=[AWS_KEY_REDACTED]'],
+      ['aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', 'aws_secret_access_key = [REDACTED]'],
+      ['sk-proj-abc123def456ghi789jkl012mno345', '[SK_KEY_REDACTED]'],
+      ['ghp_16C7e42F292c6912E7710c838347Ae178B4a', '[GITHUB_TOKEN_REDACTED]'],
+      ['xoxb-FAKE-TEST-TOKEN-not-a-real-slack-token', '[SLACK_TOKEN_REDACTED]'],
+      ['Authorization: Basic dXNlcjpwYXNzd29yZA==', 'Authorization: [REDACTED]'],
+      ['Set-Cookie: session=abc123def456ghi789; HttpOnly', 'Set-Cookie: [REDACTED]'],
+      ['contact qa.user@corp-internal.test now', 'contact [EMAIL_REDACTED] now'],
+    ];
+    for (const [input, expected] of cases) {
+      expect(redact(input).text).toBe(expected);
+    }
+    const key = redact('-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----').text;
+    expect(key).toBe('[PRIVATE_KEY_REDACTED]');
+    expect(redact('mail root@example.com or dev@localhost').text).toBe('mail root@example.com or dev@localhost');
   });
 
   it('should NOT redact normal text', () => {

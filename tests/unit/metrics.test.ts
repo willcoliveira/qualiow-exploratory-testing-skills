@@ -1,18 +1,15 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, existsSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   appendSessionMetrics,
+  appendSessionMetricsDeduped,
   readAllMetrics,
 } from '../../src/utils/metrics.js';
 import type { SessionMetrics } from '../../src/types/index.js';
 
-const TMP_DIR = join(
-  process.cwd(),
-  'tests',
-  'fixtures',
-  '.tmp-metrics-tests',
-);
+const TMP_DIR = mkdtempSync(join(tmpdir(), 'qualiow-metrics-'));
 
 function makeMetrics(overrides?: Partial<SessionMetrics>): SessionMetrics {
   return {
@@ -112,5 +109,19 @@ describe('readAllMetrics', () => {
     const result = readAllMetrics(TMP_DIR);
     expect(result).toHaveLength(3);
     expect(result.map((r) => r.session_id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('should skip a corrupt JSONL line instead of throwing', () => {
+    appendSessionMetrics(TMP_DIR, makeMetrics({ session_id: 'ok-1' }));
+    appendFileSync(join(TMP_DIR, 'metrics.jsonl'), '{not json\n');
+    appendSessionMetrics(TMP_DIR, makeMetrics({ session_id: 'ok-2' }));
+    const all = readAllMetrics(TMP_DIR);
+    expect(all.map((m) => m.session_id)).toEqual(['ok-1', 'ok-2']);
+  });
+
+  it('should append a session only once with appendSessionMetricsDeduped', () => {
+    expect(appendSessionMetricsDeduped(TMP_DIR, makeMetrics({ session_id: 'dedupe' }))).toBe(true);
+    expect(appendSessionMetricsDeduped(TMP_DIR, makeMetrics({ session_id: 'dedupe' }))).toBe(false);
+    expect(readAllMetrics(TMP_DIR).filter((m) => m.session_id === 'dedupe')).toHaveLength(1);
   });
 });
