@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: lint · build · test · validate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck (src + tests)
+        run: npm run lint
+
+      - name: Build (syncs the skills/agents mirror first)
+        run: npm run build
+
+      - name: Mirror must already be committed
+        run: |
+          npm run check:mirror
+          git diff --exit-code -- skills agents
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Validate data (targets, domains, knowledge base)
+        run: npm run validate
+
+      - name: Knowledge-base manifest in sync
+        run: npm run kb:check
+
+      - name: Tarball contents
+        run: npm run check:pack
+
+      - name: Shell syntax
+        run: |
+          bash -n bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh
+          if command -v shellcheck >/dev/null; then shellcheck -S warning bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh || true; fi
+          node --check bin/mobile-cli.mjs
+          node --check bin/wkeval.mjs
+          node bin/mobile-cli.mjs --help >/dev/null
+          node bin/mobile-cli.mjs version
+
+      - name: End-to-end install into a fresh project
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination "$RUNNER_TEMP"
+          TGZ="$(ls "$RUNNER_TEMP"/qualiow-exploratory-testing-*.tgz)"
+          mkdir -p "$RUNNER_TEMP/proj" && cd "$RUNNER_TEMP/proj"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$TGZ"
+          npx qualiow --version | grep -q "$(node -p "require('$GITHUB_WORKSPACE/package.json').version")"
+          npx qualiow init
+          git init -q && git config user.email ci@example.com && git config user.name ci
+          git add -A && git commit -qm init
+          npx qualiow init
+          git diff --quiet                     # second init is a no-op
+          npx qualiow validate --all
+          test -x qa/bin/mcli
+          test -f .claude/skills/qa-explore/SKILL.md
+          test -f .claude/agents/qa-gather-agent.md
+          test -f qa/.env.example
+          node qa/bin/mobile-cli.mjs version
+          npx qualiow list sessions
+
+      - name: Mobile toolchain doctor (report only)
+        if: runner.os == 'macOS'
+        run: bin/doctor-mobile.sh --android --quiet || true
+
+      - name: Plugin manifest
+        run: |
+          node -e "const p=require('./.claude-plugin/plugin.json'),k=require('./package.json'); if(p.name!=='qualiow'||p.version!==k.version){console.error('plugin.json mismatch');process.exit(1)}"
+          if command -v claude >/dev/null; then claude plugin validate . ; fi
