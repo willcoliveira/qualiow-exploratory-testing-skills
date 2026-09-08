@@ -12,14 +12,14 @@
 #   - NATIVE mode -> app is a non-browser bundle/package with installable artifact paths
 #                    (app_paths / apk_paths), no web.base_url.
 
-id: example-native-mobile
+id: _example-native-mobile
 name: "Example Native App (simulator/emulator)"
 domain: _default
 platform: ios                      # ios | android (required)
 
 device:
   # iOS: a simulator name or UDID. Android: an AVD name and/or a booted serial.
-  name: "iPhone 17"                # iOS sim label
+  name: "qa-iphone"                # iOS sim label
   udid: "REPLACE-WITH-SIM-UDID"    # iOS sim UDID (from `xcrun simctl list devices`)
   # avd: my_test_avd               # Android AVD name (created via Android Studio / avdmanager)
   # serial: emulator-5554          # Android serial once the AVD is booted

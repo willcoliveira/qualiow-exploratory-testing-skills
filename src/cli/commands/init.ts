@@ -1,81 +1,53 @@
 import { Command } from 'commander';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve, join } from 'node:path';
+import { resolve, join, relative, dirname } from 'node:path';
 import {
   existsSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
   readdirSync,
+  statSync,
+  copyFileSync,
+  chmodSync,
 } from 'node:fs';
-import { cp } from 'node:fs/promises';
 import chalk from 'chalk';
+import {
+  getPackageRoot,
+  getPackageVersion,
+  resolveSkillsSource,
+} from '../../utils/paths.js';
+import { INDEX_MD_HEADER, ALL_BUGS_MD_HEADER } from '../../utils/index-files.js';
+import { mergeGitignore } from '../../utils/gitignore.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Resolve the package root — where skills/ and data/ live.
- * tsup bundles the CLI to dist/cli/index.js, so __dirname = dist/cli/.
- * In development: project root (2 levels up from dist/cli/).
- * When installed: node_modules/@qualiow/exploratory-testing/
- */
-function resolvePackageRoot(): string {
-  // Walk up from __dirname looking for the package root (has data/ and package.json)
-  let current = __dirname;
-  for (let i = 0; i < 10; i++) {
-    if (existsSync(join(current, 'data')) && existsSync(join(current, 'package.json'))) {
-      return current;
-    }
-    current = dirname(current);
-  }
-  // Fallback: assume 2 levels up from dist/cli/
-  return resolve(__dirname, '..', '..');
+export interface InitOptions {
+  includeExamples: boolean;
+  force: boolean;
+  dryRun: boolean;
 }
 
-const GITIGNORE_ENTRIES = [
-  '',
-  '# Qualiow',
-  '.auth/',
-  '.env',
-  'output/sessions/*/',
-  '.playwright-cli/',
-  '*.trace.zip',
-  '*.webm',
-  'dist/',
-];
+export type CopyStatus = 'installed' | 'unchanged' | 'overwritten' | 'skipped';
 
-const INDEX_MD_HEADER = `# Exploratory Testing Sessions
+export interface CopyRecord {
+  dest: string;
+  status: CopyStatus;
+}
 
-| Date | Target | Duration | Bugs | Session Directory |
-|------|--------|----------|------|-------------------|
-`;
-
-const ALL_BUGS_MD_HEADER = `# All Bugs — Exploratory Testing
-
-> Aggregated bug list across all sessions.
-
-| ID | Title | Severity | Session | Component |
-|----|-------|----------|---------|-----------|
-`;
-
-const ENV_EXAMPLE = `# Qualiow — Environment Variables
-# Copy this file to .env and fill in values.
-
-# Target auth tokens (if needed)
-# AUTH_TOKEN=
-
-# Playwright options
-# HEADLESS=false
-`;
+export interface InitResult {
+  copies: CopyRecord[];
+  createdDirs: string[];
+  createdFiles: string[];
+  gitignoreUpdated: boolean;
+}
 
 export function initCommand(): Command {
   const cmd = new Command('init')
     .description('Initialize qualiow in the current project')
-    .option('--include-examples', 'Include example target configurations', false)
-    .option('--force', 'Overwrite existing files', false)
-    .action(async (options) => {
+    .option('--include-examples', 'Also install the _example-* and testers-ai target configs', false)
+    .option('--force', 'Overwrite files that already exist and differ', false)
+    .option('--dry-run', 'Print what would be written without writing anything', false)
+    .action(async (options: InitOptions) => {
       try {
-        await runInit(options);
+        await runInit(options, { cwd: process.cwd() });
       } catch (err) {
         console.error(chalk.red('Error during init:'), err instanceof Error ? err.message : err);
         process.exit(1);
@@ -84,181 +56,221 @@ export function initCommand(): Command {
   return cmd;
 }
 
-async function runInit(options: { includeExamples: boolean; force: boolean }): Promise<void> {
-  const cwd = process.cwd();
-  const pkgRoot = resolvePackageRoot();
+// ─── Copy helpers ────────────────────────────────────────────────────
 
-  // 1. Check if skills already exist
-  const skillsDest = join(cwd, '.claude', 'skills');
-  const existingSkills = existsSync(skillsDest)
-    ? readdirSync(skillsDest).filter((f) => f.startsWith('qa-'))
-    : [];
-
-  if (existingSkills.length > 0 && !options.force) {
-    console.warn(
-      chalk.yellow(
-        `Warning: ${existingSkills.length} skill(s) already exist in .claude/skills/ (${existingSkills.join(', ')}). Use --force to overwrite.`,
-      ),
-    );
+function sameContent(a: string, b: string): boolean {
+  try {
+    return readFileSync(a).equals(readFileSync(b));
+  } catch {
+    return false;
   }
+}
 
-  // 2. Copy skills/ -> .claude/skills/
-  const skillsSrc = join(pkgRoot, '.claude', 'skills');
-  if (existsSync(skillsSrc)) {
-    const srcReal = resolve(skillsSrc);
-    const destReal = resolve(skillsDest);
-
-    if (srcReal !== destReal) {
-      if (existingSkills.length === 0 || options.force) {
-        mkdirSync(skillsDest, { recursive: true });
-        await cp(skillsSrc, skillsDest, { recursive: true, force: options.force });
-        console.log(chalk.green('  ✓ Skills installed to .claude/skills/'));
-      } else {
-        console.log(chalk.cyan('  ○ Skills skipped (already exist, use --force to overwrite)'));
-      }
-    } else {
-      console.log(chalk.cyan('  ○ Skills directory is the same as source — skipped'));
-    }
+function copyEntry(
+  src: string,
+  dest: string,
+  opts: { force: boolean; dryRun: boolean },
+): CopyRecord {
+  let status: CopyStatus;
+  if (!existsSync(dest)) {
+    status = 'installed';
+  } else if (sameContent(src, dest)) {
+    status = 'unchanged';
   } else {
-    console.log(chalk.yellow('  ⚠ No skills/ directory found in package root'));
+    status = opts.force ? 'overwritten' : 'skipped';
   }
+  if (!opts.dryRun && (status === 'installed' || status === 'overwritten')) {
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+    chmodSync(dest, statSync(src).mode & 0o777);
+  }
+  return { dest, status };
+}
 
-  // 3. Copy data/ -> data/
-  const dataSrc = join(pkgRoot, 'data');
-  const dataDest = join(cwd, 'data');
-  if (existsSync(dataSrc)) {
-    const srcReal = resolve(dataSrc);
-    const destReal = resolve(dataDest);
-
-    if (srcReal !== destReal) {
-      mkdirSync(dataDest, { recursive: true });
-
-      // Copy knowledge/
-      const knowledgeSrc = join(dataSrc, 'knowledge');
-      if (existsSync(knowledgeSrc)) {
-        await cp(knowledgeSrc, join(dataDest, 'knowledge'), { recursive: true, force: options.force });
-        console.log(chalk.green('  ✓ Knowledge base installed to data/knowledge/'));
+/** Recursively lists files under `dir` as relative POSIX paths. */
+function listFiles(dir: string, filter?: (rel: string) => boolean): string[] {
+  const out: string[] = [];
+  const walk = (current: string) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+      } else {
+        const rel = relative(dir, full).split('\\').join('/');
+        if (!filter || filter(rel)) out.push(rel);
       }
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
 
-      // Copy domains/
-      const domainsSrc = join(dataSrc, 'domains');
-      if (existsSync(domainsSrc)) {
-        await cp(domainsSrc, join(dataDest, 'domains'), { recursive: true, force: options.force });
-        console.log(chalk.green('  ✓ Domain configs installed to data/domains/'));
-      }
+function copyTree(
+  srcDir: string,
+  destDir: string,
+  opts: { force: boolean; dryRun: boolean; filter?: (rel: string) => boolean },
+): CopyRecord[] {
+  if (!existsSync(srcDir)) return [];
+  return listFiles(srcDir, opts.filter).map((rel) =>
+    copyEntry(join(srcDir, rel), join(destDir, rel), opts),
+  );
+}
 
-      // Copy templates/
-      const templatesSrc = join(dataSrc, 'templates');
-      if (existsSync(templatesSrc)) {
-        await cp(templatesSrc, join(dataDest, 'templates'), { recursive: true, force: options.force });
-        console.log(chalk.green('  ✓ Templates installed to data/templates/'));
-      }
+// ─── Main ────────────────────────────────────────────────────────────
 
-      // Copy security/
-      const securitySrc = join(dataSrc, 'security');
-      if (existsSync(securitySrc)) {
-        await cp(securitySrc, join(dataDest, 'security'), { recursive: true, force: options.force });
-        console.log(chalk.green('  ✓ Security policies installed to data/security/'));
-      }
+export async function runInit(
+  options: InitOptions,
+  ctx: { cwd: string; pkgRoot?: string; log?: (line: string) => void },
+): Promise<InitResult> {
+  const cwd = ctx.cwd;
+  const pkgRoot = ctx.pkgRoot ?? getPackageRoot();
+  const log = ctx.log ?? ((line: string) => console.log(line));
+  const copyOpts = { force: options.force, dryRun: options.dryRun };
+  const copies: CopyRecord[] = [];
+  const createdDirs: string[] = [];
+  const createdFiles: string[] = [];
 
-      // Copy targets — only _default.yml unless --include-examples
-      const targetsSrc = join(dataSrc, 'targets');
-      const targetsDest = join(dataDest, 'targets');
-      if (existsSync(targetsSrc)) {
-        mkdirSync(targetsDest, { recursive: true });
-        const defaultFile = join(targetsSrc, '_default.yml');
-        if (existsSync(defaultFile)) {
-          const content = readFileSync(defaultFile, 'utf-8');
-          writeFileSync(join(targetsDest, '_default.yml'), content);
-        }
-        if (options.includeExamples) {
-          const targetFiles = readdirSync(targetsSrc).filter(
-            (f) => f.endsWith('.yml') && f !== '_default.yml',
-          );
-          for (const file of targetFiles) {
-            const content = readFileSync(join(targetsSrc, file), 'utf-8');
-            writeFileSync(join(targetsDest, file), content);
-          }
-          console.log(chalk.green('  ✓ Target configs installed to data/targets/ (with examples)'));
-        } else {
-          console.log(chalk.green('  ✓ Default target config installed to data/targets/'));
-        }
+  if (options.dryRun) log(chalk.cyan.bold('Dry run — nothing will be written\n'));
+
+  if (resolve(pkgRoot) === resolve(cwd)) {
+    log(chalk.yellow('  ○ Running inside the package itself — skills and data are already in place'));
+  } else {
+    // 1. Skills → .claude/skills/
+    const skillsSrc = resolveSkillsSource(pkgRoot);
+    if (!skillsSrc) {
+      throw new Error(`No skills directory found under ${pkgRoot}`);
+    }
+    copies.push(
+      ...copyTree(skillsSrc, join(cwd, '.claude', 'skills'), {
+        ...copyOpts,
+        filter: (rel) => rel.startsWith('qa-'),
+      }),
+    );
+
+    // 2. Sub-agent → .claude/agents/
+    const agentCandidates = [
+      join(pkgRoot, 'agents', 'qa-gather-agent.md'),
+      join(pkgRoot, '.claude', 'agents', 'qa-gather-agent.md'),
+    ];
+    const agentSrc = agentCandidates.find((p) => existsSync(p));
+    if (agentSrc) {
+      copies.push(
+        copyEntry(agentSrc, join(cwd, '.claude', 'agents', 'qa-gather-agent.md'), copyOpts),
+      );
+    }
+
+    // 3. Data → data/
+    const dataSrc = join(pkgRoot, 'data');
+    copies.push(...copyTree(join(dataSrc, 'knowledge'), join(cwd, 'data', 'knowledge'), copyOpts));
+    copies.push(
+      ...copyTree(join(dataSrc, 'domains'), join(cwd, 'data', 'domains'), {
+        ...copyOpts,
+        filter: (rel) => rel.endsWith('.yml'),
+      }),
+    );
+    copies.push(...copyTree(join(dataSrc, 'templates'), join(cwd, 'data', 'templates'), copyOpts));
+    copies.push(...copyTree(join(dataSrc, 'security'), join(cwd, 'data', 'security'), copyOpts));
+    copies.push(
+      ...copyTree(join(dataSrc, 'targets'), join(cwd, 'data', 'targets'), {
+        ...copyOpts,
+        filter: (rel) => {
+          if (!rel.endsWith('.yml') || rel.includes('/')) return false;
+          if (rel.startsWith('local-')) return false;
+          if (rel === '_default.yml') return true;
+          if (!options.includeExamples) return false;
+          return rel.startsWith('_example-') || rel === 'testers-ai.yml';
+        },
+      }),
+    );
+
+    // 4. Mobile driver + scripts → qa/bin/
+    const binSrc = join(pkgRoot, 'bin');
+    copies.push(...copyTree(binSrc, join(cwd, 'qa', 'bin'), copyOpts));
+    if (existsSync(binSrc)) {
+      const versionPath = join(cwd, 'qa', 'bin', 'VERSION');
+      const version = `${getPackageVersion(pkgRoot)}\n`;
+      const exists = existsSync(versionPath);
+      const same = exists && readFileSync(versionPath, 'utf-8') === version;
+      const status: CopyStatus = !exists ? 'installed' : same ? 'unchanged' : options.force ? 'overwritten' : 'skipped';
+      if (!options.dryRun && (status === 'installed' || status === 'overwritten')) {
+        mkdirSync(dirname(versionPath), { recursive: true });
+        writeFileSync(versionPath, version);
       }
-    } else {
-      console.log(chalk.cyan('  ○ Data directory is the same as source — skipped'));
+      copies.push({ dest: versionPath, status });
+    }
+
+    // 5. .env.example → qa/.env.example
+    const envExampleSrc = join(pkgRoot, '.env.example');
+    if (existsSync(envExampleSrc)) {
+      copies.push(copyEntry(envExampleSrc, join(cwd, 'qa', '.env.example'), copyOpts));
     }
   }
 
-  // 4. Create output directories
-  const outputDirs = [
-    join(cwd, 'output', 'sessions'),
-    join(cwd, 'output', 'bugs'),
-    join(cwd, 'output', 'context'),
-    join(cwd, '.auth'),
-  ];
-  for (const dir of outputDirs) {
-    mkdirSync(dir, { recursive: true });
-  }
-  console.log(chalk.green('  ✓ Output directories created'));
-
-  // 5. Create INDEX.md
-  const indexPath = join(cwd, 'output', 'sessions', 'INDEX.md');
-  if (!existsSync(indexPath)) {
-    writeFileSync(indexPath, INDEX_MD_HEADER);
-    console.log(chalk.green('  ✓ Created output/sessions/INDEX.md'));
+  // 6. Output directories
+  for (const dir of ['output/sessions', 'output/bugs', 'output/context', '.auth', 'qa']) {
+    const full = join(cwd, dir);
+    if (!existsSync(full)) {
+      createdDirs.push(full);
+      if (!options.dryRun) mkdirSync(full, { recursive: true });
+    }
   }
 
-  // 6. Create all-bugs.md
-  const allBugsPath = join(cwd, 'output', 'bugs', 'all-bugs.md');
-  if (!existsSync(allBugsPath)) {
-    writeFileSync(allBugsPath, ALL_BUGS_MD_HEADER);
-    console.log(chalk.green('  ✓ Created output/bugs/all-bugs.md'));
+  // 7. Index files (only when missing)
+  for (const [rel, content] of [
+    ['output/sessions/INDEX.md', INDEX_MD_HEADER],
+    ['output/bugs/all-bugs.md', ALL_BUGS_MD_HEADER],
+  ] as const) {
+    const full = join(cwd, rel);
+    if (!existsSync(full)) {
+      createdFiles.push(full);
+      if (!options.dryRun) {
+        mkdirSync(dirname(full), { recursive: true });
+        writeFileSync(full, content);
+      }
+    }
   }
 
-  // 7. Create .env.example
-  const envExamplePath = join(cwd, '.env.example');
-  if (!existsSync(envExamplePath)) {
-    writeFileSync(envExamplePath, ENV_EXAMPLE);
-    console.log(chalk.green('  ✓ Created .env.example'));
-  }
-
-  // 8. Append to .gitignore
+  // 8. .gitignore (exact-line merge, idempotent)
   const gitignorePath = join(cwd, '.gitignore');
-  let gitignoreContent = '';
-  if (existsSync(gitignorePath)) {
-    gitignoreContent = readFileSync(gitignorePath, 'utf-8');
-  }
-  const linesToAdd: string[] = [];
-  for (const entry of GITIGNORE_ENTRIES) {
-    if (entry === '' || entry.startsWith('#')) {
-      // Always add section header/blank lines if not already present
-      if (!gitignoreContent.includes('# Qualiow') && entry === '# Qualiow') {
-        linesToAdd.push(entry);
-      } else if (entry === '' && linesToAdd.length === 0) {
-        linesToAdd.push(entry);
-      }
-      continue;
-    }
-    if (!gitignoreContent.includes(entry)) {
-      linesToAdd.push(entry);
-    }
-  }
-  if (linesToAdd.length > 0) {
-    const appendStr =
-      (gitignoreContent.endsWith('\n') || gitignoreContent === '' ? '' : '\n') +
-      linesToAdd.join('\n') +
-      '\n';
-    writeFileSync(gitignorePath, gitignoreContent + appendStr);
-    console.log(chalk.green('  ✓ Updated .gitignore'));
+  const existing = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf-8') : '';
+  const merged = mergeGitignore(existing);
+  const gitignoreUpdated = merged !== null;
+  if (merged !== null && !options.dryRun) {
+    writeFileSync(gitignorePath, merged);
   }
 
-  // 9. Print getting-started message
-  console.log('');
-  console.log(chalk.cyan.bold('Qualiow initialized successfully!'));
-  console.log('');
-  console.log(chalk.white('Next steps:'));
-  console.log(chalk.white('  1. Install Playwright CLI: npm install @playwright/cli'));
-  console.log(chalk.white('  2. Run your first session: /qa-explore https://your-app.com'));
-  console.log(chalk.white('  3. Or use the CLI: npx qualiow explore https://your-app.com'));
-  console.log('');
+  // 9. Report
+  const counts: Record<CopyStatus, number> = { installed: 0, unchanged: 0, overwritten: 0, skipped: 0 };
+  for (const c of copies) counts[c.status]++;
+  const rel = (p: string) => relative(cwd, p) || '.';
+
+  if (copies.length) {
+    log(
+      chalk.green(`  ✓ Files: ${counts.installed} installed, ${counts.unchanged} unchanged` +
+        (counts.overwritten ? `, ${counts.overwritten} overwritten` : '') +
+        (counts.skipped ? chalk.yellow(`, ${counts.skipped} skipped (exist and differ — use --force)`) : '')),
+    );
+    for (const c of copies.filter((x) => x.status === 'skipped')) {
+      log(chalk.yellow(`      skipped ${rel(c.dest)}`));
+    }
+  }
+  for (const d of createdDirs) log(chalk.green(`  ✓ Created ${rel(d)}/`));
+  for (const f of createdFiles) log(chalk.green(`  ✓ Created ${rel(f)}`));
+  log(
+    gitignoreUpdated
+      ? chalk.green('  ✓ Updated .gitignore (Qualiow block)')
+      : chalk.cyan('  ○ .gitignore already up to date'),
+  );
+
+  log('');
+  log(chalk.cyan.bold(options.dryRun ? 'Dry run complete.' : 'Qualiow initialized.'));
+  log('');
+  log(chalk.white('Next steps:'));
+  log(chalk.white('  1. npx playwright-cli install --skills   # official Playwright skill, next to qualiow'));
+  log(chalk.white('  2. cp qa/.env.example qa/.env            # credentials by env var name only'));
+  log(chalk.white('  3. /qa-target-setup   or   /qa-explore https://your-app.com'));
+  log(chalk.white('  4. mobile: qa/bin/doctor-mobile.sh       # then /qa-explore-mobile --target <id>'));
+  log('');
+
+  return { copies, createdDirs, createdFiles, gitignoreUpdated };
 }

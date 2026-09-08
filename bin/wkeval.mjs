@@ -1,7 +1,12 @@
 // wkeval.mjs — evaluate JS in iOS Simulator Safari via WebKit Remote Inspector (through iwdp)
 // Modern WebKit uses a Target-wrapped protocol: commands go via Target.sendMessageToTarget,
 // responses come back via Target.dispatchMessageFromTarget.
-// Usage: node wkeval.mjs '<js-expression>'
+// Usage: node wkeval.mjs '<js-expression>'   (WK_WS = page WebSocket URL, set by bin/wk-ios)
+// Exit codes: 0 ok · 2 usage · 3 timeout · 4 websocket error · 5 eval failed · 6 Node too old
+if (typeof WebSocket === 'undefined') {
+  console.error('Node >= 22.4 required (global WebSocket is unavailable in this Node version)');
+  process.exit(6);
+}
 const WS_URL = process.env.WK_WS || 'ws://localhost:9222/devtools/page/1';
 const expr = process.argv[2];
 if (!expr) { console.error('need a JS expression arg'); process.exit(2); }
@@ -33,6 +38,7 @@ ws.addEventListener('message', async (ev) => {
       const r = res && res.result && res.result.result ? res.result.result : (res && res.result);
       if (r && 'value' in r) console.log(typeof r.value === 'object' ? JSON.stringify(r.value) : String(r.value));
       else console.log(JSON.stringify(r));
+      try { ws.close(); } catch { /* ignore */ }
       process.exit(0);
     } catch (e) { console.error('EVAL_FAIL', e.message || e); process.exit(5); }
   }

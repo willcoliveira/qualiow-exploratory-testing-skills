@@ -42,9 +42,15 @@ cp data/targets/_example-backend.yml data/targets/local-my-service.yml   # servi
 cp data/targets/_example-api-only.yml data/targets/local-my-api.yml      # HTTP API, no UI
 ```
 
+Both templates ship with the package, so the `cp` works from an installed copy as well as
+from a checkout.
+
 Fill in `base_url`, `environment.kind`, the `backend.resources` names, and `source.branch`.
 For an API-only service most of that is empty: what matters is the `api:` block — its
-`auth` mode, the env var holding the key, and the two allowlists.
+`auth` mode, the env var holding the key, and the two allowlists. The `domain:` field names a
+profile in `data/domains/` (`_default.yml`, `fintech.yml`, `identity.yml`, `saas.yml`,
+`ecommerce.yml`, `marketing.yml`) — YAML only since 2.0.0 — which supplies the risk ranking
+and integrity checks the session applies.
 
 Two rules:
 
@@ -60,10 +66,14 @@ Two rules:
 /qa-verify-backend --target local-my-service --context output/context/TICKET-123-context.md
 ```
 
-Flags: `--static-only` (skip live probes — use when you have no cloud credentials),
-`--api-only` (skip the cloud lane and verify the HTTP surface), `--no-e2e` (skip the
-write-path phase), `--parity <target-id>` (run the same API matrix in a second environment
-and compare).
+All four flags:
+
+| Flag | Effect |
+|------|--------|
+| `--static-only` | Branch review only — skip the live, API and end-to-end lanes. Use when you have no cloud credentials |
+| `--api-only` | Skip the cloud lane and verify the HTTP surface |
+| `--no-e2e` | Run everything except the write-path phase |
+| `--parity <target-id>` | Run the same API matrix in a second environment and compare the two column by column |
 
 ### 4. Explore the UI, if the ticket has one
 
@@ -154,7 +164,7 @@ And the payload is held next to the screen, because a correct response can still
 user as a wrong number — a formatter that guesses what a value is, a unit applied twice,
 rounding that crosses a threshold, a truncated figure shown as a total. That defect is
 invisible from either surface alone, and it usually belongs to a different change than the one
-under test. See `.claude/skills/qa-verify-backend/references/payload-verification.md`.
+under test. See `skills/qa-verify-backend/references/payload-verification.md`.
 
 ## Verdicts
 
@@ -193,7 +203,7 @@ Each AC is routed to the channel that can actually falsify it
 ## Safety
 
 The full policy is in
-`.claude/skills/qa-verify-backend/references/safety-rules.md`. The parts worth knowing before
+`skills/qa-verify-backend/references/safety-rules.md`. The parts worth knowing before
 your first session:
 
 - **Production hard stop.** If the account, profile, resource name or URL contains `prod`,
@@ -241,13 +251,16 @@ Knowledge base entries loaded by the skill (`data/knowledge/`):
 | `technique-expected-behaviour-specification` | The session found behaviour no AC covers |
 | `technique-config-surface-verification` | The change under test *is* the configuration mechanism |
 | `technique-release-readiness-verification` | The ask is "is this release good to go" |
+| `technique-exactly-once-verification` | Money moves, or any write that must land exactly once — assert the balance delta, not the status field, and attack redelivery and identity collision |
+| `technique-async-callback-contracts` | A webhook or callback endpoint: what it owes its caller, and what it does with an event it cannot match |
 
-Browse them with `/qa-knowledge-list`.
+Browse them with `/qa-knowledge-list`. The knowledge base ships 29 entries across releases
+v0.1.0–v0.6.0.
 
 ## Verifying a release rather than a ticket
 
 When the ask is "is this release good to go" instead of "does this ticket meet its ACs", follow
-`.claude/skills/qa-verify-backend/references/release-readiness.md`. It changes the shape of
+`skills/qa-verify-backend/references/release-readiness.md`. It changes the shape of
 the session:
 
 - **The build table comes first, for everything.** Per ticket, is the commit it depends on

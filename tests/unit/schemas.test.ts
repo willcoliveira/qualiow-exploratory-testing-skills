@@ -284,19 +284,26 @@ describe('DomainConfigSchema', () => {
   const validDomain = {
     id: 'ecommerce',
     name: 'E-commerce',
-    risk_ranking: ['Payment processing', 'Cart management'],
+    risk_ranking: {
+      p0: ['checkout', 'payment processing'],
+      p1: ['product catalog'],
+      p2: ['reviews'],
+      p3: ['about page'],
+    },
     completeness_checklist: ['Test checkout flow', 'Verify pricing'],
     data_integrity_checks: ['Order totals match', 'Stock updates'],
     journeys: [
       {
-        id: 'checkout',
         name: 'Checkout Flow',
-        description: 'Complete purchase flow',
         steps: ['Add item', 'Go to cart', 'Checkout'],
-        risk: 'high' as const,
       },
     ],
-    guidance: ['Focus on payment edge cases'],
+    must_test_patterns: {
+      checkout: ['Guest checkout', 'Saved card'],
+    },
+    common_bugs: ['Double charge on retry'],
+    compliance: ['PCI DSS -- card data never stored'],
+    guidance: 'Focus on payment edge cases.',
   };
 
   it('should accept a valid domain config', () => {
@@ -309,26 +316,29 @@ describe('DomainConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should reject empty risk_ranking', () => {
-    const empty = { ...validDomain, risk_ranking: [] };
+  it('should reject a risk_ranking tier that is empty', () => {
+    const empty = { ...validDomain, risk_ranking: { ...validDomain.risk_ranking, p0: [] } };
     const result = DomainConfigSchema.safeParse(empty);
     expect(result.success).toBe(false);
   });
 
-  it('should reject journey with invalid risk level', () => {
+  it('should reject the legacy list-shaped risk_ranking and array guidance', () => {
+    const legacy = { ...validDomain, risk_ranking: ['a', 'b'], guidance: ['x'] };
+    const result = DomainConfigSchema.safeParse(legacy);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject journey with unknown keys (strict)', () => {
     const badJourney = {
       ...validDomain,
-      journeys: [
-        {
-          id: 'j1',
-          name: 'J1',
-          description: 'D',
-          steps: ['step1'],
-          risk: 'extreme',
-        },
-      ],
+      journeys: [{ name: 'J1', steps: ['step1'], risk: 'high' }],
     };
     const result = DomainConfigSchema.safeParse(badJourney);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject unknown top-level keys (strict)', () => {
+    const result = DomainConfigSchema.safeParse({ ...validDomain, extra: true });
     expect(result.success).toBe(false);
   });
 });

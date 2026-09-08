@@ -1,10 +1,13 @@
 /**
  * Jira CSV export generator.
- * Produces a CSV file importable via Jira bulk import.
+ * Produces a CSV file importable via Jira bulk import. Every field is redacted
+ * and formula-neutralised before it is written.
  */
 
-import { parseSession } from '../utils/parse-session.js';
+import { loadSessionForOutput } from './common.js';
 import type { ParsedBug } from '../utils/parse-session.js';
+import { parseSessionDirName } from '../utils/session-dir.js';
+import { CONFIDENTIALITY_NOTICE } from '../utils/confidentiality.js';
 
 // ─── Severity to Jira priority mapping ──────────────────────────────
 
@@ -18,14 +21,15 @@ const SEVERITY_TO_JIRA_PRIORITY: Record<string, string> = {
 // ─── CSV escaping ───────────────────────────────────────────────────
 
 /**
- * Escapes a value for inclusion in a CSV field.
- * Wraps in double quotes and escapes internal double quotes.
+ * Escapes a value for a CSV field: always quoted, internal quotes doubled,
+ * and a leading `= + - @ \t \r` neutralised with an apostrophe so the cell
+ * is never evaluated as a formula when the file is opened in a spreadsheet.
  */
-function csvEscape(value: string): string {
+export function csvEscape(value: string): string {
   if (!value) return '""';
-  // Always quote to avoid issues with commas, newlines, quotes
-  const escaped = value.replace(/"/g, '""');
-  return `"${escaped}"`;
+  let v = value;
+  if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+  return `"${v.replace(/"/g, '""')}"`;
 }
 
 // ─── Description formatting ─────────────────────────────────────────
@@ -33,46 +37,32 @@ function csvEscape(value: string): string {
 function formatDescription(bug: ParsedBug): string {
   const parts: string[] = [];
 
+  if (bug.summary) {
+    parts.push(bug.summary, '');
+  }
   if (bug.steps.length > 0) {
     parts.push('h3. Steps to Reproduce');
-    for (const step of bug.steps) {
-      parts.push(`# ${step}`);
-    }
+    for (const step of bug.steps) parts.push(`# ${step}`);
     parts.push('');
   }
-
   if (bug.expected) {
-    parts.push(`h3. Expected Behavior`);
-    parts.push(bug.expected);
-    parts.push('');
+    parts.push('h3. Expected Behavior', bug.expected, '');
   }
-
   if (bug.actual) {
-    parts.push(`h3. Actual Behavior`);
-    parts.push(bug.actual);
-    parts.push('');
+    parts.push('h3. Actual Behavior', bug.actual, '');
   }
-
   if (bug.business_impact) {
-    parts.push('h3. Business Impact');
-    parts.push(bug.business_impact);
-    parts.push('');
+    parts.push('h3. Business Impact', bug.business_impact, '');
   }
-
+  if (bug.environment) {
+    parts.push('h3. Environment', bug.environment, '');
+  }
   if (bug.url) {
-    parts.push(`h3. URL`);
-    parts.push(bug.url);
+    parts.push('h3. URL', bug.url, '');
   }
+  parts.push(`_${CONFIDENTIALITY_NOTICE}_`);
 
   return parts.join('\n');
-}
-
-// ─── Domain extraction ──────────────────────────────────────────────
-
-function extractDomain(sessionId: string): string {
-  // Attempt to extract domain from session ID (e.g. "2026-03-28-r2-parabank" -> "fintech")
-  // Fallback to "general" since we cannot reliably determine domain from session ID alone
-  return 'general';
 }
 
 // ─── Public API ─────────────────────────────────────────────────────
@@ -80,27 +70,21 @@ function extractDomain(sessionId: string): string {
 /**
  * Generates a CSV string importable by Jira bulk import from a session directory.
  *
- * CSV columns:
- * - Summary: bug title
- * - Priority: mapped from severity
- * - Description: steps + business impact formatted in Jira wiki markup
- * - Component: from bug component field
- * - Labels: qualiow, exploratory-testing, domain
+ * Columns: Summary, Priority, Description, Component, Labels.
  */
 export async function generateJiraExport(sessionDir: string): Promise<string> {
-  const session = await parseSession(sessionDir);
+  const { session } = await loadSessionForOutput(sessionDir);
 
   const headers = ['Summary', 'Priority', 'Description', 'Component', 'Labels'];
   const rows: string[] = [headers.join(',')];
-
-  const domain = extractDomain(session.id);
+  const kind = parseSessionDirName(session.id)?.kind ?? '';
 
   for (const bug of session.bugs) {
     const summary = `${bug.id}: ${bug.title}`;
     const priority = SEVERITY_TO_JIRA_PRIORITY[bug.severity] ?? 'Major';
     const description = formatDescription(bug);
     const component = bug.component || '';
-    const labels = ['qualiow', 'exploratory-testing', domain]
+    const labels = ['qualiow', 'exploratory-testing', kind]
       .filter(Boolean)
       .join(' ');
 

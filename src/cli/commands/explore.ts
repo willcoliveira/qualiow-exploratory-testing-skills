@@ -1,21 +1,33 @@
 import { Command } from 'commander';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import chalk from 'chalk';
 import { validateTargetConfig } from '../../utils/validate.js';
+import { resolveTargetPath } from '../../utils/paths.js';
+import { sessionDirName, slugify } from '../../utils/session-dir.js';
+import { CONFIDENTIALITY_HEADER_MD } from '../../utils/confidentiality.js';
+
+export interface ExploreOptions {
+  target?: string;
+  context?: string;
+  timeBox: string;
+  dryRun: boolean;
+}
 
 export function exploreCommand(): Command {
   const cmd = new Command('explore')
-    .description('Run an exploratory testing session')
+    .description(
+      'Pre-flight for an exploratory session: validates inputs and creates the session directory. ' +
+        'The session itself runs in Claude Code via /qa-explore.',
+    )
     .argument('[url]', 'Target URL to explore')
-    .option('-t, --target <name>', 'Target configuration name')
+    .option('-t, --target <name>', 'Target configuration name (data/targets/<name>.yml)')
     .option('-c, --context <file>', 'Context file path')
-    .option('--time-box <duration>', 'Time box duration (e.g., 30m, 1h)', '30m')
+    .option('--time-box <duration>', 'Time box, e.g. 45m (max 45m)', '45m')
     .option('--dry-run', 'Validate inputs and show what would happen', false)
-    .action(async (url, options) => {
+    .action(async (url: string | undefined, options: ExploreOptions) => {
       try {
-        await runExplore(url, options);
+        await runExplore(url, options, { cwd: process.cwd() });
       } catch (err) {
         console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
         process.exit(1);
@@ -24,107 +36,99 @@ export function exploreCommand(): Command {
   return cmd;
 }
 
-async function runExplore(
-  url: string | undefined,
-  options: {
-    target?: string;
-    context?: string;
-    timeBox: string;
-    dryRun: boolean;
-  },
-): Promise<void> {
-  const cwd = process.cwd();
+export function parseTimeBox(value: string): number {
+  const m = /^(\d+)m$/.exec(value.trim());
+  if (!m) throw new Error(`Invalid --time-box "${value}": use minutes like 30m or 45m`);
+  const minutes = parseInt(m[1], 10);
+  if (minutes < 1 || minutes > 45) {
+    throw new Error(`--time-box must be between 1m and 45m (got ${value})`);
+  }
+  return minutes;
+}
 
-  // 1. Validate URL format if provided
+export async function runExplore(
+  url: string | undefined,
+  options: ExploreOptions,
+  ctx: { cwd: string; now?: Date; log?: (line: string) => void },
+): Promise<{ sessionDir: string }> {
+  const cwd = ctx.cwd;
+  const now = ctx.now ?? new Date();
+  const log = ctx.log ?? ((line: string) => console.log(line));
+
   if (url) {
     try {
       new URL(url);
     } catch {
-      console.error(chalk.red(`Invalid URL: "${url}". Please provide a valid URL (e.g., https://example.com).`));
-      process.exit(1);
+      throw new Error(`Invalid URL: "${url}". Provide a full URL such as https://example.com`);
     }
   }
 
-  // 2. Validate target config if provided
-  let targetName = 'adhoc';
-  if (options.target) {
-    const targetPath = resolve(cwd, 'data', 'targets', `${options.target}.yml`);
+  const minutes = parseTimeBox(options.timeBox);
+
+  // Target: explicit name, else qa/target.yml, else _default.yml.
+  const targetPath = resolveTargetPath(cwd, options.target);
+  let targetLabel = options.target ?? 'adhoc';
+  if (options.target || existsSync(targetPath)) {
     if (!existsSync(targetPath)) {
-      console.error(
-        chalk.red(`Target config not found: ${targetPath}`),
+      throw new Error(
+        `Target config not found: ${relative(cwd, targetPath)}\n  Available targets: npx qualiow list targets`,
       );
-      console.error(chalk.white('  Available targets: npx qualiow list targets'));
-      process.exit(1);
     }
     const result = validateTargetConfig(targetPath);
     if (!result.valid) {
-      console.error(chalk.red(`Target config "${options.target}" is invalid:`));
-      for (const err of result.errors ?? []) {
-        console.error(chalk.red(`  → ${err.path ? `[${err.path}] ` : ''}${err.message}`));
-      }
-      process.exit(1);
+      const details = (result.errors ?? [])
+        .map((e) => `  → ${e.path ? `[${e.path}] ` : ''}${e.message}`)
+        .join('\n');
+      throw new Error(`Target config ${relative(cwd, targetPath)} is invalid:\n${details}`);
     }
-    targetName = options.target;
-    console.log(chalk.green(`  ✓ Target config "${options.target}" is valid`));
+    if (!options.target) targetLabel = url ? slugify(url) : 'adhoc';
+    log(chalk.green(`  ✓ Target config valid: ${relative(cwd, targetPath)}`));
+  } else if (url) {
+    targetLabel = slugify(url);
   }
 
-  // 3. Validate context file if provided
   if (options.context) {
     const contextPath = resolve(cwd, options.context);
     if (!existsSync(contextPath)) {
-      console.error(chalk.red(`Context file not found: ${contextPath}`));
-      process.exit(1);
+      throw new Error(`Context file not found: ${contextPath}`);
     }
-    console.log(chalk.green(`  ✓ Context file found: ${options.context}`));
+    log(chalk.green(`  ✓ Context file found: ${options.context}`));
   }
 
-  // 4. Create session directory
-  const now = new Date();
-  const timestamp = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    '-',
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-  ].join('');
-  const sessionName = `${timestamp}-${targetName}`;
+  const sessionName = sessionDirName('explore', targetLabel, now);
   const sessionDir = resolve(cwd, 'output', 'sessions', sessionName);
 
   if (options.dryRun) {
-    console.log('');
-    console.log(chalk.cyan.bold('Dry run — no files created'));
-    console.log('');
-    console.log(chalk.white('  Session would be created at:'));
-    console.log(chalk.white(`    ${sessionDir}`));
-    console.log('');
-    console.log(chalk.white('  Configuration:'));
-    console.log(chalk.white(`    URL:       ${url ?? '(none — will be prompted)'}`));
-    console.log(chalk.white(`    Target:    ${options.target ?? '(ad-hoc)'}`));
-    console.log(chalk.white(`    Context:   ${options.context ?? '(none)'}`));
-    console.log(chalk.white(`    Time box:  ${options.timeBox}`));
-    console.log('');
-    console.log(chalk.green('  ✓ All inputs valid'));
-    return;
+    log('');
+    log(chalk.cyan.bold('Dry run — no files created'));
+    log(chalk.white(`  Session directory: ${relative(cwd, sessionDir)}`));
+    log(chalk.white(`  URL:       ${url ?? '(none — /qa-explore will ask)'}`));
+    log(chalk.white(`  Target:    ${options.target ?? relative(cwd, targetPath)}`));
+    log(chalk.white(`  Context:   ${options.context ?? '(none)'}`));
+    log(chalk.white(`  Time box:  ${minutes} min`));
+    return { sessionDir };
   }
 
-  // Create directories
-  mkdirSync(sessionDir, { recursive: true });
-  mkdirSync(join(sessionDir, 'screenshots'), { recursive: true });
-  mkdirSync(join(sessionDir, 'bugs'), { recursive: true });
+  for (const sub of ['', 'screenshots', 'bugs', 'videos']) {
+    mkdirSync(join(sessionDir, sub), { recursive: true });
+  }
 
-  // Create charter.md
-  const charterContent = `# Exploratory Testing Charter
+  const date = now.toISOString().slice(0, 10);
+  writeFileSync(
+    join(sessionDir, 'charter.md'),
+    `${CONFIDENTIALITY_HEADER_MD}
+
+# Exploratory Testing Charter
 
 **Session:** ${sessionName}
-**Date:** ${now.toISOString().split('T')[0]}
-**Target:** ${options.target ?? 'Ad-hoc'}
+**Date:** ${date}
+**Target:** ${options.target ?? targetLabel}
 **URL:** ${url ?? 'TBD'}
-**Time Box:** ${options.timeBox}
+**Time Box:** ${minutes} min
 
 ## Mission
 
-> Describe the testing mission here.
+> Filled in by /qa-explore phase 2.
 
 ## Areas of Focus
 
@@ -133,47 +137,28 @@ async function runExplore(
 ## Risks & Concerns
 
 -
+`,
+  );
+  writeFileSync(
+    join(sessionDir, 'session-log.md'),
+    `${CONFIDENTIALITY_HEADER_MD}
 
-## Notes
+# Session Log — ${sessionName}
 
--
-`;
-  writeFileSync(join(sessionDir, 'charter.md'), charterContent);
+[${now.toISOString()}] [PRE-FLIGHT] Session directory created by \`qualiow explore\`
+`,
+  );
 
-  // Create session-log.md
-  const sessionLogContent = `# Session Log — ${sessionName}
+  log('');
+  log(chalk.green.bold('Session skeleton created (pre-flight only — no browser was launched).'));
+  log(chalk.white(`  Directory: ${relative(cwd, sessionDir)}`));
+  log('');
+  log(chalk.cyan('  Run the session in Claude Code:'));
+  const args = [url ?? '<url>', options.target ? `--target ${options.target}` : '', options.context ? `--context ${options.context}` : '']
+    .filter(Boolean)
+    .join(' ');
+  log(chalk.white(`    /qa-explore ${args} --session output/sessions/${sessionName}`));
+  log('');
 
-| Time | Action | Observation | Bug? |
-|------|--------|-------------|------|
-`;
-  writeFileSync(join(sessionDir, 'session-log.md'), sessionLogContent);
-
-  console.log('');
-  console.log(chalk.green.bold('Session created!'));
-  console.log('');
-  console.log(chalk.white(`  Directory: ${sessionDir}`));
-  console.log('');
-
-  // Check if claude CLI is available
-  let claudeAvailable = false;
-  try {
-    execSync('which claude', { stdio: 'pipe' });
-    claudeAvailable = true;
-  } catch {
-    // claude CLI not found
-  }
-
-  if (claudeAvailable) {
-    console.log(chalk.cyan('  Claude Code detected! To start exploring:'));
-    console.log('');
-    console.log(chalk.white(`    /qa-explore ${url ?? '<url>'}`));
-  } else {
-    console.log(chalk.cyan('  Next steps:'));
-    console.log(chalk.white('    1. Install Claude Code (https://docs.anthropic.com/en/docs/claude-code)'));
-    console.log(chalk.white(`    2. Run: /qa-explore ${url ?? '<url>'}`));
-  }
-
-  console.log('');
-  console.log(chalk.gray(`  Session directory: ${sessionDir}`));
-  console.log('');
+  return { sessionDir };
 }

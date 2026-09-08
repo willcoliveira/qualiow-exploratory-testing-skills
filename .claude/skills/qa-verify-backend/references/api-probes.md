@@ -1,7 +1,7 @@
 # API Probes — Reaching the Endpoint Behind the Screen
 
 How to call a service's own HTTP surface with real credentials, what to ask it, and how
-to read the answer. Companion to `phases/03b-api-verification.md`.
+to read the answer. Companion to `${CLAUDE_SKILL_DIR}/phases/03b-api-verification.md`.
 
 ## 1. Getting an Authenticated Request Context
 
@@ -89,10 +89,16 @@ A service with no user interface has no session to inherit. The target declares
 carrying it in `api.header_name` (default `X-Api-Key`); the runner reads the value at run
 time. The script contains the variable name, never the key.
 
-```bash
-# node --env-file=.env probes/<case-family>.mjs   — key read from process.env, never written down
+```js
+// probes/<case-family>.mjs — key read from process.env, never written down
 const key = process.env[TOKEN_ENV];
 const res = await fetch(base + path, { method, headers: { 'X-Api-Key': key, ...h }, body });
+```
+
+Run it with the key supplied by the environment, never on the command line:
+
+```bash
+node --env-file=qa/.env probes/<case-family>.mjs
 ```
 
 Two things this mode owes you that a browser session gives for free. **Prove the credential

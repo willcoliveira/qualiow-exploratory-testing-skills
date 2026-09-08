@@ -13,7 +13,7 @@
 id: _example-api-only
 name: "Example Payments API — sandbox workspace"
 base_url: "https://example-api.sandbox.example.com"
-domain: fintech                  # pulls data/domains/fintech.md's data-integrity checks
+domain: fintech                  # pulls data/domains/fintech.yml's data-integrity checks
 
 # --- Schema-required stubs. No browser is opened for an API-only target. ---------
 auth:

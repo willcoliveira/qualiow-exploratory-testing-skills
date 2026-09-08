@@ -1,12 +1,12 @@
 # Phase 2: Business Context & Charter (Mobile)
 
-Follow `../../qa-explore/phases/02-charter.md` for the structure (use the app as a user,
+Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/02-charter.md` for the structure (use the app as a user,
 identify journeys, risk-rank, select heuristics, write charter). The mobile additions below
 apply to both modes.
 
 ## Use the app as a real user — for ~3 min
 
-Drive the system under test via `$MCLI snapshot` → `click` → `snapshot` loops to reach entry
+Drive the system under test via `qa/bin/mcli snapshot` → `click` → `snapshot` loops to reach entry
 points (NATIVE: navigate the app's screens; WEB: `open-url` plus in-page links). Don't test
 yet — just observe what it exists to do, on a phone-sized screen, the way a real mobile user
 would. Note the primary task, where money/data/trust is at stake, and what a frustrated user
@@ -44,13 +44,17 @@ dimension** appropriate to the feature under charter, e.g.:
 Replace qa-explore's `tracing-start` with a video:
 
 ```bash
-$MCLI record-start output/sessions/<session-dir>/videos/session.mp4
+qa/bin/mcli record-start output/sessions/<session-dir>/videos/session.mp4   # a real .mp4 on both platforms
 ```
+
+On **Android** one recording is capped at 180 s and everything after it is lost with no
+error: `record-stop` / `record-start` per journey instead of one session-long clip. iOS has
+no cap.
 
 If recording fails or is too heavy, take frequent screenshots instead. Recording is
 nice-to-have, not required.
 
-## Charter additions (append to the qa-explore charter template)
+## Charter additions (append to the qa-explore charter template; confidentiality header first)
 
 ```markdown
 ## Mobile Context

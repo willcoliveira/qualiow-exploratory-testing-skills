@@ -3,7 +3,9 @@
 Covers the "verified in environment" style of AC: a real change through the real write
 path, then re-probe the data layer.
 
-Skip if `--no-e2e`, if the environment is production, or if the live lane is BLOCKED.
+Skip if `--no-e2e`, if the target declares `environment.kind: production` (or the production
+rule in `security-rules.md` fired in setup), or if the live lane is BLOCKED. Record the skip
+and its reason in the charter and the report.
 
 ## Step 1: Capture the Before State
 
@@ -48,7 +50,7 @@ state. Check, in this order:
 3. **Fidelity** — the stored snapshot matches what the source store now holds, field for
    field. Compare the actual documents; do not eyeball two summaries. Where the record
    carries derived values, recompute them from the raw figures beside them
-   (`references/payload-verification.md`) rather than trusting that they were computed
+   (`${CLAUDE_SKILL_DIR}/references/payload-verification.md`) rather than trusting that they were computed
    once and correctly.
 4. **Key shape** — the sort key format matches what the consumer will query and sort by.
 5. **Completeness** — every attribute the ACs require is present, with the required type.

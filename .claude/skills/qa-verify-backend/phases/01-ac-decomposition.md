@@ -43,7 +43,7 @@ An AC is untestable when it has no observable falsifier. Common shapes:
 Every claim is a claim about an environment. Write it in: *"in staging, an empty query
 returns 400"*. An AC verified in one environment and asserted for another is the single
 most common false `PASS` this skill exists to prevent — see
-`references/environment-fingerprinting.md`.
+`${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md`.
 
 Report these as **DoR gaps**, not as failures of the developer. They are ticket-writing
 defects and they belong in the report — an untestable AC will be marked done by whoever
@@ -51,7 +51,7 @@ is under the least time pressure.
 
 ## Add Domain Checks
 
-From `data/domains/<domain>.md`, pull the data-integrity checks and add any that this
+From `<data>/domains/<domain>.yml`, pull the `data_integrity_checks` and add any that this
 change touches but the ticket never mentions. These become findings in the
 **negative space** — the things the ACs forgot to require.
 

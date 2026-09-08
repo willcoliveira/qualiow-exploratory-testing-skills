@@ -2,123 +2,179 @@
 
 Step-by-step guide to running your first AI-powered exploratory testing session.
 
-## 1. How to Install
+## 1. Install
 
 ### System requirements
 
-- Node.js >= 18 (check with `node --version`)
-- npm >= 9 (ships with Node.js 18+)
-- Claude Code installed and configured
+- **Node.js >= 22.4** (`node --version`)
+- **Claude Code**, installed and configured — the skills run as slash commands inside it
+- `playwright-cli` arrives as a dependency of this package. There is nothing else to install
+  for the web path.
 
 ### Install the package
 
 ```bash
-npm install -g @qualiow/exploratory-testing
+npm install -g qualiow-exploratory-testing
+qualiow --version        # prints the installed package version, e.g. 2.0.0
 ```
 
-### Install Playwright CLI
-
-Playwright CLI is the browser control layer. Install it as a project dependency or globally.
+### Initialise a project
 
 ```bash
-npm install @playwright/cli
+cd my-project
+qualiow init
 ```
 
-### Verify the installation
+That writes:
+
+| What | Where |
+|------|-------|
+| the 11 skills | `.claude/skills/qa-*/` |
+| the `qa-gather-agent` sub-agent | `.claude/agents/qa-gather-agent.md` |
+| knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
+| the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
+| the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
+| the credential template | `qa/.env.example` |
+| empty session/bug/context trees and the auth directory | `output/sessions/`, `output/bugs/`, `output/context/`, `.auth/` |
+| a `# Qualiow` block appended to `.gitignore` | `.gitignore` |
+
+Re-running `qualiow init` changes nothing unless you pass `--force`. Use `--dry-run` to see
+the plan first.
 
 ```bash
-qualiow --version
+cp qa/.env.example qa/.env             # credentials go here, never in a YAML file
+npx playwright-cli install --skills    # optional: the official Playwright skill alongside
 ```
 
-## 2. How to Run Your First Session
+Alternative install paths — the Claude Code plugin (`claude --plugin-dir <repo>`, skills
+appear as `/qualiow:qa-explore`) and a plain git checkout — are described in the project
+README.
 
-### Option A: Explore a public test site
+## 2. Run your first session
 
-Pick a public test application. Good candidates for a first run:
+### Option A: explore a public site
 
-| Site | URL | Domain |
-|------|-----|--------|
-| SauceDemo | https://www.saucedemo.com | ecommerce |
-| ParaBank | https://parabank.parasoft.com/parabank/index.htm | fintech |
-| DemoQA | https://demoqa.com | general |
-
-Start a session inside Claude Code:
+Point `/qa-explore` at any public site. A good first target is
+<https://testers.ai/testing/>, which ships as the `testers-ai` target config.
 
 ```bash
-/qa-explore https://www.saucedemo.com
+/qa-explore https://testers.ai/testing/
 ```
 
 Claude will:
-1. Launch a browser via Playwright CLI
-2. Read the knowledge base for applicable heuristics
-3. Explore the site across 3-4 phases (discovery, functional, edge cases, synthesis)
-4. File individual bug reports in `output/sessions/<session-id>/bugs/`
-5. Write a session report at `output/sessions/<session-id>/session-report.md`
 
-### Option B: Quick check on a specific page
+1. Resolve the target config and credentials, and create the session directory
+2. Authenticate if the target requires it
+3. Write a charter — what is being tested, why, and what "done" looks like
+4. Read the knowledge base for the heuristics that apply to this domain
+5. Explore across eight phases, saving findings to disk between each
+6. File one bug report per finding in `bugs/`
+7. Write `session-report.md` and update the session index
 
-If you only want to test one page or feature:
+The eight phases and their share of the 45-minute cap:
+
+| # | Phase | Minutes | What happens |
+|---|-------|---------|--------------|
+| 0 | Setup | 2 | Resolve config, create session dir, open the browser session |
+| 1 | Auth | 2 | Log in (storage state or adaptive login) |
+| 2 | Charter | 5 | Understand the business, risk-rank features P0–P3 |
+| 3 | Discovery | 6 | Map the app: pages, forms, roles, console and network health |
+| 4 | Journeys | 10 | End-to-end user journeys with data-integrity checks |
+| 5 | Features | 10 | Deep testing of the highest-risk features |
+| 6 | Edge cases | 6 | Boundaries, negative input, security, "what is missing?" |
+| 7 | Reporting | 4 | Reflection, coverage map, session report, cleanup |
+
+### Option B: quick check on one page
 
 ```bash
 /qa-explore-quick https://app.example.com/checkout
 ```
 
-This runs a 15-minute focused session on the target page.
+A 15-minute focused session — no full site mapping. It produces the same artefacts as a full
+session, so reports, feedback and cleanup all work on it.
 
-## 3. How to Understand the Output
+### Option C: give it the requirements first
 
-After a session, qualiow creates this directory structure:
+```bash
+/qa-gather
+```
+
+Point it at a ticket, a PR, a design doc, a URL or pasted text. It writes
+`output/context/<TICKET>-context.md`, which you then pass to a session:
+
+```bash
+/qa-explore --target my-app --context output/context/TICKET-123-context.md
+```
+
+## 3. Understand the output
+
+Every session — web, quick, mobile or backend — lands in
+`output/sessions/<YYYY-MM-DD-HHmm>-<kind>-<slug>/`, where `kind` is `explore`, `quick`,
+`mobile` or `backend`:
 
 ```
-output/sessions/<session-id>/
-  charter.md              # what was tested and why
-  phase-1-discovery.md    # discovery phase findings
-  phase-2-functional.md   # functional testing findings
-  phase-3-edge-cases.md   # edge case and adversarial findings
-  session-report.md       # final report with all bugs, observations, recommendations
+output/sessions/2026-09-08-1813-explore-parabank/
+  charter.md              # what is being tested and why
+  session-log.md          # real-time findings, with the WHY not just the WHAT
+  progress.json
+  phase-3-discovery.md    # phase artefacts — the file number is the phase number
+  phase-4-journeys.md
+  phase-5-features.md
+  phase-6-edge-cases.md
   bugs/
-    BUG-001.md            # individual bug report
+    BUG-001.md            # one bug = one report
     BUG-002.md
-    ...
   screenshots/
-    01-login-page.png     # evidence screenshots
-    ...
+    BUG-001.png
+  videos/
+  session-report.md       # the deliverable
+  stats.json              # machine-readable session metrics
 ```
+
+Plus, at the top level:
+
+- `output/sessions/INDEX.md` — one row per session
+  (`| Date | Kind | Target | Bugs | Duration | Status | Report |`)
+- `output/bugs/all-bugs.md` — every bug across every session
 
 ### Bug report structure
 
-Each bug report contains:
+Each report opens with the confidentiality blockquote, then:
 
-- **Title** -- `[Component] fails [Condition] causing [Impact]`
-- **Severity** -- Critical, High, Medium, or Low (conservative by design)
-- **Steps to Reproduce** -- numbered list, specific enough to reproduce
-- **Expected vs Actual Behavior** -- clear comparison
-- **Business Impact** -- revenue, trust, regulatory, data risk, and scale
-- **Evidence** -- screenshots, console errors, network failures
+- **Title** — `# BUG-NNN: [Component] fails [Condition] causing [Impact]`
+- **Severity** — Critical, High, Medium or Low (conservative by design) — plus Priority,
+  Component, URL, Environment and reproduction rate
+- **Summary**, **Expected Behavior**, **Actual Behavior**
+- **Steps to Reproduce** — numbered, specific enough for someone else to follow
+- **Business Impact** — revenue, trust, regulatory, data and scale. Mandatory
+- **Evidence** — screenshot, video, logs, console errors, network failures
+- **Recommended Fix Priority**
 
 ### Session report structure
 
-The session report aggregates all findings:
+- Session metadata and executive summary
+- Summary stats and the bug table
+- **Coverage map** (`| Area | Risk | Status | Bugs | Notes |`) — including what was *not* tested
+- Observations that are not bugs but are worth discussing
+- Recommendations, reflection, session stats
 
-- Executive summary with key risk areas
-- Bug table with severity distribution
-- Coverage map showing which areas were tested
-- Observations (not bugs, but worth discussing)
-- Recommendations for follow-up testing
+## 4. Configure a target
 
-## 4. How to Configure a Target
+For repeated testing of the same application, save a target config.
 
-For repeated testing of the same application, create a target config.
-
-### Generate a target config interactively
+### Interactively
 
 ```bash
 /qa-target-setup
 ```
 
-### Or create one manually
+It navigates to the URL, detects the auth requirement, walks you through the login flow, and
+writes `qa/target.yml` — the project-local target. Pass `--shared` to write
+`data/targets/<id>.yml` instead, for a config the whole team uses.
 
-Create a YAML file at `data/targets/<target-name>.yml`:
+### Or by hand
+
+`qa/target.yml`:
 
 ```yaml
 id: my-app
@@ -147,93 +203,84 @@ scope:
     - /api/*
 ```
 
-### Run with the target config
+Validate it before you use it:
 
 ```bash
-/qa-explore --target my-app
+qualiow validate --all
 ```
+
+### Resolution order
+
+```
+--target <name>  →  qa/target.yml  →  data/targets/_default.yml
+```
+
+Domains come from `data/domains/*.yml` (`_default`, `ecommerce`, `fintech`, `identity`,
+`marketing`, `saas`), and drive the risk ranking, completeness checklist and data-integrity
+checks a session applies.
 
 ### Authentication strategies
 
 | Strategy | When to use | Setup |
 |----------|-------------|-------|
 | `none` | Public sites, no login required | Default |
-| `storage_state` | Sites with cookie/session auth | Run `state-save` in Playwright CLI after manual login |
-| `credentials` | Username/password login | Set in `.env`, reference with env vars |
-| `token` | API token or bearer auth | Set in `.env` |
+| `storage_state` | Cookie/session auth | Log in once by hand, then `playwright-cli state-save .auth/<id>.json` |
+| `credentials` | Username/password login | Values in `qa/.env`, referenced by variable name |
+| `token` | API token or bearer auth | Value in `qa/.env`, referenced by variable name |
 
-Store credentials in `.env` (gitignored), never in YAML:
+### Credentials
 
-```bash
-# .env
-MY_APP_USERNAME=testuser
-MY_APP_PASSWORD=testpass123
-```
-
-## 5. How to Add Knowledge
-
-The knowledge base drives Claude's testing strategy. Add domain-specific heuristics, techniques, or checklists.
-
-### Add knowledge interactively
+Secrets live in `qa/.env` (gitignored), falling back to `.env`. YAML files reference them **by
+variable name only** — never by value. The names the shipped configs use:
 
 ```bash
-/qa-knowledge-add
+# qa/.env
+QA_USER=testuser
+QA_PASS=...
+QA_TOKEN=...
+
+# /qa-verify-backend
+QA_AWS_PROFILE=...          # read-only profile. Never point this at production
+QA_AWS_REGION=eu-west-1
+QA_API_TOKEN=...            # only for a target declaring api.auth: bearer-env
+EXAMPLE_API_KEY=...         # a no-UI service names its own variable; see _example-api-only.yml
 ```
 
-### Browse existing knowledge
+## 5. Add knowledge
+
+The knowledge base drives Claude's testing strategy: 29 entries across releases v0.1.0–v0.6.0,
+indexed by `data/knowledge/manifest.yml`.
 
 ```bash
-/qa-knowledge-list
+/qa-knowledge-add     # add a heuristic, technique, checklist or reference
+/qa-knowledge-list    # browse what is there, by type, domain or tag
 ```
-
-### Knowledge types
 
 | Type | Purpose | Example |
 |------|---------|---------|
 | `heuristic` | Mental model or framework for exploration | SFDIPOT, FEW HICCUPPS |
-| `technique` | Specific testing method | boundary testing, error guessing |
+| `technique` | A specific testing method | boundary testing, authenticated API probing |
 | `checklist` | Verification list for a specific area | WCAG accessibility checks |
 | `reference` | Background material | exploratory testing type definitions |
 
-Knowledge entries are YAML files in `data/knowledge/releases/<version>/entries/`.
+Entries are YAML files in `data/knowledge/releases/<version>/entries/`. After editing by hand,
+run `qualiow kb sync` to regenerate the manifest and `qualiow kb check` to verify it.
 
-## 6. How to Use CLI Commands
-
-### Validate all configuration files
-
-```bash
-qualiow validate
-```
-
-Checks all target configs, knowledge entries, and domain configs against their schemas.
-
-### List resources
+## 6. CLI commands
 
 ```bash
-# list all sessions
-qualiow list sessions
-
-# list knowledge entries
-qualiow list knowledge
-
-# list configured targets
-qualiow list targets
-
-# list domain profiles
-qualiow list domains
+qualiow init --dry-run              # preview what init would write
+qualiow validate --all              # targets + qa/target.yml + domains + knowledge base
+qualiow list sessions               # also: knowledge | targets | domains
+qualiow report -s latest -f html -o report.html
+qualiow kb check
 ```
 
-### Generate reports from an existing session
+`qualiow explore [url]` is **pre-flight only**: it validates the inputs, creates the session
+directory, and prints the `/qa-explore … --session <dir>` command to run inside Claude Code.
+It does not drive a browser itself.
 
-```bash
-qualiow report
-```
-
-Or use the skill for more control:
-
-```bash
-/qa-explore-report output/sessions/2026-03-28-parabank
-```
+There is no `qualiow gather` — it was removed in 2.0.0. Use the `/qa-gather` skill.
 
 ### Export session data programmatically
 
@@ -242,24 +289,37 @@ import {
   generateHtmlReport,
   generateJsonReport,
   generateJiraExport,
-} from '@qualiow/exploratory-testing';
+} from 'qualiow-exploratory-testing';
+
+const session = 'output/sessions/2026-09-08-1813-explore-parabank';
 
 // HTML report (standalone, dark-mode, print-friendly)
-const html = await generateHtmlReport('output/sessions/2026-03-28-parabank');
+const html = await generateHtmlReport(session);
 
 // JSON report (structured data for dashboards and CI)
-const json = await generateJsonReport('output/sessions/2026-03-28-parabank');
+const json = await generateJsonReport(session);
 
 // Jira CSV (bulk import into Jira)
-const csv = await generateJiraExport('output/sessions/2026-03-28-parabank');
+const csv = await generateJiraExport(session);
 ```
 
-## What to Do Next
+Every export carries the confidentiality header and runs through the same redaction list the
+skills apply.
 
-After your first session:
+## 7. Beyond the desktop browser
 
-1. Review the session report and bug reports
-2. Use `/qa-explore-feedback` to mark false positives or note missed bugs
-3. Configure a target for your own application
-4. Add domain-specific knowledge for better coverage
+- **Mobile** — `/qa-explore-mobile` runs a session on an iOS Simulator or Android Emulator,
+  against a native app or a web app in the real device browser. The machine needs the mobile
+  toolchain first: run `qa/bin/setup-mobile.sh`, then `qa/bin/doctor-mobile.sh` until it says
+  READY. Full guide: **MOBILE-SETUP.md**.
+- **Backend, API and infrastructure** — `/qa-verify-backend` verifies acceptance criteria that
+  never reach a screen and produces an AC traceability matrix. Full guide:
+  **BACKEND-VERIFICATION.md**.
+
+## What to do next
+
+1. Review the session report and the bug reports
+2. Run `/qa-explore-feedback` to mark false positives or note bugs the session missed
+3. Configure a target for your own application with `/qa-target-setup`
+4. Add domain-specific knowledge so the next session starts smarter
 5. Run `/qa-explore-cleanup` to archive completed sessions

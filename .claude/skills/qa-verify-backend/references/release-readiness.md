@@ -10,7 +10,7 @@ its ACs".
 ## Step 1: Establish the Build, Once, for Everything
 
 Fingerprint every component before touching any ticket
-(`references/environment-fingerprinting.md`). Then list, per ticket, whether the commit it
+(`${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md`). Then list, per ticket, whether the commit it
 depends on is actually in the deployed build:
 
 ```bash

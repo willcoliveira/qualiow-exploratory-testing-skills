@@ -1,4 +1,4 @@
-# Phase 4: End-to-End User Journeys (~25% of time)
+# Phase 4: End-to-End User Journeys (10 min)
 
 **Goal:** Test the critical user journeys you defined in the charter -- end to end, crossing multiple features.
 
@@ -43,7 +43,7 @@ Do things change? Are order IDs unique? Are timestamps correct?
 
 ## After Journeys
 
-1. Write findings to `phase-2-user-journeys.md`
+1. Write findings to `phase-4-journeys.md` (confidentiality header first)
 2. Include data integrity results
 3. Note any cross-feature inconsistencies
 

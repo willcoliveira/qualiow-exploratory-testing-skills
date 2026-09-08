@@ -8,10 +8,15 @@
 # a cryptic error deep in a session.
 #
 # Usage:
-#   scripts/doctor-mobile.sh            # check both platforms
-#   scripts/doctor-mobile.sh --ios      # iOS only
-#   scripts/doctor-mobile.sh --android  # Android only
-#   scripts/doctor-mobile.sh --quiet    # only print failures + final verdict
+#   bin/doctor-mobile.sh            # check both platforms
+#   bin/doctor-mobile.sh --ios      # iOS only
+#   bin/doctor-mobile.sh --android  # Android only
+#   bin/doctor-mobile.sh --quiet    # only print failures + final verdict
+#
+# Checks: macOS, Homebrew, Node >= 22.4, Maestro >= $MAESTRO_MIN_VERSION (default 2.6.0),
+#   Android: JDK 17, SDK root, adb, emulator, sdkmanager/avdmanager, an AVD;
+#   iOS: Xcode CLT + full Xcode, an iOS runtime, an iPhone simulator, and (warnings)
+#   ios-webkit-debug-proxy + python3 for the bin/wk-ios DOM bridge.
 #
 # Exit code: 0 if all REQUIRED checks for the requested platform(s) pass, 1 otherwise.
 
@@ -24,10 +29,17 @@ for arg in "$@"; do
     --ios) PLATFORM="ios" ;;
     --android) PLATFORM="android" ;;
     --quiet) QUIET=1 ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+SETUP="bin/setup-mobile.sh"
+[ -x "$HERE/setup-mobile.sh" ] && SETUP="$HERE/setup-mobile.sh"
+NODE_MIN_MAJOR=22; NODE_MIN_MINOR=4
+MAESTRO_MIN_VERSION="${MAESTRO_MIN_VERSION:-2.6.0}"
+MAESTRO_INSTALL_VERSION="${MAESTRO_VERSION:-2.10.0}"
 
 # ---- resolution helpers (mirror what bin/mcli does, with fallbacks) ----
 ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
@@ -38,6 +50,7 @@ fi
 [ -z "$JAVA_HOME_RESOLVED" ] && [ -d /opt/homebrew/opt/openjdk@17 ] && JAVA_HOME_RESOLVED=/opt/homebrew/opt/openjdk@17
 [ -z "$JAVA_HOME_RESOLVED" ] && [ -d /usr/local/opt/openjdk@17 ] && JAVA_HOME_RESOLVED=/usr/local/opt/openjdk@17
 MAESTRO_BIN="$HOME/.maestro/bin/maestro"
+command -v maestro >/dev/null 2>&1 && MAESTRO_BIN="$(command -v maestro)"
 
 PASS=0; FAIL=0; WARN=0
 ok()   { PASS=$((PASS+1)); [ "$QUIET" = 1 ] || printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -45,22 +58,43 @@ bad()  { FAIL=$((FAIL+1)); printf '  \033[31m✗\033[0m %s\n     ↳ fix: %s\n' 
 warn() { WARN=$((WARN+1)); [ "$QUIET" = 1 ] || printf '  \033[33m!\033[0m %s\n     ↳ %s\n' "$1" "$2"; }
 hdr()  { [ "$QUIET" = 1 ] || printf '\n\033[1m%s\033[0m\n' "$1"; }
 
+# version_ge A B → 0 when A >= B (dotted numeric versions)
+version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]; }
+
 # ============================ COMMON ============================
 hdr "Common"
 if [ "$(uname -s)" = "Darwin" ]; then ok "macOS ($(sw_vers -productVersion 2>/dev/null))"; else
-  bad "not macOS — iOS sims need macOS; Android may work on Linux but is unverified here" "use a Mac"; fi
+  if [ "$PLATFORM" = "android" ]; then
+    warn "not macOS ($(uname -s)) — Android-only mode is unverified off macOS; Homebrew/JDK fix hints below assume macOS" "use your distro's packages for JDK 17 and the Android SDK"
+  else
+    bad "not macOS — iOS simulators need macOS (use --android for an Android-only check)" "use a Mac"
+  fi
+fi
 
 if command -v brew >/dev/null 2>&1; then ok "Homebrew ($(brew --version 2>/dev/null | head -1))"; else
-  bad "Homebrew not found" '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'; fi
+  if [ "$(uname -s)" = "Darwin" ]; then bad "Homebrew not found" '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'; else
+    warn "Homebrew not found (optional off macOS)" "install JDK 17 / Android SDK with your package manager"; fi
+fi
 
 if command -v node >/dev/null 2>&1; then
-  NV="$(node -v | sed 's/^v//')"; NMAJ="${NV%%.*}"
-  if [ "${NMAJ:-0}" -ge 18 ]; then ok "Node $NV (>=18)"; else bad "Node $NV is < 18" "brew install node  (or nvm install --lts)"; fi
-else bad "Node not found" "brew install node"; fi
+  NV="$(node -v | sed 's/^v//')"; NMAJ="${NV%%.*}"; NREST="${NV#*.}"; NMIN="${NREST%%.*}"
+  if [ "${NMAJ:-0}" -gt "$NODE_MIN_MAJOR" ] || { [ "${NMAJ:-0}" -eq "$NODE_MIN_MAJOR" ] && [ "${NMIN:-0}" -ge "$NODE_MIN_MINOR" ]; }; then
+    ok "Node $NV (>= $NODE_MIN_MAJOR.$NODE_MIN_MINOR)"
+  else
+    bad "Node $NV is < $NODE_MIN_MAJOR.$NODE_MIN_MINOR (mobile-cli + the wk-ios bridge need the global WebSocket API)" "brew install node  (or: nvm install 22)"
+  fi
+else bad "Node not found" "brew install node  (or: nvm install 22)"; fi
 
-if [ -x "$MAESTRO_BIN" ] || command -v maestro >/dev/null 2>&1; then
-  ok "Maestro present ($MAESTRO_BIN)"
-else bad "Maestro not found" 'curl -Ls "https://get.maestro.mobile.dev" | bash'; fi
+if [ -x "$MAESTRO_BIN" ]; then
+  MV="$("$MAESTRO_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  if [ -z "$MV" ]; then
+    warn "Maestro present ($MAESTRO_BIN) but its version could not be read" "run: $MAESTRO_BIN --version"
+  elif version_ge "$MV" "$MAESTRO_MIN_VERSION"; then
+    ok "Maestro $MV (>= $MAESTRO_MIN_VERSION, $MAESTRO_BIN)"
+  else
+    bad "Maestro $MV is < $MAESTRO_MIN_VERSION (mobile-cli parses the JSON-only \`maestro hierarchy\` of 2.6+)" "curl -Ls https://get.maestro.mobile.dev | MAESTRO_VERSION=$MAESTRO_INSTALL_VERSION bash   (or: $SETUP)"
+  fi
+else bad "Maestro not found" "curl -Ls https://get.maestro.mobile.dev | MAESTRO_VERSION=$MAESTRO_INSTALL_VERSION bash   (or: $SETUP)"; fi
 
 # ============================ ANDROID ============================
 if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "android" ]; then
@@ -73,7 +107,7 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "android" ]; then
 
   # SDK root
   if [ -d "$ANDROID_HOME" ]; then ok "Android SDK root ($ANDROID_HOME)"; else
-    bad "Android SDK not found at $ANDROID_HOME" "scripts/setup-mobile.sh  (installs cmdline-tools + SDK)"; fi
+    bad "Android SDK not found at $ANDROID_HOME" "$SETUP --android  (installs cmdline-tools + SDK)"; fi
 
   # adb / emulator / sdkmanager / avdmanager
   for tuple in \
@@ -89,9 +123,9 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "android" ]; then
 
   # AVD existing? (Chrome needs a Google Play system image)
   if [ -x "$ANDROID_HOME/emulator/emulator" ]; then
-    AVDS="$("$ANDROID_HOME/emulator/emulator" -list-avds 2>/dev/null)"
+    AVDS="$("$ANDROID_HOME/emulator/emulator" -list-avds 2>/dev/null | grep -E '^[A-Za-z0-9._-]+$')"
     if [ -n "$AVDS" ]; then ok "AVD(s) available: $(echo "$AVDS" | tr '\n' ' ')"; else
-      bad "no Android AVD created" "scripts/setup-mobile.sh  (creates a Google-Play API-35 AVD)"; fi
+      bad "no Android AVD created" "$SETUP --android  (creates a Google-Play API-35 AVD)"; fi
   fi
   warn "Chrome-on-Android needs a Google **Play** (or google_apis) system image" "AOSP images have no com.android.chrome — verify with: adb shell pm list packages | grep chrome"
 fi
@@ -122,7 +156,7 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "ios" ]; then
     # A usable simulator device
     DEV="$(xcrun simctl list devices available 2>/dev/null | grep -iE 'iPhone' | head -1 | sed 's/^[[:space:]]*//')"
     if [ -n "$DEV" ]; then ok "iPhone simulator available: ${DEV%% (*}"; else
-      bad "no available iPhone simulator device" "scripts/setup-mobile.sh  (creates one), or: xcrun simctl create qa-iphone com.apple.CoreSimulator.SimDeviceType.iPhone-16 <runtime>"; fi
+      bad "no available iPhone simulator device" "$SETUP --ios  (creates one), or: xcrun simctl create qa-iphone <device-type from: xcrun simctl list devicetypes> <runtime from: xcrun simctl list runtimes>"; fi
     # Safari is always preinstalled on iOS sims — no check needed.
     # WebKit DOM bridge (bin/wk-ios): restores JS eval / DOM assertions in sim Safari.
     if command -v ios_webkit_debug_proxy >/dev/null 2>&1; then
@@ -130,13 +164,18 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "ios" ]; then
     else
       warn "ios-webkit-debug-proxy missing — bin/wk-ios (Safari JS/DOM eval) unavailable" "brew install ios-webkit-debug-proxy"
     fi
+    if command -v python3 >/dev/null 2>&1; then
+      ok "python3 present (bin/wk-ios page lookup)"
+    else
+      warn "python3 missing — bin/wk-ios (Safari JS/DOM eval) unavailable" "brew install python3  (or: xcode-select --install)"
+    fi
   fi
 fi
 
 # ============================ VERDICT ============================
 printf '\n\033[1mSummary:\033[0m %d ok, %d warning(s), %d failure(s)\n' "$PASS" "$WARN" "$FAIL"
 if [ "$FAIL" -gt 0 ]; then
-  printf '\033[31mNOT READY\033[0m — resolve the ✗ items above (or run: scripts/setup-mobile.sh) then re-run this doctor.\n'
+  printf '\033[31mNOT READY\033[0m — resolve the ✗ items above (or run: %s) then re-run this doctor.\n' "$SETUP"
   exit 1
 fi
 printf '\033[32mREADY\033[0m — mobile-cli can drive the requested platform(s).\n'

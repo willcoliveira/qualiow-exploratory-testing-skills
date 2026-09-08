@@ -1,6 +1,6 @@
 # Phase 5: Deep Feature Testing (Mobile)
 
-Follow `../../qa-explore/phases/05-features.md` for the SFDIPOT structure, boundary
+Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/05-features.md` for the SFDIPOT structure, boundary
 values, business-logic stress, and FEW HICCUPPS oracles. The mobile changes (both modes):
 
 ## Substitutions
@@ -11,15 +11,15 @@ values, business-logic stress, and FEW HICCUPPS oracles. The mobile changes (bot
   tooling (mitmproxy)"**. Do NOT invent a result. (You CAN still tamper values that travel in
   a deep link / URL via `deep-link`/`open-url` — see Phase 6.)
 
-- **`playwright-cli fill <ref> <long-string>`** — use the same patterns, but be aware the
-  Android `input text` command silently truncates very long strings (~5000 chars max on most
-  emulators), so a "field accepted N chars" result may be a driver limit, not the app's.
+- **`playwright-cli fill <ref> <long-string>`** — use the same patterns (`fill` types through a
+  Maestro `inputText` flow on both platforms), but very long strings can still be truncated by
+  the platform IME, so a "field accepted N chars" result may be a driver limit, not the app's.
   Note the truncation when reporting, and for true very-long tests prefer pasting via the
   clipboard:
   ```bash
-  bin/wadb shell "echo '<very long string>' | xargs -I {} am broadcast -a clipper.set -e text '{}'"
-  $MCLI click <input ref>
-  # then long-press to paste — or use $MCLI fill with the actual string and note truncation
+  qa/bin/wadb shell "echo '<very long string>' | xargs -I {} am broadcast -a clipper.set -e text '{}'"
+  qa/bin/mcli click <input ref>
+  # then long-press to paste — or use qa/bin/mcli fill with the actual string and note truncation
   ```
 
 ## Generic mobile feature stress recipes
@@ -51,7 +51,7 @@ screens and web views alike — they replace the desktop-only Playwright specifi
 ### Navigation & routing
 
 - Hardware/gesture back (Android `press BACK`) vs in-screen back control — same destination?
-- Deep-link straight into a mid-flow screen (NATIVE: `$MCLI deep-link <app-scheme>`; WEB: `open-url`) — does it load with context or break?
+- Deep-link straight into a mid-flow screen (NATIVE: `qa/bin/mcli deep-link <app-scheme>`; WEB: `open-url`) — does it load with context or break?
 - After a successful action, does back land somewhere sane (not re-submitting)?
 
 ### Submit / save actions
@@ -65,7 +65,7 @@ Concrete high-value targets:
 
 ## After Feature Testing
 
-Write `phase-3-feature-testing.md` with feature-by-feature notes. For each deferred test
+Write `phase-5-features.md` (confidentiality header first) with feature-by-feature notes. For each deferred test
 (proxy-blocked, multi-device-blocked), record it explicitly in the coverage map so it shows
 up as a known gap in the report.
 

@@ -3,15 +3,18 @@
 ## Step 1: Resolve Inputs
 
 Extract from the user message:
-- **target**: id under `data/targets/` (with a `backend:` and/or `api:` block) — or inline
-  resource names
+- **target**: `--target <id>` → `data/targets/<id>.yml` (with a `backend:` and/or `api:`
+  block); no `--target` → the project-local `qa/target.yml` (resolution order in
+  `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`) — or inline resource names
 - **context**: path to a gathered ticket context file, or inline ticket text
 - **flags**: `--static-only` (skip live probes), `--api-only` (skip the cloud lane),
   `--no-e2e` (skip phase 4), `--parity <target-id>` (run the API matrix in a second
   environment too)
 
-Read the target config. Read `data/domains/<domain>.md` for the domain's data-integrity
-checks — they become extra checks beyond the ticket's own ACs.
+Read the target config. Read `<data>/domains/<domain>.yml` for the domain's
+`data_integrity_checks` — they become extra checks beyond the ticket's own ACs. Apply the
+production rule from `security-rules.md` to the account id, profile name, resource names and
+`api.base_url` now; `environment.kind: production` also triggers it.
 
 ## Step 2: Resolve the Source Branch
 
@@ -39,7 +42,7 @@ Compare the returned account to `backend.account_id`.
 | Matches | Live lane is GO |
 | Different account | **STOP the live lane.** Report it. Do not probe an account the ticket does not concern. |
 | No credentials | Live lane is **BLOCKED**, not failed. Continue with static + write the probe commands into the report so a human can run them. |
-| Account looks like production | Read `references/safety-rules.md` and apply the production hard stop. |
+| Account looks like production | Read `${CLAUDE_SKILL_DIR}/references/safety-rules.md` and apply the production hard stop. |
 
 ## Step 3b: Establish the API Lane (skip if the ticket has no HTTP surface)
 
@@ -53,8 +56,17 @@ Open an authenticated session once — headed, against a persistent profile, bec
 interactive identity provider cannot complete headless:
 
 ```bash
-playwright-cli -s=<target-id> open <base_url> --headed --profile .auth/<profile>
+playwright-cli -s=backend-<HHmm>-<ticket> open <api.base_url or base_url> --headed --profile <api.browser_profile>
 ```
+
+`api.browser_profile` (e.g. `.auth/my-service-dev-profile`) is the persistent profile
+directory the target declares; it holds a live session for a real account and is gitignored.
+
+The session id follows the one scheme in
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md` — `-s=<kind>-<HHmm>-<slug>`, here
+`-s=backend-<HHmm>-<ticket>`. Every later `playwright-cli` call in this session carries the
+same `-s=` id, and the session ends in phase 5 with `close` then `delete-data` (the profile
+directory itself is kept).
 
 Confirm the session is live before building any matrix — a probe run against a logged-out
 page returns a login page with a `200`, which reads exactly like a passing case.
@@ -87,7 +99,7 @@ too. Same matrix, both environments, or the comparison is not one.
 ## Step 3c: Fingerprint the Environment
 
 **Before the first probe of any lane.** Read
-`references/environment-fingerprinting.md` and answer its three questions: which build is
+`${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md` and answer its three questions: which build is
 deployed in every component of the path, whether the changed code path is *selected*
 here, and whether the commit under test is genuinely an ancestor of what is running.
 
@@ -100,8 +112,11 @@ needed a probe becomes `BLOCKED` with the exact command attached.
 
 ## Step 4: Create the Session Directory
 
-`output/sessions/<YYYY-MM-DD-HHmm>-<ticket>-backend/` containing:
-`charter.md`, `ac-matrix.md`, `evidence/`, `bugs/`, `probes/`, `session-log.md`
+`output/sessions/<YYYY-MM-DD-HHmm>-backend-<ticket>/` (scheme in `paths.md`; `<ticket>` is the
+ticket id, else the target id) containing:
+`charter.md`, `ac-matrix.md`, `evidence/`, `bugs/`, `probes/`, `session-log.md`, `progress.json`
+(`"kind": "backend"`). Every markdown file starts with the confidentiality header from
+`output-contract.md`.
 
 `probes/` holds the probe scripts and case files, so the run is repeatable by someone
 else — and by you, against the next environment.
@@ -109,6 +124,9 @@ else — and by you, against the next environment.
 ## Step 5: Write the Charter
 
 ```markdown
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+
 # Charter — <TICKET>
 **Mission:** Verify <n> acceptance criteria for <ticket summary>
 **Target:** <target id> (<environment kind>)

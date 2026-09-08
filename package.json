@@ -1,65 +1,79 @@
 {
   "name": "qualiow-exploratory-testing",
   "version": "1.3.0",
-  "description": "qualiow — AI-powered exploratory testing skills using Claude Code + Playwright CLI (web) and Maestro/mobile-cli (iOS/Android simulators)",
+  "description": "qualiow — AI-powered exploratory testing skills for Claude Code: web via playwright-cli, iOS/Android simulators via Maestro/mobile-cli, and backend/API acceptance-criteria verification",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "qualiow": "dist/cli/index.js"
+    "qualiow": "dist/cli/index.js",
+    "mcli": "bin/mcli",
+    "wadb": "bin/wadb",
+    "wk-ios": "bin/wk-ios",
+    "qualiow-doctor-mobile": "bin/doctor-mobile.sh",
+    "qualiow-setup-mobile": "bin/setup-mobile.sh"
   },
   "files": [
     "dist/",
     "skills/",
+    "agents/",
     "bin/",
-    "scripts/setup-mobile.sh",
-    "scripts/doctor-mobile.sh",
-    "data/domains/",
+    ".claude-plugin/",
+    "data/domains/*.yml",
     "data/knowledge/",
     "data/templates/",
-    "data/targets/_default.yml",
-    "data/targets/_example-native-mobile.yml",
-    "data/targets/_example-sim-ios-safari.yml",
-    "data/targets/_example-sim-android-chrome.yml",
-    "data/targets/_example-mobile-emulation.yml",
-    "data/targets/_example-backend.yml",
+    "data/security/",
+    "data/targets/_*.yml",
     "data/targets/testers-ai.yml",
     "docs/GETTING-STARTED.md",
     "docs/MOBILE-SETUP.md",
-    "docs/BACKEND-VERIFICATION.md"
+    "docs/BACKEND-VERIFICATION.md",
+    ".env.example",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "sync:skills": "rm -rf skills && cp -R .claude/skills skills",
-    "prebuild": "npm run sync:skills",
+    "sync:plugin": "rm -rf skills agents && cp -R .claude/skills skills && cp -R .claude/agents agents",
+    "prebuild": "npm run sync:plugin",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "validate": "node dist/cli/index.js validate --all",
+    "kb:sync": "node dist/cli/index.js kb sync",
+    "kb:check": "node dist/cli/index.js kb check",
+    "check:mirror": "diff -rq .claude/skills skills && diff -rq .claude/agents agents",
+    "check:pack": "node scripts/check-pack.mjs",
     "lint": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm test"
+    "version": "node scripts/sync-version.mjs && git add .claude-plugin/plugin.json",
+    "prepublishOnly": "npm run build && npm run lint && npm test && npm run check:pack"
   },
   "keywords": [
     "exploratory-testing",
     "qa",
     "testing",
     "playwright",
+    "playwright-cli",
     "maestro",
     "mobile-testing",
     "ios-simulator",
     "android-emulator",
+    "api-testing",
+    "acceptance-criteria",
     "ai",
     "claude",
+    "claude-code",
     "skills",
+    "plugin",
     "heuristics",
     "bug-detection"
   ],
   "author": "William Oliveira",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.4.0"
   },
+  "packageManager": "npm@10.9.2",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/willcoliveira/qualiow-exploratory-testing-skills.git"
@@ -69,7 +83,7 @@
     "url": "https://github.com/willcoliveira/qualiow-exploratory-testing-skills/issues"
   },
   "dependencies": {
-    "@playwright/cli": "^0.1.15",
+    "@playwright/cli": "^0.1.19",
     "chalk": "^5.3.0",
     "commander": "^15.0.0",
     "glob": "^13.0.6",

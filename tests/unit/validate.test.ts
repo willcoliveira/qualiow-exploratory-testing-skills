@@ -1,15 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { stringify as yamlStringify } from 'yaml';
 import { validateTargetConfig } from '../../src/utils/validate.js';
 
-const TMP_DIR = join(
-  process.cwd(),
-  'tests',
-  'fixtures',
-  '.tmp-validate-tests',
-);
+const TMP_DIR = mkdtempSync(join(tmpdir(), 'qualiow-validate-'));
 
 function writeTmpYaml(filename: string, data: unknown): string {
   const filePath = join(TMP_DIR, filename);
@@ -37,7 +33,7 @@ describe('validateTargetConfig', () => {
       scope: { max_depth: 3, start_pages: ['/'] },
     };
 
-    const filePath = writeTmpYaml('valid-target.yml', config);
+    const filePath = writeTmpYaml('test-target.yml', config);
     const result = validateTargetConfig(filePath);
 
     expect(result.valid).toBe(true);
@@ -139,6 +135,38 @@ describe('validateTargetConfig', () => {
     expect(result.errors).toBeDefined();
   });
 
+  it('should fail when the id does not match the file name', () => {
+    const config = {
+      id: 'something-else',
+      name: 'Mismatch',
+      base_url: 'https://example.com',
+      domain: 'saas',
+      auth: { strategy: 'none' },
+      browser: { headless: true, viewport: { width: 1280, height: 720 } },
+      scope: { max_depth: 1 },
+    };
+    const filePath = writeTmpYaml('mismatch.yml', config);
+    const result = validateTargetConfig(filePath);
+    expect(result.valid).toBe(false);
+    expect(result.errors?.[0].path).toBe('id');
+  });
+
+  it('should reject unknown keys anywhere in the config (strict schema)', () => {
+    const config = {
+      id: 'strict-target',
+      name: 'Strict',
+      base_url: 'https://example.com',
+      domain: 'saas',
+      auth: { strategy: 'none', bogus: 1 },
+      browser: { headless: true, viewport: { width: 1280, height: 720 } },
+      scope: { max_depth: 1 },
+    };
+    const filePath = writeTmpYaml('strict-target.yml', config);
+    const result = validateTargetConfig(filePath);
+    expect(result.valid).toBe(false);
+    expect(result.errors?.some((e) => e.path.startsWith('auth'))).toBe(true);
+  });
+
   it('should handle non-existent file gracefully', () => {
     const result = validateTargetConfig(
       join(TMP_DIR, 'does-not-exist.yml'),
@@ -167,7 +195,7 @@ describe('validateTargetConfig (mobile targets)', () => {
       scope: { start_screen: 'login' },
     };
 
-    const filePath = writeTmpYaml('mobile-web-target.yml', config);
+    const filePath = writeTmpYaml('sim-ios-safari.yml', config);
     const result = validateTargetConfig(filePath);
 
     expect(result.valid).toBe(true);
@@ -191,7 +219,7 @@ describe('validateTargetConfig (mobile targets)', () => {
       },
     };
 
-    const filePath = writeTmpYaml('mobile-native-target.yml', config);
+    const filePath = writeTmpYaml('native-app.yml', config);
     const result = validateTargetConfig(filePath);
 
     expect(result.valid).toBe(true);

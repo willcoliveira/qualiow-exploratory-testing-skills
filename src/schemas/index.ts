@@ -38,3 +38,6 @@ export {
   SeverityCountsSchema,
   SessionMetricsSchema,
 } from './session-metrics.schema.js';
+
+export { KnowledgeReleaseSchema } from './knowledge-release.schema.js';
+export { KnowledgeChangelogSchema } from './knowledge-changelog.schema.js';

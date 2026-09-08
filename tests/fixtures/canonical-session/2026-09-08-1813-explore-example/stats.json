@@ -1,0 +1,10 @@
+{
+  "session_id": "2026-09-08-1813-explore-example",
+  "kind": "explore",
+  "target": "Example App",
+  "date": "2026-09-08",
+  "duration_min": 42,
+  "bugs_found": 2,
+  "severity_counts": { "critical": 0, "high": 1, "medium": 1, "low": 0 },
+  "pages_explored": 12
+}

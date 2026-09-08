@@ -1,10 +1,10 @@
-# Phase 2: Business Context & Charter (~5 min)
+# Phase 2: Business Context & Charter (5 min)
 
 **This is the most important phase. Skip it and everything else is shallow.**
 
 ## Step 1: Use the App as a Real User
 
-Before any testing, spend 2-3 minutes USING the app the way a customer would. Not testing -- USING.
+Before any testing, spend 2 minutes USING the app the way a customer would. Not testing -- USING.
 
 ```bash
 playwright-cli open <url>
@@ -62,9 +62,12 @@ Also select 2 Test Tours:
 
 ## Step 5: Write Charter
 
-Save to `output/sessions/<session-dir>/charter.md`:
+Save to `output/sessions/<session-dir>/charter.md` (confidentiality header first, per `${CLAUDE_SKILL_DIR}/references/output-contract.md`):
 
 ```markdown
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+
 # Session Charter
 
 ## Context Source
@@ -101,12 +104,20 @@ Save to `output/sessions/<session-dir>/charter.md`:
 - FEW HICCUPPS oracles: Focus on [Users, Claims, Product]
 
 ## Session Parameters
-- Time box: [duration]
+- Time box: 45 min
 - Domain: [domain]
 - Focus: [focus area or "full exploration"]
+- Read-only: [true | false]
 ```
 
-Start trace: `playwright-cli tracing-start`
+Start evidence capture (both carry `-s=<sid>`):
+
+```bash
+playwright-cli tracing-start
+playwright-cli video-start output/sessions/<session-dir>/videos/session.webm
+```
+
+Add `playwright-cli video-chapter "<phase or feature>"` at each phase boundary so the recording is navigable.
 
 **Update progress:** Set charter phase complete in progress.json. Append to session-log.md:
 `[<timestamp>] [PHASE] Charter complete — risk ranking defined, <N> journeys planned, heuristics: <selected>`
