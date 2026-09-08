@@ -227,21 +227,28 @@ export interface KnowledgeEntry {
 // ─── Domain Configuration ────────────────────────────────────────────
 
 export interface Journey {
-  id: string;
   name: string;
-  description: string;
   steps: string[];
-  risk: 'high' | 'medium' | 'low';
+}
+
+export interface RiskRanking {
+  p0: string[];
+  p1: string[];
+  p2: string[];
+  p3: string[];
 }
 
 export interface DomainConfig {
   id: string;
   name: string;
-  risk_ranking: string[];
+  risk_ranking: RiskRanking;
   completeness_checklist: string[];
   data_integrity_checks: string[];
   journeys: Journey[];
-  guidance: string[];
+  must_test_patterns: Record<string, string[]>;
+  common_bugs: string[];
+  compliance: string[];
+  guidance: string;
 }
 
 // ─── Session Metrics ─────────────────────────────────────────────────
@@ -261,6 +268,16 @@ export interface SessionMetrics {
   bugs_found: number;
   severity_counts: SeverityCounts;
   pages_explored: number;
+  kind?: 'explore' | 'quick' | 'mobile' | 'backend';
+  domain?: string;
+  started_at?: string;
+  completed_at?: string;
+  phases_completed?: number;
+  total_phases?: number;
+  coverage?: Record<string, unknown>;
+  evidence?: Record<string, unknown>;
+  areas_not_tested?: string[];
+  blocked_by?: string | null;
 }
 
 // ─── Bug Report ──────────────────────────────────────────────────────
