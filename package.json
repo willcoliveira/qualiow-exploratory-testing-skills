@@ -89,7 +89,7 @@
     "glob": "^13.0.6",
     "handlebars": "^4.7.8",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "@playwright/test": "^1.59.1"
