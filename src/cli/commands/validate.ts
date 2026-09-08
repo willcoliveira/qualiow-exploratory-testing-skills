@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { resolve, relative } from 'node:path';
+import { resolve, relative, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { globSync } from 'glob';
 import chalk from 'chalk';
@@ -7,19 +7,30 @@ import {
   validateTargetConfig,
   validateDomainConfig,
   validateKnowledgeEntry,
+  validateKnowledgeBase,
 } from '../../utils/validate.js';
 import type { ValidationResult } from '../../types/index.js';
 
+export interface ValidateOptions {
+  targets?: boolean;
+  knowledge?: boolean;
+  domains?: boolean;
+  kb?: boolean;
+  all?: boolean;
+}
+
 export function validateCommand(): Command {
   const cmd = new Command('validate')
-    .description('Validate all configuration files')
-    .option('--targets', 'Validate target configurations only')
-    .option('--knowledge', 'Validate knowledge entries only')
-    .option('--domains', 'Validate domain configurations only')
-    .option('--all', 'Validate all configurations (default)')
-    .action(async (options) => {
+    .description('Validate configuration files (targets, domains, knowledge entries, knowledge base)')
+    .option('--targets', 'Validate target configurations (data/targets/*.yml and qa/target.yml)')
+    .option('--knowledge', 'Validate knowledge entries')
+    .option('--domains', 'Validate domain configurations')
+    .option('--kb', 'Cross-check the knowledge base (manifest, releases, changelog)')
+    .option('--all', 'Validate everything (default)')
+    .action(async (options: ValidateOptions) => {
       try {
-        runValidate(options);
+        const failed = runValidate(options, process.cwd());
+        if (failed > 0) process.exit(1);
       } catch (err) {
         console.error(chalk.red('Error during validation:'), err instanceof Error ? err.message : err);
         process.exit(1);
@@ -28,74 +39,58 @@ export function validateCommand(): Command {
   return cmd;
 }
 
-function runValidate(options: {
-  targets?: boolean;
-  knowledge?: boolean;
-  domains?: boolean;
-  all?: boolean;
-}): void {
-  const cwd = process.cwd();
+/** Runs the selected validations, prints results, returns the failure count. */
+export function runValidate(options: ValidateOptions, cwd: string): number {
   const dataDir = resolve(cwd, 'data');
-
-  // Default to --all if no flags specified
-  const runAll = options.all || (!options.targets && !options.knowledge && !options.domains);
+  const runAll =
+    options.all || (!options.targets && !options.knowledge && !options.domains && !options.kb);
 
   if (!existsSync(dataDir)) {
-    console.error(chalk.red('Error: data/ directory not found. Run `npx qualiow init` first.'));
-    process.exit(1);
+    throw new Error('data/ directory not found. Run `npx qualiow init` first.');
   }
 
   const results: ValidationResult[] = [];
 
-  // Validate targets
+  const section = (title: string, files: string[], fn: (f: string) => ValidationResult) => {
+    console.log(chalk.cyan.bold(`\n${title} (${files.length} files):`));
+    for (const file of files) {
+      const result = fn(file);
+      results.push(result);
+      printResult(result, cwd);
+    }
+  };
+
   if (runAll || options.targets) {
-    const targetDir = resolve(dataDir, 'targets');
-    if (existsSync(targetDir)) {
-      const files = globSync(resolve(targetDir, '*.yml'));
-      console.log(chalk.cyan.bold(`\nTargets (${files.length} files):`));
-      for (const file of files) {
-        const result = validateTargetConfig(file);
-        results.push(result);
-        printResult(result, cwd);
-      }
-    } else {
-      console.log(chalk.yellow('\n  No targets/ directory found'));
-    }
+    const files = globSync(resolve(dataDir, 'targets', '*.yml')).sort();
+    const projectLocal = join(cwd, 'qa', 'target.yml');
+    if (existsSync(projectLocal)) files.unshift(projectLocal);
+    section('Targets', files, validateTargetConfig);
   }
 
-  // Validate knowledge entries
-  if (runAll || options.knowledge) {
-    const knowledgeDir = resolve(dataDir, 'knowledge');
-    if (existsSync(knowledgeDir)) {
-      const files = globSync(resolve(knowledgeDir, 'releases', '**', 'entries', '*.yml'));
-      console.log(chalk.cyan.bold(`\nKnowledge entries (${files.length} files):`));
-      for (const file of files) {
-        const result = validateKnowledgeEntry(file);
-        results.push(result);
-        printResult(result, cwd);
-      }
-    } else {
-      console.log(chalk.yellow('\n  No knowledge/ directory found'));
-    }
-  }
-
-  // Validate domain configs
   if (runAll || options.domains) {
-    const domainsDir = resolve(dataDir, 'domains');
-    if (existsSync(domainsDir)) {
-      const files = globSync(resolve(domainsDir, '*.yml'));
-      console.log(chalk.cyan.bold(`\nDomains (${files.length} files):`));
-      for (const file of files) {
-        const result = validateDomainConfig(file);
+    section('Domains', globSync(resolve(dataDir, 'domains', '*.yml')).sort(), validateDomainConfig);
+  }
+
+  if (runAll || options.knowledge) {
+    section(
+      'Knowledge entries',
+      globSync(resolve(dataDir, 'knowledge', 'releases', '**', 'entries', '*.yml')).sort(),
+      validateKnowledgeEntry,
+    );
+  }
+
+  if (runAll || options.kb) {
+    if (existsSync(join(dataDir, 'knowledge', 'manifest.yml'))) {
+      console.log(chalk.cyan.bold('\nKnowledge base:'));
+      for (const result of validateKnowledgeBase(dataDir)) {
         results.push(result);
         printResult(result, cwd);
       }
     } else {
-      console.log(chalk.yellow('\n  No domains/ directory found'));
+      console.log(chalk.yellow('\n  No knowledge/manifest.yml found'));
     }
   }
 
-  // Summary
   const total = results.length;
   const passed = results.filter((r) => r.valid).length;
   const failed = total - passed;
@@ -103,13 +98,10 @@ function runValidate(options: {
   console.log('');
   console.log(chalk.bold('Summary:'));
   console.log(
-    `  ${total} files validated, ${chalk.green(`${passed} passed`)}, ${failed > 0 ? chalk.red(`${failed} failed`) : chalk.green(`${failed} failed`)}`,
+    `  ${total} checks, ${chalk.green(`${passed} passed`)}, ${failed > 0 ? chalk.red(`${failed} failed`) : chalk.green('0 failed')}`,
   );
   console.log('');
-
-  if (failed > 0) {
-    process.exit(1);
-  }
+  return failed;
 }
 
 function printResult(result: ValidationResult, cwd: string): void {
@@ -118,11 +110,9 @@ function printResult(result: ValidationResult, cwd: string): void {
     console.log(`  ${chalk.green('PASS')}  ${relPath}`);
   } else {
     console.log(`  ${chalk.red('FAIL')}  ${relPath}`);
-    if (result.errors) {
-      for (const err of result.errors) {
-        const pathStr = err.path ? `[${err.path}] ` : '';
-        console.log(`        ${chalk.red('→')} ${pathStr}${err.message}`);
-      }
+    for (const err of result.errors ?? []) {
+      const pathStr = err.path ? `[${err.path}] ` : '';
+      console.log(`        ${chalk.red('→')} ${pathStr}${err.message}`);
     }
   }
 }
