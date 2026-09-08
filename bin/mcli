@@ -1,10 +1,16 @@
-#!/bin/bash
-# mcli — env-setting wrapper around mobile-cli.mjs so subagents can call a single
-# bash command without needing to prefix every call with export JAVA_HOME=... etc.
-# (Compound `export ...; cmd ...` calls hit the Claude Code permission system
-#  which matches on the first token of the line.)
-# Resolve JDK 17 portably: honor an existing JAVA_HOME, else ask macOS' java_home,
-# else fall back to the Homebrew prefixes (arm64 then Intel). Avoids hardcoding one path.
+#!/usr/bin/env bash
+# mcli — env-setting wrapper around mobile-cli.mjs so agents can call a single bash
+# command without prefixing every call with `export JAVA_HOME=...` (compound
+# `export ...; cmd` lines defeat permission rules that match on the first token).
+# Resolves JDK 17 (JAVA_HOME → macOS java_home → Homebrew prefixes), ANDROID_HOME and
+# PATH, then execs the driver. Follows symlinks so an npm `bin` link works too.
+set -euo pipefail
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
+done
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
 if [ -z "${JAVA_HOME:-}" ]; then
   JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
   [ -z "$JAVA_HOME" ] && [ -d /opt/homebrew/opt/openjdk@17 ] && JAVA_HOME=/opt/homebrew/opt/openjdk@17
@@ -12,5 +18,5 @@ if [ -z "${JAVA_HOME:-}" ]; then
 fi
 export JAVA_HOME
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH"
-exec node "$(dirname "$0")/mobile-cli.mjs" "$@"
+export PATH="${JAVA_HOME:+$JAVA_HOME/bin:}$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$HOME/.maestro/bin:$PATH"
+exec node "$HERE/mobile-cli.mjs" "$@"

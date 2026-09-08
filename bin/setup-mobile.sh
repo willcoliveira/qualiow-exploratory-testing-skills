@@ -5,33 +5,41 @@
 # devices the target configs expect. Re-runnable: every step checks before acting.
 #
 # What it can do automatically:
-#   - Homebrew (offers to install if missing), Node, JDK 17, Maestro
+#   - Homebrew (offers to install if missing), Node >= 22.4, JDK 17, Maestro (pinned)
 #   - Android: cmdline-tools, platform-tools, emulator, a Google-Play system image,
 #     license acceptance, and a standard AVD ($ANDROID_AVD_NAME, default qa_pixel_api35)
 #   - iOS: a standard simulator device ($IOS_DEVICE_NAME, default qa-iphone) from an
-#     installed iOS runtime
+#     installed iOS runtime, plus ios-webkit-debug-proxy for the bin/wk-ios DOM bridge
 #
 # What stays MANUAL (printed as guidance, never silently skipped):
 #   - Xcode itself (multi-GB App Store install) + `xcodebuild -license accept`
 #   - iOS runtime download (Xcode ▸ Settings ▸ Components) if none is installed
 #
 # Usage:
-#   scripts/setup-mobile.sh                 # both platforms
-#   scripts/setup-mobile.sh --android       # Android only
-#   scripts/setup-mobile.sh --ios           # iOS only
-#   scripts/setup-mobile.sh --yes           # non-interactive (assume yes to prompts)
+#   bin/setup-mobile.sh                    # both platforms
+#   bin/setup-mobile.sh --android          # Android only
+#   bin/setup-mobile.sh --ios              # iOS only
+#   bin/setup-mobile.sh --yes              # non-interactive (assume yes to prompts)
+#   bin/setup-mobile.sh --yes --allow-curl-bash   # also let `curl | bash` installers run unattended
+#
+# Env: MAESTRO_VERSION (default 2.10.0) pins the Maestro release the official installer
+#   fetches; ANDROID_API (35), ANDROID_AVD_NAME, IOS_DEVICE_NAME, ANDROID_HOME as above.
+#
+# `curl | bash` installers (Homebrew, Maestro) always ask first; under --yes they are
+# SKIPPED with the exact command printed unless --allow-curl-bash is also given.
 #
 # After it finishes it runs doctor-mobile.sh to confirm the result.
 
 set -uo pipefail
 
-PLATFORM="both"; ASSUME_YES=0
+PLATFORM="both"; ASSUME_YES=0; ALLOW_CURL_BASH=0
 for arg in "$@"; do
   case "$arg" in
     --android) PLATFORM="android" ;;
     --ios) PLATFORM="ios" ;;
     --yes|-y) ASSUME_YES=1 ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    --allow-curl-bash) ALLOW_CURL_BASH=1 ;;
+    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -42,6 +50,8 @@ ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 ANDROID_AVD_NAME="${ANDROID_AVD_NAME:-qa_pixel_api35}"
 ANDROID_API="${ANDROID_API:-35}"
 IOS_DEVICE_NAME="${IOS_DEVICE_NAME:-qa-iphone}"
+MAESTRO_VERSION="${MAESTRO_VERSION:-2.10.0}"
+NODE_MIN_MAJOR=22; NODE_MIN_MINOR=4
 if [ "$ARCH" = "arm64" ]; then ABI="arm64-v8a"; else ABI="x86_64"; fi
 SYS_IMAGE="system-images;android-${ANDROID_API};google_apis_playstore;${ABI}"
 
@@ -54,11 +64,28 @@ confirm() {
   printf '  %s [y/N] ' "$1"; read -r ans </dev/tty 2>/dev/null || ans=n
   case "$ans" in y|Y|yes) return 0;; *) return 1;; esac
 }
+# A `curl | bash` installer runs only after an interactive yes, or under --yes when
+# --allow-curl-bash was given too. Otherwise the exact command is printed as a manual step.
+confirm_curl_bash() {
+  if [ "$ASSUME_YES" = 1 ]; then
+    [ "$ALLOW_CURL_BASH" = 1 ] && return 0
+    manual "skipped under --yes (pass --allow-curl-bash to run it unattended): $2"
+    return 1
+  fi
+  confirm "$1"
+}
+node_ok() {
+  command -v node >/dev/null 2>&1 || return 1
+  local v maj min
+  v="$(node -v | sed 's/^v//')"; maj="${v%%.*}"; min="${v#*.}"; min="${min%%.*}"
+  [ "${maj:-0}" -gt "$NODE_MIN_MAJOR" ] || { [ "${maj:-0}" -eq "$NODE_MIN_MAJOR" ] && [ "${min:-0}" -ge "$NODE_MIN_MINOR" ]; }
+}
 
 # ----------------------------------------------------------------- Homebrew
 say "Homebrew"
+HOMEBREW_CMD='/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
 if command -v brew >/dev/null 2>&1; then skip "brew $(brew --version | head -1)"; else
-  if confirm "Homebrew not found. Install it now?"; then
+  if confirm_curl_bash "Homebrew not found. Install it now? (runs the official curl | bash installer)" "$HOMEBREW_CMD"; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   else manual "Install Homebrew, then re-run: https://brew.sh"; fi
 fi
@@ -67,17 +94,23 @@ BREW="$(command -v brew || true)"
 [ -z "$BREW" ] && [ -x /usr/local/bin/brew ] && BREW=/usr/local/bin/brew
 
 # ----------------------------------------------------------------- Node
-say "Node.js (>=18)"
-if command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/v//;s/\..*//')" -ge 18 ]; then
+say "Node.js (>= $NODE_MIN_MAJOR.$NODE_MIN_MINOR)"
+if node_ok; then
   skip "node $(node -v)"
-elif [ -n "$BREW" ]; then info "installing node..."; "$BREW" install node || manual "brew install node failed — install Node >=18 manually"; fi
+elif [ -n "$BREW" ]; then info "installing node..."; "$BREW" install node || manual "brew install node failed — install Node >= $NODE_MIN_MAJOR.$NODE_MIN_MINOR manually (nvm install 22)"
+else manual "Install Node >= $NODE_MIN_MAJOR.$NODE_MIN_MINOR (nvm install 22)"; fi
 
 # ----------------------------------------------------------------- Maestro
-say "Maestro"
+say "Maestro (pinned $MAESTRO_VERSION)"
+MAESTRO_CMD="curl -Ls https://get.maestro.mobile.dev | MAESTRO_VERSION=$MAESTRO_VERSION bash"
 if [ -x "$HOME/.maestro/bin/maestro" ] || command -v maestro >/dev/null 2>&1; then
-  skip "maestro present"
+  skip "maestro present ($( (command -v maestro || echo "$HOME/.maestro/bin/maestro") ) — doctor checks the version)"
 else
-  if confirm "Install Maestro now?"; then curl -Ls "https://get.maestro.mobile.dev" | bash || manual 'curl -Ls "https://get.maestro.mobile.dev" | bash'; fi
+  if confirm_curl_bash "Install Maestro $MAESTRO_VERSION now? (runs the official curl | bash installer)" "$MAESTRO_CMD"; then
+    # The official installer honours MAESTRO_VERSION and downloads
+    # github.com/mobile-dev-inc/maestro/releases/download/cli-<version>/maestro.zip
+    curl -Ls "https://get.maestro.mobile.dev" | MAESTRO_VERSION="$MAESTRO_VERSION" bash || manual "$MAESTRO_CMD"
+  fi
 fi
 
 # ============================================================ ANDROID
@@ -157,7 +190,7 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "ios" ]; then
     fi
   fi
 
-  say "iOS — WebKit DOM bridge (ios-webkit-debug-proxy for bin/wk-ios)"
+  say "iOS — WebKit DOM bridge (ios-webkit-debug-proxy + python3 for bin/wk-ios)"
   if command -v ios_webkit_debug_proxy >/dev/null 2>&1; then
     skip "ios-webkit-debug-proxy present"
   elif [ -n "$BREW" ]; then
@@ -166,6 +199,8 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "ios" ]; then
   else
     manual "brew install ios-webkit-debug-proxy  (enables bin/wk-ios JS/DOM eval in sim Safari)"
   fi
+  if command -v python3 >/dev/null 2>&1; then skip "python3 present"; else
+    manual "python3 missing — brew install python3 (or xcode-select --install); bin/wk-ios needs it"; fi
 
   say "iOS — Xcode"
   XPATH="$(xcode-select -p 2>/dev/null || true)"
@@ -196,14 +231,16 @@ if [ "$PLATFORM" = "both" ] || [ "$PLATFORM" = "ios" ]; then
       fi
     fi
   else
-    manual "Xcode not runnable yet — finish the Xcode steps above, then re-run scripts/setup-mobile.sh"
+    manual "Xcode not runnable yet — finish the Xcode steps above, then re-run bin/setup-mobile.sh"
   fi
 fi
 
 # ----------------------------------------------------------------- verify
 say "Verifying with doctor-mobile.sh"
-DOCTOR_ARGS=""; [ "$PLATFORM" = "ios" ] && DOCTOR_ARGS="--ios"; [ "$PLATFORM" = "android" ] && DOCTOR_ARGS="--android"
-bash "$HERE/doctor-mobile.sh" $DOCTOR_ARGS || {
+DOCTOR_ARGS=()
+[ "$PLATFORM" = "ios" ] && DOCTOR_ARGS+=(--ios)
+[ "$PLATFORM" = "android" ] && DOCTOR_ARGS+=(--android)
+bash "$HERE/doctor-mobile.sh" ${DOCTOR_ARGS[@]+"${DOCTOR_ARGS[@]}"} || {
   echo
   echo "Some checks still fail — resolve the MANUAL steps above (Xcode / iOS runtime are the usual ones) and re-run."
   exit 1

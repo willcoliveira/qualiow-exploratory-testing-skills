@@ -1,6 +1,12 @@
-#!/bin/bash
-# wadb — wrapped adb for subagents. Sets ANDROID_HOME so PATH lookup of adb works
-# regardless of caller env. Use for direct adb commands (logcat, pm clear, am start, etc.)
-# that aren't covered by mcli.
+#!/usr/bin/env bash
+# wadb — wrapped adb for agents. Uses the adb already on PATH when present, else the
+# SDK copy under ANDROID_HOME, so direct adb commands (logcat, pm clear, am start, ...)
+# work regardless of the caller's environment.
+set -euo pipefail
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+if command -v adb >/dev/null 2>&1; then exec adb "$@"; fi
+if [ ! -x "$ANDROID_HOME/platform-tools/adb" ]; then
+  echo "wadb: adb not found on PATH or at $ANDROID_HOME/platform-tools/adb — run bin/setup-mobile.sh --android" >&2
+  exit 127
+fi
 exec "$ANDROID_HOME/platform-tools/adb" "$@"
