@@ -47,11 +47,30 @@ export function readAllMetrics(outputDir: string): SessionMetrics[] {
   const results: SessionMetrics[] = [];
 
   for (const line of lines) {
-    if (line.trim()) {
-      const parsed = JSON.parse(line);
-      results.push(SessionMetricsSchema.parse(parsed));
+    if (!line.trim()) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      // Skip a corrupt JSONL line rather than throwing on the whole file.
+      continue;
     }
+    const result = SessionMetricsSchema.safeParse(parsed);
+    if (result.success) results.push(result.data);
   }
 
   return results;
+}
+
+/** Appends metrics only when the session_id has not been recorded yet. */
+export function appendSessionMetricsDeduped(
+  outputDir: string,
+  metrics: SessionMetrics,
+): boolean {
+  const existing = readAllMetrics(outputDir);
+  if (existing.some((m) => m.session_id === metrics.session_id)) {
+    return false;
+  }
+  appendSessionMetrics(outputDir, metrics);
+  return true;
 }

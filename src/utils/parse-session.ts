@@ -13,13 +13,23 @@ export interface ParsedBug {
   id: string;
   title: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
+  priority: string;
   component: string;
   url: string;
+  environment: string;
+  reproduction_rate: string;
+  summary: string;
   expected: string;
   actual: string;
   steps: string[];
   business_impact: string;
-  evidence: { screenshots: string[]; console_errors: string[] };
+  evidence: {
+    screenshots: string[];
+    videos: string[];
+    logs: string[];
+    console_errors: string[];
+    network_failures: string[];
+  };
 }
 
 export interface ParsedSession {
@@ -112,35 +122,52 @@ function extractNumberedList(text: string): string[] {
 /**
  * Extracts screenshots and console errors from the evidence section.
  */
-function extractEvidence(content: string): { screenshots: string[]; console_errors: string[] } {
-  const screenshots: string[] = [];
-  const console_errors: string[] = [];
+function cleanValue(v: string): string {
+  return v
+    .trim()
+    .replace(/^`|`$/g, '')
+    .trim();
+}
+
+function extractEvidence(content: string): ParsedBug['evidence'] {
+  const evidence: ParsedBug['evidence'] = {
+    screenshots: [],
+    videos: [],
+    logs: [],
+    console_errors: [],
+    network_failures: [],
+  };
 
   const evidenceText = extractSection(content, 'Evidence');
-  if (!evidenceText) {
-    return { screenshots, console_errors };
-  }
+  if (!evidenceText) return evidence;
 
   for (const line of evidenceText.split('\n')) {
     const trimmed = line.replace(/^[-*]\s*/, '').trim();
+    const value = () => {
+      const m = trimmed.match(/:\s*(.+)/);
+      return m ? cleanValue(m[1]) : '';
+    };
+    const nonEmpty = (v: string) => v && !/^none\b/i.test(v);
 
-    if (/screenshot/i.test(trimmed)) {
-      // Extract path if present
-      const pathMatch = trimmed.match(/:\s*(.+)/);
-      if (pathMatch) {
-        screenshots.push(pathMatch[1].trim());
-      }
-    }
-
-    if (/console\s*(error|log)/i.test(trimmed)) {
-      const msgMatch = trimmed.match(/:\s*(.+)/);
-      if (msgMatch && !/none/i.test(msgMatch[1])) {
-        console_errors.push(msgMatch[1].trim());
-      }
+    if (/^screenshot/i.test(trimmed)) {
+      const v = value();
+      if (nonEmpty(v)) evidence.screenshots.push(v);
+    } else if (/^video/i.test(trimmed)) {
+      const v = value();
+      if (nonEmpty(v)) evidence.videos.push(v);
+    } else if (/^log\b/i.test(trimmed)) {
+      const v = value();
+      if (nonEmpty(v)) evidence.logs.push(v);
+    } else if (/console\s*(error|log)/i.test(trimmed)) {
+      const v = value();
+      if (nonEmpty(v)) evidence.console_errors.push(v);
+    } else if (/network\s*(failure|error|request)/i.test(trimmed)) {
+      const v = value();
+      if (nonEmpty(v)) evidence.network_failures.push(v);
     }
   }
 
-  return { screenshots, console_errors };
+  return evidence;
 }
 
 // ─── Public API ─────────────────────────────────────────────────────
@@ -173,9 +200,14 @@ export async function parseBugReport(filePath: string): Promise<ParsedBug> {
     title = title.replace(/^\[[^\]]+\]\s*/, '').trim();
   }
 
-  // If no bracketed component, try to extract from the title before "fails" or first word
+  // An explicit **Component:** field wins over the bracketed prefix.
+  const componentField = content.match(/\*\*Component:\*\*\s*(.+)/i);
+  if (componentField) {
+    component = cleanValue(componentField[1]);
+  }
+
+  // If still no component, try the category table cell used by 1.x reports.
   if (!component) {
-    // Use the section before the first dash or the bug category from the report
     const categoryMatch = content.match(/\|\s*Category\s*\|\s*(.+?)\s*\|/i);
     if (categoryMatch) {
       component = categoryMatch[1].trim();
@@ -195,8 +227,17 @@ export async function parseBugReport(filePath: string): Promise<ParsedBug> {
   const urlMatch = content.match(/\*\*URL:\*\*\s*(.+)/i)
     ?? content.match(/URL:\s*(https?:\/\/[^\s]+)/i);
   if (urlMatch) {
-    url = urlMatch[1].trim();
+    url = cleanValue(urlMatch[1]);
   }
+
+  const priority = cleanValue(content.match(/\*\*Priority:\*\*\s*(.+)/i)?.[1] ?? '');
+  const environment = cleanValue(content.match(/\*\*Environment:\*\*\s*(.+)/i)?.[1] ?? '');
+  const reproduction_rate = cleanValue(
+    content.match(/\*\*Reproduction rate:\*\*\s*(.+)/i)?.[1] ?? '',
+  );
+  const summary = extractSection(content, 'Summary')
+    .replace(/^>\s*/gm, '')
+    .trim();
 
   // Extract expected behavior
   const expected = extractSection(content, 'Expected')
@@ -224,8 +265,12 @@ export async function parseBugReport(filePath: string): Promise<ParsedBug> {
     id,
     title,
     severity,
+    priority,
     component,
     url,
+    environment,
+    reproduction_rate,
+    summary,
     expected,
     actual,
     steps,
