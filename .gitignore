@@ -36,3 +36,8 @@ output/bugs/*.md
 data/targets/local-*.yml
 output/context/*.md
 !output/context/.gitkeep
+
+# Project-local config (consumer projects; kept out of this repo too)
+qa/.env
+qa/bin/
+output/metrics.jsonl
