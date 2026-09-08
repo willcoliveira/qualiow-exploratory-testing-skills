@@ -2,6 +2,26 @@
 
 Every major design choice evaluated with trade-offs, real-world evidence from our POC sessions, and recommendations for whether to keep, change, or revisit.
 
+*Internal document — repo only, not shipped in the npm package.*
+
+## Status as of 2026-09-08 (2.0.0)
+
+The records below were written during the 2026-03 POC. This table is the current reading of
+each one; where the two disagree, this table wins.
+
+| ADR | Decision | Status (2026-09-08) | Note |
+|-----|----------|---------------------|------|
+| 001 | Playwright CLI as the browser driver | **Keep** | Still the right trade-off. The MCP/Chrome-MCP fallback chain was never built and is not planned |
+| 002 | Skills-only, no custom MCP server | **Keep** | Token cost has not become the constraint the record anticipated |
+| 003 | YAML knowledge base | **Keep** | 29 entries across v0.1.0–v0.6.0 — still well under the ~50-entry point where an index would earn its place |
+| 004 | Prompt-driven, no runtime code | **Revisit** | Partly overtaken: 2.0.0 has a real TypeScript layer (CLI, schemas, formatters, redaction), but session orchestration is still entirely prompt-driven. The hybrid the record proposes is not finished |
+| 005 | Standalone project, not a monorepo package | **Keep** | The `tool-qa-workflow` bridge named in the record does not exist and has been dropped from the skills |
+| 006 | File-based output plus a structured log | **Done** | `output/metrics.jsonl` is written by `qualiow report` via `appendSessionMetricsDeduped`, one deduplicated line per session. The dashboard the record sketches was not built |
+| 007 | Storage state plus adaptive login | **Keep** | The freshness check is implemented as guidance in the auth phase, not as code |
+| 008 | Domain configs as markdown → YAML | **Done in 2.0.0** | The `.md` domain files are removed; `data/domains/*.yml` is the only format, `DomainConfigSchema` matches the shipped files, and `qualiow validate --all` covers them |
+| 009 | Single monolithic agent per session | **Revisit** | Phases hand off through files, which is most of the benefit, but sessions still run in one context. Blocked on the same question as `KNOWN-ISSUES.md` ISSUE-001 |
+| 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
+
 ---
 
 ## ADR-001: Browser Control — Playwright CLI vs MCP vs Chrome MCP vs Framework
@@ -549,6 +569,9 @@ This requires Playwright MCP with `--caps vision` or the agent reading screensho
 ---
 
 ## Decision Summary
+
+*As recorded in 2026-03. See the dated status table at the top of this document for where each
+one stands today.*
 
 | ADR | Decision | Status | Action |
 |-----|----------|--------|--------|
