@@ -1,6 +1,6 @@
 {
   "name": "qualiow-exploratory-testing",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "qualiow — AI-powered exploratory testing skills for Claude Code: web via playwright-cli, iOS/Android simulators via Maestro/mobile-cli, and backend/API acceptance-criteria verification",
   "type": "module",
   "main": "dist/index.js",
