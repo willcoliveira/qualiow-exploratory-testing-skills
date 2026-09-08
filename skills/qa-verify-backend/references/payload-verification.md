@@ -6,7 +6,7 @@ questions remain, and they fail independently:
 1. **Are the values correct?** — and, more sharply, *what would prove they are not?*
 2. **Does the value the user sees equal the value the service sent?**
 
-Companion to `phases/03b-api-verification.md` and `phases/04-e2e-trigger.md`.
+Companion to `${CLAUDE_SKILL_DIR}/phases/03b-api-verification.md` and `${CLAUDE_SKILL_DIR}/phases/04-e2e-trigger.md`.
 
 ## 1. Recompute Every Derived Value From the Payload
 

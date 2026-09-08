@@ -4,59 +4,65 @@ description: >
   Generate, regenerate, or reformat reports from existing exploratory testing sessions.
   Use when user says: "show report", "generate report", "reformat bugs", "session summary",
   or wants to review past session findings.
+argument-hint: "[<session-dir> | latest] [--format markdown|summary|bugs-only|coverage-map] [--overwrite]"
 allowed-tools: Read, Write, Glob, Grep
 ---
 
 # Exploratory Testing Report Generator
 
+Reads any session kind (`explore`, `quick`, `mobile`, `backend`) written in the format of
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` and produces a report in the
+same format. Session directories, index columns and the data-resolution order come from
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`. Security:
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/security-rules.md` applies (redact before
+writing; confidentiality header first on every file).
+
 ## Input
 
-- **session**: Session directory name or "latest" (optional — defaults to latest)
-- **format**: Output format (optional — "markdown" default, "summary", "bugs-only")
+- **session**: session directory name or `latest` (default: latest)
+- **format**: `markdown` (default), `summary`, `bugs-only`, `coverage-map`
+- **--overwrite**: allow replacing an existing `session-report.md`
 
 ## Flow
 
-### 1. Find Session
+### 1. Find the Session
 
-```
-# If "latest" or no session specified:
-Read output/sessions/INDEX.md → find most recent session
-
-# If specific session:
-Read output/sessions/<session-dir>/
-```
+`latest` = the alphabetically last directory under `output/sessions/` matching
+`<YYYY-MM-DD-HHmm>-<kind>-<slug>` (the scheme in `paths.md`; date-first means last = newest).
+Cross-check with `output/sessions/INDEX.md`. A name given by the user must match exactly one
+directory; list the candidates if it is ambiguous.
 
 ### 2. Read Session Data
 
-Read all phase files from the session directory:
-- `charter.md` — session charter
-- `phase-1-discovery.md` — discovery findings
-- `phase-2-functional.md` — functional testing findings
-- `phase-3-edge-cases.md` — edge case findings
-- `session-log.md` — full session log
-- `bugs/BUG-*.md` — all bug reports
-- `coverage-map.md` — coverage data
+- `charter.md`
+- `session-log.md`
+- `progress.json`, `stats.json`
+- `phase-3-discovery.md`, `phase-4-journeys.md`, `phase-5-features.md`, `phase-6-edge-cases.md` (explore and mobile sessions; quick sessions have none; backend sessions have `ac-matrix.md`, `evidence/`, `expected-behaviour.md` instead)
+- `bugs/BUG-*.md`
+- the existing `session-report.md`, if any (its coverage map is the coverage source)
 
-### 3. Generate Report
+### 3. Generate the Report
 
-Based on requested format:
+**markdown** (default): the full session report per `output-contract.md`
+(`# Session Report — <target>`, Session Metadata, Executive Summary, Summary Stats, Coverage
+Map with `| Area | Risk | Status | Bugs | Notes |`, Bugs Found, Observations, Areas Not
+Tested, Recommendations, Reflection, Session Stats; mobile and backend additions preserved).
 
-**markdown** (default): Full session report following `data/templates/session-report.md`
-- Session metadata, charter summary, stats
-- Coverage map, bugs grouped by severity
-- Observations, questions, recommendations
+**summary**: a brief executive summary: target, date, duration; bug count by severity; top 3
+findings; key recommendation.
 
-**summary**: Brief executive summary
-- Target, date, duration
-- Bug count by severity
-- Top 3 findings
-- Key recommendation
+**bugs-only**: all bugs sorted by severity, one line each with a link to `bugs/BUG-NNN.md`.
 
-**bugs-only**: Just the bug list
-- All bugs sorted by severity
-- One-line summary each with link to full report
+**coverage-map**: a standalone coverage map from `<data>/templates/coverage-map.md`, filled
+from the session report's coverage table.
 
 ### 4. Write Output
 
-Save to `output/sessions/<session-dir>/session-report.md` (or specified filename).
-Present to user.
+- `markdown` → `session-report.md` only if it does not exist or `--overwrite` was given; otherwise `session-report.regenerated.md`
+- `summary` → `session-summary.md`
+- `bugs-only` → `bugs-summary.md`
+- `coverage-map` → `coverage-map.md`
+
+All in `output/sessions/<session-dir>/`, confidentiality header first, redacted. Present the
+result to the user. Never modify `bugs/BUG-*.md` from this skill; `/qa-explore-feedback` owns
+severity changes.

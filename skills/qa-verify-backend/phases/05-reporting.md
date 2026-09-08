@@ -32,8 +32,26 @@ know what was running cannot use the rest of the table.
 
 ## Step 2: Bug Reports
 
-One bug per report in `bugs/`, using `data/templates/bug-report.md`. Backend findings
-need translation — nobody funds a fix for "StreamViewType is NEW_AND_OLD_IMAGES".
+One bug per file, `bugs/BUG-NNN.md`, in the format of
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` (the template
+`<data>/templates/bug-report.md` is the same format with guidance). The first two lines are
+the confidentiality header, verbatim:
+
+```
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+```
+
+then `# BUG-NNN: [Component] fails [Condition] causing [Impact]`, then `**Severity:**`,
+`**Priority:**`, `**Component:**`, `**URL:** <endpoint, table, queue or resource ARN>`,
+`**Environment:** <env kind + build/commit per component from the fingerprint>`,
+`**Reproduction rate:**`, then `## Summary`, `## Expected Behavior`, `## Actual Behavior`,
+`## Steps to Reproduce` (the probe command or trigger sequence), `## Business Impact`,
+`## Evidence` (`- Screenshot:`, `- Video:`, `- Log: evidence/<file>` — the raw probe
+output —, `- Console errors:`, `- Network failures:`) and `## Recommended Fix Priority`.
+
+Backend findings need translation — nobody funds a fix for
+"StreamViewType is NEW_AND_OLD_IMAGES".
 
 Write the **Business Impact** in terms of consequence:
 - What can go wrong for a customer, an operator, or an auditor?
@@ -104,7 +122,7 @@ of green rows that is the line the reader acts on.
 
 Most of what an API probe finds has no acceptance criterion behind it, so there is nothing
 to file the finding against and it turns into an argument instead of a fix. Produce an
-expected-behaviour specification using `data/templates/expected-behaviour.md`: observed
+expected-behaviour specification using `<data>/templates/expected-behaviour.md`: observed
 against expected, grouped by cause rather than by case, with the decisions the fix forces
 made explicit (reject or clamp; an error or an empty result; where validation lives), and
 ranked by what real users can reach **today** rather than by how bad each one reads.
@@ -114,9 +132,16 @@ section is what gets the work scheduled.
 
 ## Step 4: Session Report
 
-Use `data/templates/session-report.md`. Lead with the matrix summary
-(`n PASS / n PARTIAL / n FAIL / n BLOCKED`), then the findings ranked by severity, then
-what you could not check and exactly what access would unblock it.
+Write `session-report.md` in the format of
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` with `Kind: backend`, and
+insert `## AC Matrix Summary` right after the executive summary:
+`n PASS / n PARTIAL / n FAIL / n BLOCKED / n NOT-REACHABLE / n UNVERIFIABLE` — all six
+verdicts, every time, so that what could not be observed stays visible. Then the findings
+ranked by severity, then what you could not check and exactly what access would unblock it.
+The coverage map uses the contract's `| Area | Risk | Status | Bugs | Notes |` header with
+`code-verified-only` for anything whose only evidence is a code reading. Write `stats.json`
+with `"kind": "backend"` and the verdict counts under `coverage.verdicts`, then append the
+rows to `output/sessions/INDEX.md` and `output/bugs/all-bugs.md` (columns in `paths.md`).
 
 Recommend a disposition in one line: ship, ship-with-follow-ups, or hold — and say what
 would change your mind. Where the scope of what you checked is narrower than the question
@@ -124,12 +149,15 @@ being asked, say so in the same breath; a recommendation with an unstated scope 
 someone will over-read.
 
 For a release-level session covering many tickets against one build, follow
-`references/release-readiness.md` instead of this phase's per-AC shape: the deployment
+`${CLAUDE_SKILL_DIR}/references/release-readiness.md` instead of this phase's per-AC shape: the deployment
 table first, then a fixed result vocabulary per ticket that keeps *not testable here* and
 *not tested* visible rather than letting them vanish between passed and failed.
 
 ## Step 5: Confidentiality
 
-Every output file gets the confidentiality header. Scan the whole session directory for
-tokens, keys, real user emails and consumer PII before finishing; replace with
-`[REDACTED]`. Session output stays local — never transmit it anywhere.
+Every output file starts with the confidentiality header from `output-contract.md`. Scan the
+whole session directory against the redaction list in `security-rules.md` (tokens, keys,
+cookies, real user emails, consumer PII, account ids not already in the target) before
+finishing; replace with `[REDACTED]`. Session output stays local; never transmit it anywhere.
+If a browser session was opened for the API lane, end it now: `playwright-cli -s=<sid> close`
+then `playwright-cli -s=<sid> delete-data`.

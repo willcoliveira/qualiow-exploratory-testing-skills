@@ -1,83 +1,107 @@
 # Phase 7: Reflection & Reporting (Mobile)
 
-Follow `../../qa-explore/phases/07-reporting.md` for the report structure, reflection
-questions, bug-report template, session-report template, and stats.json schema. The
-mobile additions (both modes):
+Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/07-reporting.md` for the reflection
+questions and the report structure; every artefact uses the format in
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` (confidentiality header
+first). The mobile differences (both modes):
 
 ## Stop recording
 
-Replace `tracing-stop` with:
+Replace `video-stop` / `tracing-stop` with:
 
 ```bash
-export MOBILE_CLI_STATE=/tmp/<target>-state.json
-MCLI="$PWD/bin/mcli"   # run from the repo root
-$MCLI record-stop   # closes the video (if record-start was used)
-$MCLI stop          # close the app/browser — leaves the sim running for next time
+qa/bin/mcli record-stop   # closes the .mp4 (if record-start was used)
+qa/bin/mcli stop          # close the app/browser — leaves the sim running for next time
+qa/bin/wk-ios --stop      # iOS WEB mode only, if the DOM bridge was used
 ```
 
-Do NOT `relaunch-clean` / wipe the device at session end — in WEB mode this preserves the
-persisted login; in NATIVE mode it preserves any account/state created this session.
+Do NOT `relaunch-clean` / wipe the device at session end: in WEB mode this preserves the
+persisted login; in NATIVE mode it preserves any account/state created this session. There
+is no playwright-cli session to `close` / `delete-data` on mobile.
 
-## Bug-report — mobile fields
+## Bug report — mobile fields
 
-In each `bugs/BUG-NNN.md`, replace the qa-explore `Environment` line with:
+Same file and headings as the contract — `bugs/BUG-NNN.md`, starting with the two-line
+header, verbatim:
+
+```
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+```
+
+then `# BUG-NNN: [Component] fails [Condition] causing [Impact]`, `**Severity:**`,
+`**Priority:**`, `**Component:**`, `**URL:**`, `**Environment:**`,
+`**Reproduction rate:**`, then `## Summary`, `## Expected Behavior`, `## Actual Behavior`,
+`## Steps to Reproduce`, `## Business Impact`, `## Evidence` and
+`## Recommended Fix Priority`. Two fields change on mobile:
 
 ```markdown
+**URL:** <WEB: the page URL loaded via open-url | NATIVE: the screen name or deep link>
 **Environment:**
-- Mode: [native / web]
-- Platform: [android / ios]
-- Device: [emulator-5554 / iPhone 17 sim UDID]
-- OS version: [from `bin/wadb shell getprop ro.build.version.release` / `xcrun simctl`]
-- App under test: [native: app id + version + build type | web: browser bundle + version]
-- Target URL: [web mode only: base_url]
-- Environment: [preprod / staging / production]
+- Mode: native | web
+- Platform: android | ios
+- Device: emulator-5554 | qa-iphone (UDID …)
+- OS version: <android: qa/bin/wadb shell getprop ro.build.version.release — ios: xcrun simctl list runtimes>
+- App under test: <native: app id + version + build type | web: browser bundle + version>
+- Target URL: <web mode only: base_url>
+- Environment: <preprod | staging | production>
 ```
 
-And add an **Evidence** block enriched for mobile:
+And `## Evidence` carries the mobile artefacts:
 
 ```markdown
-### Evidence
-- Screenshot: `screenshots/bug-NNN.png`
-- Video clip: `videos/bug-NNN.mp4` (if recorded)
-- Process log: `logs/bug-NNN.log` (logcat / simctl excerpt around the time of failure — app process in native mode, browser process in web mode, not a page JS console)
+## Evidence
+- Screenshot: `screenshots/BUG-NNN.png`
+- Video: `videos/BUG-NNN.mp4` (if recorded)
+- Log: `logs/BUG-NNN.log` (logcat / simctl excerpt around the failure — iOS is scoped to the app/browser process, Android is whole-device logcat, and neither is a page JS console)
+- Console errors: n/a on mobile (or the wk-ios observation, iOS WEB)
+- Network failures: n/a (no proxy) — or "needs proxy capture"
 ```
 
-When you file a bug, capture the log at the moment of failure:
+Capture the log at the moment of failure (the `logs/` directory was created in setup):
 
 ```bash
-$MCLI logs --since 30 --errors > output/sessions/<session-dir>/logs/bug-NNN.log
+qa/bin/mcli screenshot output/sessions/<session-dir>/screenshots/BUG-NNN.png
+qa/bin/mcli logs --since 30 --errors > output/sessions/<session-dir>/logs/BUG-NNN.log
 ```
+
+Redact the log excerpt per `security-rules.md` before it is saved: process logs routinely
+carry tokens and emails.
 
 ## Session report — mobile additions
 
-Append a "Mobile context" section to `session-report.md`:
+`session-report.md` per the contract with `Kind: mobile`, then append after `## Session Stats`:
 
 ```markdown
 ## Mobile Context
 
 | Field | Value |
 |---|---|
-| Mode | [native / web] |
-| Platform | [android / ios] |
-| Device | [device label] |
-| OS version | [version] |
-| App under test | [native: app id + version + build type | web: browser bundle + version] |
-| Target URL | [web mode only: base_url + environment] |
-| mobile-cli version | [git sha of this repo] |
+| Mode | native / web |
+| Platform | android / ios |
+| Device | <device label> |
+| OS version | <version> |
+| App under test | <native: app id + version + build type | web: browser bundle + version> |
+| Target URL | <web mode only: base_url + environment> |
+| Source state | <native: branch + sha + clean/dirty, if rebuilt> |
+| Driver version | <output of `qa/bin/mcli version`> |
 
 ## Deferred Tests (require additional tooling)
 
 | Test | Why deferred | What's needed |
 |---|---|---|
-| Network failure simulation | mobile-cli v1 has no proxy | mitmproxy + cert install |
-| Multi-device race conditions | mobile-cli v1 single-device | Second emulator + parallel sessions |
-| Server-side parameter tampering (non-deep-link) | No script eval on device | Proxy + request modification |
+| Network failure simulation | mobile-cli has no proxy | mitmproxy + cert install |
+| Multi-device race conditions | single device | second emulator + parallel sessions |
+| Server-side parameter tampering (non-deep-link) | no script eval on device | proxy + request modification |
 ```
+
+Every deferred test also appears in the coverage map as `not-tested` with the reason, so it
+shows up as a known gap.
 
 ## Requirements coverage cross-check (optional)
 
-If the session was scoped to gathered requirements / tickets, add a cross-check table — this
-is **not** test execution, it's "did exploration touch the areas those requirements
+If the session was scoped to gathered requirements / tickets, add a cross-check table. This
+is **not** test execution; it is "did exploration touch the areas those requirements
 designed?":
 
 ```markdown
@@ -90,25 +114,26 @@ Source: <ticket / acceptance criteria / gathered context>
 | ... | Yes/No/Partial | BUG-NNN or — | ... |
 ```
 
-The point is to surface coverage gaps the team can decide to fill manually or with automation.
-
 ## stats.json — mobile fields
 
-Append a `mobile` block to the qa-explore stats schema:
+`stats.json` exactly as the contract defines it, with `"kind": "mobile"`, and the device
+block under `coverage.mobile` (the schema is strict; no other top-level keys):
 
 ```json
-"mobile": {
-  "mode": "web",
-  "platform": "ios",
-  "device": "iPhone 17",
-  "app_under_test": "com.apple.mobilesafari",
-  "target_url": "https://staging.m.example.com",
-  "environment": "staging",
-  "videos_recorded": 1,
-  "log_errors_observed": 0,
-  "lifecycle_tests_run": 0,
-  "rotation_tests_run": 0,
-  "deferred_tests": []
+"coverage": {
+  "mobile": {
+    "mode": "web",
+    "platform": "ios",
+    "device": "qa-iphone",
+    "app_under_test": "com.apple.mobilesafari",
+    "target_url": "https://staging.m.example.com",
+    "environment": "staging",
+    "videos_recorded": 1,
+    "log_errors_observed": 0,
+    "lifecycle_tests_run": 0,
+    "rotation_tests_run": 0,
+    "deferred_tests": []
+  }
 }
 ```
 
@@ -116,8 +141,9 @@ Append a `mobile` block to the qa-explore stats schema:
 
 ## Update progress.json — final
 
-Same as qa-explore. Set `status: complete`, all phases to final status.
+Same as qa-explore. Set `status: complete`, all phases to their final status.
 
 ## Update indexes
 
-Append the session to `output/sessions/INDEX.md`.
+Append the session row to `output/sessions/INDEX.md` (`Kind` = `mobile`) and one row per
+bug to `output/bugs/all-bugs.md`, in the column order defined in `paths.md`.
