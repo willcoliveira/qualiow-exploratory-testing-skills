@@ -1,7 +1,7 @@
 # Template target — WEB-MODE mobile app in the REAL Android Emulator Chrome.
 # Copy this file, rename it, and point web.base_url at your mobile web app.
 # For NATIVE mode (an installed app under test), see _example-native-mobile.yml.
-id: example-sim-android-chrome
+id: _example-sim-android-chrome
 name: "Example Mobile Web App — Android Emulator Chrome"
 platform: android
 domain: _default

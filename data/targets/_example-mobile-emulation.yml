@@ -9,13 +9,13 @@
 #     /qa-explore-mobile): the genuine mobile engines — required for engine-identity
 #     behavior (UA/feature detection, real keyboard/viewport behavior, Safari quirks).
 #     Playwright's "webkit" is desktop macOS WebKit, NOT iOS Safari.
-id: example-mobile-emulation
+id: _example-mobile-emulation
 name: "Example Mobile Web App — Playwright Mobile Emulation (WebKit)"
 base_url: "https://staging.m.example.com"
 domain: _default
 auth:
   strategy: storage_state
-  state_file: ".auth/example-mobile-emulation.json"
+  state_file: ".auth/_example-mobile-emulation.json"
   login_url: "https://staging.m.example.com/login"
 browser:
   headless: false

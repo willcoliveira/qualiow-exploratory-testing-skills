@@ -1,7 +1,7 @@
 # Template target — WEB-MODE mobile app in the REAL iOS Simulator Safari.
 # Copy this file, rename it, and point web.base_url at your mobile web app.
 # For NATIVE mode (an installed app under test), see _example-native-mobile.yml.
-id: example-sim-ios-safari
+id: _example-sim-ios-safari
 name: "Example Mobile Web App — iOS Simulator Safari"
 platform: ios
 domain: _default

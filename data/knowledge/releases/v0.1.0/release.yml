@@ -11,7 +11,7 @@ notes: >
   how to recognize bugs (FEW HICCUPPS), how to explore (Test Tours),
   and core techniques (boundary testing, error guessing, accessibility).
 
-entry_count: 6
+entry_count: 13
 
 entries:
   - heuristic-sfdipot
@@ -20,3 +20,10 @@ entries:
   - technique-boundary-testing
   - technique-error-guessing
   - checklist-accessibility-wcag
+  - heuristic-goldilocks
+  - heuristic-rcrcrc
+  - technique-business-logic-race-conditions
+  - technique-risk-based-testing
+  - technique-data-integrity-testing
+  - reference-exploratory-testing-types
+  - reference-heuristic-praxis

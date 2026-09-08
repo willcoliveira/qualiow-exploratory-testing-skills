@@ -8,11 +8,11 @@ releases:
     entries_added:
       - id: technique-exactly-once-verification
         type: technique
-        name: "Exactly-Once Verification - Proving a Payment Moved Money Once"
+        name: "Exactly-Once Verification — Proving a Payment Moved Money Once"
         description: "Assert the balance delta, never the status field, then attack the flow with the five cases that break it: an identity collision between records created in the same instant, the same event redelivered simultaneously rather than sequentially, a contradicting event, an event arriving after a timeout closed the record, and a settlement amount that does not match the request. Includes what to do when the defect corrupts your own parallel test run."
       - id: technique-async-callback-contracts
         type: technique
-        name: "Asynchronous Callback Contracts - What a Webhook Endpoint Owes Its Caller"
+        name: "Asynchronous Callback Contracts — What a Webhook Endpoint Owes Its Caller"
         description: "Is the endpoint authenticated, which field does it actually deduplicate on rather than which one is documented, what does it do with an event matching no record, and can the caller distinguish applied from duplicate from discarded. The unmatched-event case is where collected money goes uncredited with nothing to show for it."
     entries_modified: []
     entries_removed: []
@@ -24,15 +24,15 @@ releases:
     entries_added:
       - id: technique-derived-value-verification
         type: technique
-        name: "Derived Value Verification - Recomputing the Number and Naming What It Does Not Prove"
+        name: "Derived Value Verification — Recomputing the Number and Naming What It Does Not Prove"
         description: "Recompute every percentage, total, ratio and aggregate from the raw figures in the same response, using the formula from the spec rather than the code. Choose cases that stress sign, zero, scale and cardinality, add the structural invariants, then state explicitly that internal consistency is not correctness and name the independent oracle that would close the gap."
       - id: technique-presentation-integrity
         type: technique
-        name: "Presentation Integrity - Does the Screen Show What the Service Sent?"
+        name: "Presentation Integrity — Does the Screen Show What the Service Sent?"
         description: "A correct payload can still reach the user as a wrong number. Formatting helpers that guess what a value is, units applied twice, rounding across a threshold, truncation shown as a total. Invisible from either surface alone, and routinely attributed to the wrong change."
       - id: technique-expected-behaviour-specification
         type: technique
-        name: "Expected Behaviour Specification - Writing the Spec That Should Have Existed"
+        name: "Expected Behaviour Specification — Writing the Spec That Should Have Existed"
         description: "Observed against expected, per area rather than per case, with the reject-or-clamp and error-or-empty decisions made explicit, ranked by what users can reach today, and closed with a plain-English reply for whoever decides to fund the fix."
       - id: technique-config-surface-verification
         type: technique
@@ -40,7 +40,7 @@ releases:
         description: "When the configuration mechanism is itself the change: values matching the deployed config rather than the source default, nothing leaking alongside them, the runtime genuinely reading through the surface rather than around it, and the route existing in every environment the change will be promoted to."
       - id: technique-release-readiness-verification
         type: technique
-        name: "Release Readiness Verification - Many Tickets, One Build"
+        name: "Release Readiness Verification — Many Tickets, One Build"
         description: "Establish what is deployed before testing anything, give every ticket a result from a fixed vocabulary that keeps not-testable and not-tested visible, mark code-verified-only as UNVERIFIABLE rather than green, separate carry-overs, and end with a disposition and the condition that would reverse it."
     entries_modified: []
     entries_removed: []
@@ -52,19 +52,19 @@ releases:
     entries_added:
       - id: technique-environment-fingerprinting
         type: technique
-        name: "Environment Fingerprinting - Proving What Is Actually Running"
+        name: "Environment Fingerprinting — Proving What Is Actually Running"
         description: "Before the first probe: which build is deployed in every component of the path, whether the changed code path is SELECTED here, and whether the commit under test is an ancestor of what is running. Same build plus different behaviour means configuration, not deploy lag. Adds NOT-REACHABLE as the honest verdict when the change is not live in the environment being measured."
       - id: technique-authenticated-api-probing
         type: technique
-        name: "Authenticated API Probing - Calling the Endpoint Behind the Screen"
+        name: "Authenticated API Probing — Calling the Endpoint Behind the Screen"
         description: "Get a real authenticated request context without handling a token by running fetch inside the already-logged-in page, then drive a written case matrix through it. Ten case families, how to read each signal, and the evidence and safety rules that keep credentials and response bodies off disk."
       - id: technique-ui-api-differential
         type: technique
-        name: "UI-vs-API Differential - Running the Same Matrix at Both Surfaces"
+        name: "UI-vs-API Differential — Running the Same Matrix at Both Surfaces"
         description: "Sort every finding into reproducible-at-both, API-only, UI-only and neither. Corrects the most common false PASS in exploratory testing: a client-side guard recorded as the endpoint's behaviour."
       - id: technique-silent-failure-audit
         type: technique
-        name: "Silent Failure Audit - Failures That Render as Ordinary Results"
+        name: "Silent Failure Audit — Failures That Render as Ordinary Results"
         description: "Seven shapes of failure that look like a legitimate empty or zero answer, how to force each one, and why they recur as a class rather than as individual bugs."
     entries_modified: []
     entries_removed: []
@@ -76,15 +76,15 @@ releases:
     entries_added:
       - id: technique-verification-mode-selection
         type: technique
-        name: "Verification Mode Selection - Choosing How to Observe a Backend Change"
+        name: "Verification Mode Selection — Choosing How to Observe a Backend Change"
         description: "Route each AC to the observation channel that can falsify it: API-behind-the-screen, direct request to a no-UI endpoint, LLM output judgement, or needs-a-human. Makes UNVERIFIABLE a first-class verdict instead of a PASS inferred from source."
       - id: technique-functional-diff-analysis
         type: technique
-        name: "Functional Diff Analysis - Reading a Backend Change for Behaviour, Not Style"
+        name: "Functional Diff Analysis — Reading a Backend Change for Behaviour, Not Style"
         description: "Eight passes over a BE/API/LLM diff that produce falsifiable hypotheses rather than code comments: spec drift, value tracing to the service boundary, failure paths, identity propagation, producer/consumer contract, scope, and the tests that shipped with it."
       - id: technique-llm-output-verification
         type: technique
-        name: "LLM & Agent Output Verification - Running It and Judging the Result"
+        name: "LLM & Agent Output Verification — Running It and Judging the Result"
         description: "Fixed input set, written rubric, before-and-after on the same inputs, N runs to expose variance, assertions on properties and tool trajectory rather than on generated text. Includes what not to claim from a passing run."
     entries_modified: []
     entries_removed: []
@@ -96,12 +96,14 @@ releases:
     entries_added:
       - id: technique-contract-narrowing
         type: technique
-        name: "Contract Narrowing - Verifying a Swapped Data Source"
+        name: "Contract Narrowing — Verifying a Swapped Data Source"
         description: "When a full-record read is replaced by a projection, the request's field-selection list becomes the payload specification. Trace every consumed field to a selection token; unrequested fields vanish with no error, no DLQ, and a green suite."
       - id: technique-test-suite-audit
         type: technique
         name: "Auditing the Branch's Own Tests"
         description: "When a change rewrites the tests that are meant to prove it works, those tests become part of the change. Check that each assertion still falsifies what its name claims, and that artefacts named by an AC actually exist."
+    entries_modified: []
+    entries_removed: []
     origin: "A read-path swap on an event-processing service — a full-record read replaced by a projection read. The contract-narrowing audit found a dropped webhook field that 175 green unit tests could not see; the test audit found an e2e negative scenario that could only pass when the system was broken."
 
   - version: "0.1.0"
