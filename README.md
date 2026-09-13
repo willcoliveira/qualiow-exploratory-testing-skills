@@ -59,6 +59,15 @@ npx playwright-cli install --skills   # optional: the official Playwright skill 
 ### 2. Claude Code plugin
 
 ```bash
+claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
+claude plugin install qualiow@qualiow
+```
+
+The repository is its own marketplace (`.claude-plugin/marketplace.json`), so those two
+commands are the whole install. For development against a local checkout, point Claude Code
+at the directory instead:
+
+```bash
 claude --plugin-dir /path/to/qualiow-exploratory-testing-skills
 ```
 
@@ -68,6 +77,11 @@ unless the project you are in has its own `data/` or `qa/` directory, which wins
 
 `bin/` lands on `PATH` only for **marketplace** installs — with `--plugin-dir`, call the
 driver by its full path, `${CLAUDE_PLUGIN_ROOT}/bin/mcli`.
+
+Under a plugin install the `qualiow` CLI runs through `bin/qualiow`, a launcher shim: it uses
+the local build when the checkout has one, and otherwise fetches the published npm package
+with `npx`, pinned to the version in `.claude-plugin/plugin.json`. A plugin install has no
+`dist/`, so the first run of that path needs network.
 
 ### 3. Git checkout (contributors, dogfooding)
 
@@ -94,9 +108,15 @@ from the shell.
 | `qualiow init` | `--include-examples` `--force` `--dry-run` | Install skills, agent, data, `qa/bin/` and the output tree into the current project. Idempotent |
 | `qualiow explore [url]` | `-t <target>` `-c <context>` `--time-box 45m` `--dry-run` | **Pre-flight only.** Validates the inputs, creates the session directory skeleton, and prints the `/qa-explore … --session <dir>` command to paste into Claude Code. It does not drive a browser |
 | `qualiow validate` | `--targets` `--domains` `--knowledge` `--kb` `--all` | Validate configs against their schemas; exits 1 on any failure. `--all` also checks a project-local `qa/target.yml` and cross-checks the knowledge base against its manifest |
-| `qualiow list <type>` | `sessions` \| `knowledge` \| `targets` \| `domains` | List what is installed or recorded |
+| `qualiow list <type>` | `sessions` \| `knowledge` \| `targets` \| `domains`; for `knowledge` also `--domain` `--tag` `--type` `--entry <id>` `--changelog` `--stats` | List what is installed or recorded. `list knowledge --entry <id>` prints that entry's YAML; `--changelog` and `--stats` read the knowledge changelog and the manifest counts |
 | `qualiow report` | `-s <id>\|latest` `-f md\|html\|json\|jira` `-o <file>` `--stdout` | Export an existing session. `md` writes `session-summary.md`; html/json/jira carry the confidentiality header and pass through redaction |
 | `qualiow kb <sync\|check>` | — | Regenerate or validate `data/knowledge/manifest.yml` from the release files |
+| `qualiow kb digest` | `--for explore\|backend\|mobile` `--domain <id>` `--tag <t...>` `--entry <id>` `--data <dir>` `--max-lines <n>` | Print a compact digest of the knowledge entries a session needs, instead of the manifest and the entries read whole. `--entry <id>` prints one entry in full |
+| `qualiow session finalize <dir\|latest>` | `--check` `--redact` | Close a session: validate it against the output contract, then append the INDEX row, the bug rows and the metrics line. `--check` writes nothing; `--redact` rewrites files that still carry a secret |
+| `qualiow session list` | — | The session listing, same as `list sessions` |
+| `qualiow session archive <dir>` | `--remove` | Tar the session directory; `--remove` also deletes it and marks its INDEX row archived |
+| `qualiow session delete <dir>` | `--yes` | Remove a session directory and its index rows. Dry-run until `--yes` |
+| `qualiow session prune` | `--older-than <days>` `--yes` | The same, for every session older than N days |
 | `qualiow --version` | — | Print the package version |
 
 `qualiow gather` was **removed in 2.0.0** — it was a stub that wrote nothing. Use the
@@ -104,6 +124,21 @@ from the shell.
 
 A global install also puts the mobile helpers on `PATH`: `mcli`, `wadb`, `wk-ios`,
 `qualiow-doctor-mobile`, `qualiow-setup-mobile`.
+
+### Token routing
+
+Work with a fixed contract belongs to the CLI, not to the model. A session loads the
+knowledge base through `qualiow kb digest` instead of reading `data/knowledge/manifest.yml`
+and the five always-load entries (~964 lines) whole, and it ends with
+`qualiow session finalize`, so the INDEX and `all-bugs.md` rows and the metrics line are
+never hand-written; `/qa-knowledge-list` and `/qa-explore-cleanup` are wrappers around
+`list knowledge` and `session …`.
+
+Everything that requires judgement stays where it is: severity, priority, business impact,
+the bug reports themselves, the charter and risk ranking, what is *missing*, the AC verdicts,
+the executive summary and the reflection. The list of what is never delegated, and the read
+thresholds that route the rest, is
+[`skills/qa-explore/references/delegation-rules.md`](skills/qa-explore/references/delegation-rules.md).
 
 ## Running sessions
 
@@ -163,6 +198,7 @@ output/sessions/2026-09-08-1813-explore-parabank/
   phase-6-edge-cases.md
   bugs/BUG-001.md          # one bug = one report
   screenshots/BUG-001.png
+  snapshots/               # raw page snapshots — working files, never part of the report
   videos/
   session-report.md        # executive summary, coverage map, recommendations
   stats.json
@@ -170,8 +206,10 @@ output/sessions/2026-09-08-1813-explore-parabank/
 
 Plus a row in `output/sessions/INDEX.md`
 (`| Date | Kind | Target | Bugs | Duration | Status | Report |`) and an entry in
-`output/bugs/all-bugs.md`. Bug reports open with the two-line confidentiality blockquote and
-the headline `# BUG-NNN: [Component] fails [Condition] causing [Impact]`.
+`output/bugs/all-bugs.md` — both written by `qualiow session finalize`, which validates the
+session first and refuses one with a missing confidentiality header or an unredacted secret.
+Bug reports open with the two-line confidentiality blockquote and the headline
+`# BUG-NNN: [Component] fails [Condition] causing [Impact]`.
 
 ### Project-local configuration
 
@@ -432,8 +470,11 @@ qualiow-exploratory-testing-skills/
     agents/qa-gather-agent.md # the gather sub-agent — CANONICAL source
   skills/                     # generated mirror (npm + plugin) — npm run sync:plugin
   agents/                     # generated mirror
-  .claude-plugin/plugin.json  # Claude Code plugin manifest
+  .claude-plugin/
+    plugin.json               # Claude Code plugin manifest
+    marketplace.json          # the repo is its own marketplace (source: "./")
   bin/
+    qualiow                   # CLI launcher shim (local build, else npx the npm package)
     mcli, mobile-cli.mjs      # Maestro/simctl/adb shim + permission-friendly wrapper
     wadb, wk-ios, wkeval.mjs  # adb wrapper, iOS WebKit DOM bridge
     setup-mobile.sh           # one-time toolchain bootstrap

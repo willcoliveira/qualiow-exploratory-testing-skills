@@ -39,9 +39,34 @@ behind `/qa-gather`.
 
 Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc.
 
+## CLI
+
+`qualiow` — `init`, `explore` (pre-flight only), `validate`, `list <sessions|knowledge|targets|domains>`,
+`report`, `kb <sync|check|digest>`, `session <finalize|list|archive|delete|prune>`.
+
+The fixed-contract work belongs to the CLI, not to the model:
+
+- `kb digest [--for explore|backend|mobile] [--domain <id>] [--tag <t>…] [--entry <id>]
+  [--data <dir>] [--max-lines <n>]` — what a session loads at setup, instead of reading
+  `manifest.yml` and the entry files whole. `--entry <id>` prints one entry in full.
+- `session finalize <dir|latest> [--check] [--redact]` — validate a finished session, append
+  the index rows, record the metrics line. Idempotent.
+- `list knowledge [--domain] [--tag] [--type] [--entry <id>] [--changelog] [--stats]` — what
+  `/qa-knowledge-list` wraps; `session list|archive|delete|prune` is what `/qa-explore-cleanup`
+  wraps.
+
+What is never delegated (severity, business impact, bug reports, charter and risk ranking,
+verdicts, executive summary, reflection): `.claude/skills/qa-explore/references/delegation-rules.md`.
+Resolution order for the command itself: `.claude/skills/qa-explore/references/paths.md`.
+Under a plugin install the CLI runs through `bin/qualiow`.
+
 ## Usage
 
 ```bash
+# Install as a Claude Code plugin (the repo is its own marketplace)
+claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
+claude plugin install qualiow@qualiow
+
 # Explore a public site
 /qa-explore https://testers.ai/testing/
 
@@ -64,12 +89,14 @@ Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc
   to npm and used by the plugin (`npm run sync:plugin`; CI fails on drift — never hand-edit
   the mirror)
 - `.claude/agents/` — `qa-gather-agent`; mirrored to `agents/` the same way
-- `.claude-plugin/plugin.json` — Claude Code plugin manifest
-- `bin/` — `mcli` + `mobile-cli.mjs` (mobile driver), `wadb`, `wk-ios` + `wkeval.mjs` (iOS
-  WebKit DOM bridge), `setup-mobile.sh`, `doctor-mobile.sh`
+- `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
+  repo is its own marketplace; the single plugin's `source` is `"./"`)
+- `bin/` — `qualiow` (CLI launcher shim: local build if present, else `npx` the published
+  package pinned to `plugin.json`), `mcli` + `mobile-cli.mjs` (mobile driver), `wadb`,
+  `wk-ios` + `wkeval.mjs` (iOS WebKit DOM bridge), `setup-mobile.sh`, `doctor-mobile.sh`
 - `scripts/` — repo dev tooling, not shipped: `kb-sync.mjs` (rebuild/check the knowledge
   manifest), `check-pack.mjs` (assert the npm tarball contents), `sync-version.mjs` (keep
-  `.claude-plugin/plugin.json` in step with `package.json`)
+  `.claude-plugin/plugin.json` and `marketplace.json` in step with `package.json`)
 - `data/knowledge/` — YAML knowledge base (heuristics, techniques, checklists) versioned as
   releases v0.1.0–v0.6.0, 29 entries, indexed by `manifest.yml`
 - `data/domains/` — domain profiles, **YAML only** (`*.yml`; the `.md` variants were removed
@@ -103,9 +130,14 @@ Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc
 Every session kind lands in `output/sessions/<YYYY-MM-DD-HHmm>-<kind>-<slug>/` with
 `kind ∈ {explore, quick, mobile, backend}` — e.g. `2026-09-08-1813-explore-parabank`. Each
 one writes `session-report.md`, `bugs/BUG-NNN.md`, `stats.json`, phase artefacts
-(`phase-3-discovery.md` … `phase-6-edge-cases.md`), a row in `output/sessions/INDEX.md`
-(`| Date | Kind | Target | Bugs | Duration | Status | Report |`) and an entry in
-`output/bugs/all-bugs.md`.
+(`phase-3-discovery.md` … `phase-6-edge-cases.md`) and working files under `snapshots/`.
+
+The row in `output/sessions/INDEX.md`
+(`| Date | Kind | Target | Bugs | Duration | Status | Report |`), the entries in
+`output/bugs/all-bugs.md` and the `output/metrics.jsonl` line are written by
+`qualiow session finalize <session-dir>`, never by hand — it validates the session first and
+refuses one with a missing confidentiality header, an off-contract `stats.json` or an
+unredacted secret.
 
 Bug reports open with the two-line confidentiality blockquote followed by
 `# BUG-NNN: [Component] fails [Condition] causing [Impact]`. The full contract lives in

@@ -15,7 +15,7 @@ Step-by-step guide to running your first AI-powered exploratory testing session.
 
 ```bash
 npm install -g qualiow-exploratory-testing
-qualiow --version        # prints the installed package version, e.g. 2.0.0
+qualiow --version        # prints the installed package version, e.g. 2.1.0
 ```
 
 ### Initialise a project
@@ -46,9 +46,26 @@ cp qa/.env.example qa/.env             # credentials go here, never in a YAML fi
 npx playwright-cli install --skills    # optional: the official Playwright skill alongside
 ```
 
-Alternative install paths — the Claude Code plugin (`claude --plugin-dir <repo>`, skills
-appear as `/qualiow:qa-explore`) and a plain git checkout — are described in the project
-README.
+### Or install it as a Claude Code plugin
+
+The repository is its own Claude Code marketplace, so an install is two commands:
+
+```bash
+claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
+claude plugin install qualiow@qualiow
+```
+
+Skills then appear namespaced — `/qualiow:qa-explore`, `/qualiow:qa-verify-backend` — and the
+data files resolve from `${CLAUDE_PLUGIN_ROOT}/data/` unless the project has its own `data/`
+or `qa/` directory, which wins. Pointing Claude Code at a local checkout
+(`claude --plugin-dir /path/to/qualiow-exploratory-testing-skills`) is the development path
+and behaves the same, except that `bin/` is not put on `PATH`, so the helpers are called by
+their full path (`${CLAUDE_PLUGIN_ROOT}/bin/mcli`).
+
+A plugin install has no `dist/`, so the `qualiow` CLI runs through the `bin/qualiow` launcher
+shim: it uses the local build when the checkout has one, and otherwise fetches the published
+npm package with `npx`, pinned to the version in `.claude-plugin/plugin.json`. The first run
+of that path needs network. A plain git checkout is described in the project README.
 
 ## 2. Run your first session
 
@@ -66,10 +83,12 @@ Claude will:
 1. Resolve the target config and credentials, and create the session directory
 2. Authenticate if the target requires it
 3. Write a charter — what is being tested, why, and what "done" looks like
-4. Read the knowledge base for the heuristics that apply to this domain
+4. Load the heuristics that apply to this domain with `qualiow kb digest --for explore
+   --domain <domain>`, rather than reading the manifest and the entry files whole
 5. Explore across eight phases, saving findings to disk between each
 6. File one bug report per finding in `bugs/`
-7. Write `session-report.md` and update the session index
+7. Write `session-report.md`, then run `qualiow session finalize <session-dir>` — it validates
+   the session and appends the index rows
 
 The eight phases and their share of the 45-minute cap:
 
@@ -136,6 +155,19 @@ Plus, at the top level:
 - `output/sessions/INDEX.md` — one row per session
   (`| Date | Kind | Target | Bugs | Duration | Status | Report |`)
 - `output/bugs/all-bugs.md` — every bug across every session
+
+Both are written by `qualiow session finalize`, which the session runs as its last step. It
+checks the session against the output contract first — a confidentiality header on every
+markdown file, `stats.json` in the metrics shape, no unredacted secret anywhere — and refuses
+to append rows until the violations it lists are fixed. Run it by hand at any time:
+
+```bash
+qualiow session finalize latest --check     # report violations, write nothing
+qualiow session finalize latest --redact    # rewrite files that still carry a secret
+qualiow session finalize latest             # validate, then append the rows
+```
+
+Finalizing twice changes nothing — the rows are appended once.
 
 ### Bug report structure
 
@@ -266,14 +298,32 @@ indexed by `data/knowledge/manifest.yml`.
 Entries are YAML files in `data/knowledge/releases/<version>/entries/`. After editing by hand,
 run `qualiow kb sync` to regenerate the manifest and `qualiow kb check` to verify it.
 
+A session does not read the manifest or the entry files. It calls `qualiow kb digest`, which
+prints the entries that apply — the always-load set plus whatever the domain, the tags and the
+skill select — as a few lines each:
+
+```bash
+qualiow kb digest --for explore --domain fintech      # what a session loads at setup
+qualiow kb digest --for backend                       # /qa-verify-backend's set
+qualiow kb digest --tag security data-integrity       # one or more tags
+qualiow kb digest --entry heuristic-test-tours        # one entry, in full
+```
+
+`--for` is driven by the optional `loading_strategy.by_skill` block in the manifest, so you can
+decide which entries a skill always gets without touching the skill itself.
+
 ## 6. CLI commands
 
 ```bash
 qualiow init --dry-run              # preview what init would write
 qualiow validate --all              # targets + qa/target.yml + domains + knowledge base
 qualiow list sessions               # also: knowledge | targets | domains
+qualiow list knowledge --stats      # also: --domain --tag --type --entry <id> --changelog
 qualiow report -s latest -f html -o report.html
 qualiow kb check
+qualiow kb digest --for explore     # the knowledge a session loads
+qualiow session finalize latest     # validate a finished session and index it
+qualiow session prune --older-than 30        # dry-run; add --yes to remove
 ```
 
 `qualiow explore [url]` is **pre-flight only**: it validates the inputs, creates the session

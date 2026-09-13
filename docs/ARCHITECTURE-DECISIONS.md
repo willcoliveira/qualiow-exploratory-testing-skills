@@ -4,23 +4,24 @@ Every major design choice evaluated with trade-offs, real-world evidence from ou
 
 *Internal document — repo only, not shipped in the npm package.*
 
-## Status as of 2026-09-08 (2.0.0)
+## Status as of 2026-09-13 (2.1.0)
 
-The records below were written during the 2026-03 POC. This table is the current reading of
-each one; where the two disagree, this table wins.
+Records 001–010 were written during the 2026-03 POC; 012 was written for this release. This
+table is the current reading of each one; where the two disagree, this table wins.
 
-| ADR | Decision | Status (2026-09-08) | Note |
+| ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
 | 001 | Playwright CLI as the browser driver | **Keep** | Still the right trade-off. The MCP/Chrome-MCP fallback chain was never built and is not planned |
-| 002 | Skills-only, no custom MCP server | **Keep** | Token cost has not become the constraint the record anticipated |
+| 002 | Skills-only, no custom MCP server | **Keep** | No MCP server, and none planned: the complement the record sketches turned out to be the `qualiow` CLI. From 2.1.0 a session's knowledge load is a `qualiow kb digest` call, not an MCP tool |
 | 003 | YAML knowledge base | **Keep** | 29 entries across v0.1.0–v0.6.0 — still well under the ~50-entry point where an index would earn its place |
-| 004 | Prompt-driven, no runtime code | **Revisit** | Partly overtaken: 2.0.0 has a real TypeScript layer (CLI, schemas, formatters, redaction), but session orchestration is still entirely prompt-driven. The hybrid the record proposes is not finished |
+| 004 | Prompt-driven, no runtime code | **Revisit** | Largely overtaken. 2.1.0 gives the deterministic layer the work with a fixed contract: knowledge loading (`kb digest`), the index rows and the metrics line, strict `stats.json` validation, the redaction check and session cleanup (`session …`). Session orchestration and every judgement are still prompt-driven, which is the hybrid the record proposes |
 | 005 | Standalone project, not a monorepo package | **Keep** | The `tool-qa-workflow` bridge named in the record does not exist and has been dropped from the skills |
 | 006 | File-based output plus a structured log | **Done** | `output/metrics.jsonl` is written by `qualiow report` via `appendSessionMetricsDeduped`, one deduplicated line per session. The dashboard the record sketches was not built |
 | 007 | Storage state plus adaptive login | **Keep** | The freshness check is implemented as guidance in the auth phase, not as code |
 | 008 | Domain configs as markdown → YAML | **Done in 2.0.0** | The `.md` domain files are removed; `data/domains/*.yml` is the only format, `DomainConfigSchema` matches the shipped files, and `qualiow validate --all` covers them |
 | 009 | Single monolithic agent per session | **Revisit** | Phases hand off through files, which is most of the benefit, but sessions still run in one context. Blocked on the same question as `KNOWN-ISSUES.md` ISSUE-001 |
 | 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
+| 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
 
 ---
 
@@ -565,6 +566,84 @@ Phase 5 (Edge cases): screenshot for responsive testing (mobile viewport)
 This requires Playwright MCP with `--caps vision` or the agent reading screenshots via the Read tool.
 
 **Status: KEEP snapshot primary + ADD selective vision**
+
+---
+
+*ADR-011 is reserved for the model-routing record that lands with 2.2.0 (cheap-model
+sub-agents for the I/O-heavy reads, plus the hooks that enforce the read thresholds).*
+
+## ADR-012: Marketplace Distribution and the `bin/qualiow` Launcher
+
+*Written 2026-09-13 for 2.1.0, not during the POC.*
+
+### Context
+
+2.0.0 shipped `.claude-plugin/plugin.json`, so the skills could be loaded with
+`claude --plugin-dir <repo>`. That leaves the install as "clone this, then point Claude Code
+at it", and it leaves the CLI unreachable: a plugin installed straight from git has no
+`dist/` (it is build output, never committed) and no `node_modules` (tsup does not bundle
+dependencies), so `dist/cli/index.js` — the `bin` entry `package.json` declares — cannot run
+in place. From 2.1.0 the skills call `qualiow` for the knowledge digest and for finalizing a
+session, so "the CLI is not there" stops being cosmetic.
+
+### Decision Made
+
+**The repository is its own marketplace, and `bin/qualiow` is a launcher shim.**
+
+- `.claude-plugin/marketplace.json` declares one plugin whose `source` is `"./"` — correct for
+  a repo that is both the marketplace and the plugin it lists. Install:
+
+  ```bash
+  claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
+  claude plugin install qualiow@qualiow
+  ```
+
+  `--plugin-dir` remains the development path.
+- `bin/qualiow` resolves its own directory (following symlinks) and, if `dist/cli/index.js`
+  and `node_modules` are both present, execs the local build. Otherwise it exports
+  `CLAUDE_PLUGIN_ROOT` (so the CLI still finds the plugin's `data/`), reads the version from
+  `.claude-plugin/plugin.json`, and execs
+  `npx -y -p qualiow-exploratory-testing@<version> qualiow …`, falling back to `@latest` if
+  the pinned fetch fails. `package.json` `bin.qualiow` still points at `dist/cli/index.js`, so
+  an npm install is unaffected.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| Commit `dist/` | Build output in git, a diff on every release, and it still needs `node_modules` for the runtime dependencies |
+| Bundle every dependency with tsup | A much larger artefact to keep correct, for one entry point that npm already publishes |
+| Tell plugin users to `npm install -g` as well | Two installs to keep in step, and the skills would have to branch on which one is present |
+| A separate marketplace repository | A second repo to version and release in lockstep, for one plugin |
+
+### Consequences
+
+- **Release order matters.** The shim pins the npm version to whatever
+  `.claude-plugin/plugin.json` says, so `npm publish` must land **before** the tag is pushed
+  and the GitHub release is cut. A tag that arrives first gives plugin installs a pinned fetch
+  that 404s, and they fall back to `@latest` — the previous release.
+- **The install copies the whole repository**, `src/`, `tests/` and the POC target configs
+  included, because `source: "./"` has no file filter. Nothing private travels with it:
+  `data/targets/local-*.yml`, `.auth/`, `.env` and `qa/.env` are gitignored, so what ships is
+  exactly what is on `main`. Moving the POC targets under `data/targets/poc/` to slim the copy
+  is a follow-up, not a blocker.
+- **`npx qualiow` was always wrong and is now fixed.** The published package is
+  `qualiow-exploratory-testing`; `qualiow` is only the bin name. A bare `npx qualiow` in a
+  project that does not have the package installed resolves to a different package or to
+  nothing. Skills write `qualiow …` with the resolution order from
+  `qa-explore/references/paths.md`, or the explicit
+  `npx -y -p qualiow-exploratory-testing@<version> qualiow …`.
+- **CI validates both manifests non-strict.** `claude plugin validate . --strict` warns about
+  the root `CLAUDE.md` (verified on Claude Code 2.1.269), which is a repository file and not a
+  plugin defect, so the workflow runs `claude plugin validate .` and
+  `claude plugin validate .claude-plugin/marketplace.json` without `--strict`.
+- **A plugin-distributed agent cannot declare `permissionMode`** (`KNOWN-ISSUES.md` ISSUE-001),
+  so no agent this repository ships declares one — including the ones 2.2.0 adds. Permission
+  behaviour is the user's settings, not ours.
+- `scripts/sync-version.mjs` now writes `plugins[0].version` in `marketplace.json` alongside
+  `plugin.json`, and `scripts/check-pack.mjs` asserts `bin/qualiow` is in the tarball.
+
+**Status: DONE in 2.1.0**
 
 ---
 
