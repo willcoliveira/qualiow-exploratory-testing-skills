@@ -77,6 +77,41 @@ export function resolveTargetPath(
   return resolve(pkgRoot, 'data', 'targets', '_default.yml');
 }
 
+/**
+ * Resolve the `data/` directory the read-only commands read from.
+ *
+ * Order, first existing wins:
+ *   1. an explicit directory (`--data`), resolved against `cwd`
+ *   2. `<cwd>/data`, but only when it carries `knowledge/manifest.yml` — the
+ *      marker that this is a qualiow project rather than any `data/` folder
+ *   3. `$CLAUDE_PLUGIN_ROOT/data`, set by Claude Code under a plugin install
+ *   4. `<pkgRoot>/data`, the package's own shipped data
+ *
+ * An explicit directory is returned as given even when it does not exist, so a
+ * typo surfaces as a "not found" naming the path the caller asked for instead
+ * of silently falling back to the package data.
+ */
+export function resolveDataDir(
+  cwd: string,
+  explicit?: string,
+  pkgRoot: string = getPackageRoot(),
+): string {
+  if (explicit) return resolve(cwd, explicit);
+
+  const projectLocal = resolve(cwd, 'data');
+  if (existsSync(join(projectLocal, 'knowledge', 'manifest.yml'))) {
+    return projectLocal;
+  }
+
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
+  if (pluginRoot) {
+    const pluginData = resolve(pluginRoot, 'data');
+    if (existsSync(pluginData)) return pluginData;
+  }
+
+  return resolve(pkgRoot, 'data');
+}
+
 /** Resolve a domain config, trying `<id>.yml` then `_<id>.yml`. */
 export function resolveDomainPath(dataDir: string, id: string): string {
   const direct = join(dataDir, 'domains', `${id}.yml`);

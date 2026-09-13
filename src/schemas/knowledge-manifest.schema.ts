@@ -23,6 +23,9 @@ export const LoadingStrategySchema = z.object({
   always: z.array(z.string()),
   by_domain: z.record(z.string(), z.array(z.string())),
   by_tag: z.record(z.string(), z.array(z.string())),
+  /** Per-skill selection used by `qualiow kb digest --for <skill>`. Optional so
+   *  a manifest written before this key still validates. */
+  by_skill: z.record(z.string(), z.array(z.string())).optional(),
 });
 
 export const KnowledgeManifestSchema = z.object({
