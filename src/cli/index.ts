@@ -5,6 +5,7 @@ import { listCommand } from './commands/list.js';
 import { reportCommand } from './commands/report.js';
 import { exploreCommand } from './commands/explore.js';
 import { kbCommand } from './commands/kb.js';
+import { sessionCommand } from './commands/session.js';
 import { getPackageVersion } from '../utils/paths.js';
 
 const program = new Command()
@@ -18,5 +19,6 @@ program.addCommand(listCommand());
 program.addCommand(reportCommand());
 program.addCommand(exploreCommand());
 program.addCommand(kbCommand());
+program.addCommand(sessionCommand());
 
 program.parse();
