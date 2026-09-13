@@ -11,7 +11,7 @@ description: >
   "test the API", "check the endpoint", or gives a backend/API/infra ticket whose ACs
   cannot be seen in a browser.
 argument-hint: "[--target <id>] [--context <file>] [--static-only] [--api-only] [--no-e2e] [--parity <target-id>]"
-allowed-tools: Read, Write, Glob, Grep, Bash(git:*), Bash(aws:*), Bash(jq:*), Bash(grep:*), Bash(curl:*), Bash(node:*), Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(terraform validate:*), Bash(terraform fmt:*)
+allowed-tools: Read, Write, Glob, Grep, Bash(git:*), Bash(aws:*), Bash(jq:*), Bash(grep:*), Bash(curl:*), Bash(node:*), Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx:*), Bash(terraform validate:*), Bash(terraform fmt:*)
 ---
 
 # Backend & Infrastructure AC Verification
@@ -93,9 +93,12 @@ Execute in order. Read and follow the linked file.
 
 ## Knowledge Base
 
-Load these from `<data>/knowledge/` (resolved per `paths.md`) before the static and live lanes. They are the
-BE/API verification layer — techniques derived from real sessions with this skill,
-not from published literature.
+Before the static and live lanes, run `qualiow kb digest --for backend` (resolve the prefix
+per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`). It prints a summary of each
+entry below; fetch one in full with `qualiow list knowledge --entry <id>` when you need its
+steps, and never `Read` the manifest or a release entry whole. The table is the reference
+list of what the digest loads — the BE/API verification layer, techniques derived from real
+sessions with this skill, not from published literature.
 
 | Entry | Use it when |
 |-------|-------------|

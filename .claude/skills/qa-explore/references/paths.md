@@ -22,7 +22,9 @@ written by `/qa-target-setup`, and is the right place for anything with internal
 ## Data directory (`<data>`)
 
 First existing of: `$PWD/data` → `${CLAUDE_PLUGIN_ROOT}/data` →
-`${CLAUDE_SKILL_DIR}/../../data` → `${CLAUDE_SKILL_DIR}/../../../data`.
+`${CLAUDE_SKILL_DIR}/../../data` → `${CLAUDE_SKILL_DIR}/../../../data`. The `qualiow` CLI
+resolves the same order — an explicit `--data <dir>`, then `$PWD/data`, then
+`$CLAUDE_PLUGIN_ROOT/data`, then the data shipped inside the package.
 
 Read from `<data>`: `domains/<domain>.yml`, `knowledge/manifest.yml`,
 `knowledge/releases/<version>/entries/*.yml`, `knowledge/learned-patterns.md`,
@@ -45,6 +47,24 @@ First existing of: `$PWD/qa/bin/mcli` → `$PWD/bin/mcli` → `mcli` on `PATH` �
 `wadb`, `wk-ios` and `doctor-mobile.sh`. The mobile phase files show `qa/bin/mcli` (the
 default after `qualiow init`); in a checkout of this repository it is `bin/mcli`.
 Substitute the prefix you resolved.
+
+## CLI
+
+`qualiow` is the deterministic half of the pack: knowledge digests, session finalization,
+listings, archival. First working of:
+
+1. `qualiow` on `PATH` — a marketplace plugin install (its `bin/` is on `PATH`), or a global
+   npm install
+2. `npx -y -p qualiow-exploratory-testing qualiow` — a project that depends on the npm package
+3. `${CLAUDE_PLUGIN_ROOT}/bin/qualiow` — a plugin loaded with `--plugin-dir`
+4. `bin/qualiow` — this repository checked out
+
+The npm package is **`qualiow-exploratory-testing`** and the binary it installs is `qualiow`.
+Never write bare `npx qualiow`: that spelling resolves a package that does not exist.
+
+Same rule as the mobile driver — resolve once in setup, then write the resolved literal
+prefix as the first token of every command. The phase files show `qualiow <command>` for
+brevity; substitute the prefix you resolved.
 
 ## Output
 
@@ -70,6 +90,10 @@ command in the session carries it; the phase files omit the prefix for brevity. 
 ends with `playwright-cli -s=<sid> close` and then `playwright-cli -s=<sid> delete-data`.
 
 ### Index rows
+
+`qualiow session finalize <session-dir>` writes both rows (and creates either index file if
+it is missing). The formats below are what it appends — write them by hand only when the CLI
+is unavailable.
 
 Append to `output/sessions/INDEX.md` (columns `| Date | Kind | Target | Bugs | Duration | Status | Report |`):
 

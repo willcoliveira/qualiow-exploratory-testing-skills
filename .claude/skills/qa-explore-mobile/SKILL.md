@@ -11,7 +11,7 @@ description: >
   "explore the app on iOS/Android", "find bugs on mobile", "QA the mobile build", or provides
   a mobile-sim target (native or web).
 argument-hint: "--target <id> [--context <file>] [--rebuild]"
-allowed-tools: Bash(qa/bin/mcli:*), Bash(bin/mcli:*), Bash(mcli:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/mcli:*), Bash(qa/bin/wadb:*), Bash(bin/wadb:*), Bash(wadb:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wadb:*), Bash(qa/bin/wk-ios:*), Bash(bin/wk-ios:*), Bash(wk-ios:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wk-ios:*), Bash(qa/bin/doctor-mobile.sh:*), Bash(bin/doctor-mobile.sh:*), Bash(qualiow-doctor-mobile:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/doctor-mobile.sh:*), Bash(xcrun:*), Bash(adb:*), Bash(maestro:*), Bash(node:*), Bash(sleep:*), Bash(python3:*), Bash(git:*), Read, Write, Glob, Grep
+allowed-tools: Bash(qa/bin/mcli:*), Bash(bin/mcli:*), Bash(mcli:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/mcli:*), Bash(qa/bin/wadb:*), Bash(bin/wadb:*), Bash(wadb:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wadb:*), Bash(qa/bin/wk-ios:*), Bash(bin/wk-ios:*), Bash(wk-ios:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wk-ios:*), Bash(qa/bin/doctor-mobile.sh:*), Bash(bin/doctor-mobile.sh:*), Bash(qualiow-doctor-mobile:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/doctor-mobile.sh:*), Bash(xcrun:*), Bash(adb:*), Bash(maestro:*), Bash(node:*), Bash(sleep:*), Bash(python3:*), Bash(git:*), Bash(qualiow:*), Bash(npx:*), Read, Write, Glob, Grep
 ---
 
 # Mobile Exploratory Testing Session

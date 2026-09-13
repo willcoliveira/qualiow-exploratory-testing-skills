@@ -90,14 +90,22 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 
 Append the same numbers as the `## Session Stats` table at the end of `session-report.md`.
 
-## Update progress.json — Final
+## Finalize
 
-Set `status` to `complete`, `current_phase` to `reporting`, every phase to its final status.
+```bash
+qualiow session finalize output/sessions/<session-dir>
+```
 
-## Update Indexes
+It validates `stats.json` against the strict schema, checks the confidentiality header on
+every artefact and scans the directory against the redaction list, then appends the session
+row to `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records
+the session metrics and sets `progress.json` to `complete`. It is idempotent — running it
+twice changes nothing.
 
-Append the session row to `output/sessions/INDEX.md` and one row per bug to
-`output/bugs/all-bugs.md`, in the column order defined in `paths.md`.
+On exit 1 it prints a numbered list of violations naming each file: fix those files and run
+it again. `--check` validates and writes nothing. Resolve the `qualiow` prefix per
+`${CLAUDE_SKILL_DIR}/references/paths.md`; if the CLI is unavailable, write the rows by hand
+in the column order defined there.
 
 ## Close the Browser Session
 

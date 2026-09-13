@@ -140,8 +140,8 @@ verdicts, every time, so that what could not be observed stays visible. Then the
 ranked by severity, then what you could not check and exactly what access would unblock it.
 The coverage map uses the contract's `| Area | Risk | Status | Bugs | Notes |` header with
 `code-verified-only` for anything whose only evidence is a code reading. Write `stats.json`
-with `"kind": "backend"` and the verdict counts under `coverage.verdicts`, then append the
-rows to `output/sessions/INDEX.md` and `output/bugs/all-bugs.md` (columns in `paths.md`).
+with `"kind": "backend"` and the verdict counts under `coverage.verdicts`; the index rows are
+written in Step 5.
 
 Recommend a disposition in one line: ship, ship-with-follow-ups, or hold — and say what
 would change your mind. Where the scope of what you checked is narrower than the question
@@ -153,11 +153,24 @@ For a release-level session covering many tickets against one build, follow
 table first, then a fixed result vocabulary per ticket that keeps *not testable here* and
 *not tested* visible rather than letting them vanish between passed and failed.
 
-## Step 5: Confidentiality
+## Step 5: Finalize and Confidentiality
 
-Every output file starts with the confidentiality header from `output-contract.md`. Scan the
-whole session directory against the redaction list in `security-rules.md` (tokens, keys,
-cookies, real user emails, consumer PII, account ids not already in the target) before
-finishing; replace with `[REDACTED]`. Session output stays local; never transmit it anywhere.
-If a browser session was opened for the API lane, end it now: `playwright-cli -s=<sid> close`
-then `playwright-cli -s=<sid> delete-data`.
+```bash
+qualiow session finalize output/sessions/<session-dir>
+```
+
+It scans every artefact with the same redaction list `src/utils/redact.ts` implements — the
+list in `security-rules.md`: tokens, keys, cookies, real user emails, consumer PII, account
+ids not already in the target — and the raw probe output under `evidence/` is scanned like
+everything else. It also checks the confidentiality header on every markdown file and
+validates `stats.json`, then appends the session row to `output/sessions/INDEX.md` (`Kind` =
+`backend`) and one row per bug to `output/bugs/all-bugs.md`, and records the session metrics.
+It is idempotent.
+
+On exit 1 it names each offending file: replace the value with `[REDACTED]`, add the missing
+header, fix the stats key, and run it again. `--check` validates and writes nothing. Resolve
+the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`.
+
+Session output stays local; never transmit it anywhere. If a browser session was opened for
+the API lane, end it now: `playwright-cli -s=<sid> close` then
+`playwright-cli -s=<sid> delete-data`.

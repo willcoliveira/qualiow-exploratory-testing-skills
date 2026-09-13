@@ -5,7 +5,7 @@ description: >
   No full site mapping — goes directly to the target, applies heuristics, reports findings.
   Use when user says: "quick check", "test this page", "quick explore", or wants a fast review.
 argument-hint: "<url> [--focus <area>]"
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx:*), Read, Write, Glob, Grep
 ---
 
 # Quick Exploratory Testing Session
@@ -104,7 +104,17 @@ starts with these two lines, verbatim:
   `## Session Stats`
 - `stats.json` — `kind: "quick"`, the eight required fields
 
-Append the row to `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md` (columns in `paths.md`). Redact per `security-rules.md` before writing.
+Then finalize:
+
+```bash
+qualiow session finalize output/sessions/<session-dir>
+```
+
+It validates `stats.json`, checks the confidentiality header on every artefact and scans them
+against the redaction list, then appends the session row to `output/sessions/INDEX.md` and one
+row per bug to `output/bugs/all-bugs.md` and records the metrics. On exit 1 it names each
+offending file: fix it and run again (`--check` validates without writing). Resolve the
+`qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`.
 
 Then close the session:
 

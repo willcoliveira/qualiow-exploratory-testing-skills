@@ -58,21 +58,29 @@ CHANGE SCOPE: [what changed or "unknown -- full exploration"]
 
 ## Step 3: Load Knowledge
 
-Read `<data>/knowledge/manifest.yml`. Load:
-1. Core heuristics (SFDIPOT, FEW HICCUPPS, Test Tours)
-2. Domain-specific entries from `loading_strategy.by_domain`
-3. `<data>/knowledge/learned-patterns.md`: the false-positive skip list and must-check patterns
-4. Business-logic and race-condition techniques (if the app has transactions or state changes)
+Run the digest — it selects the always-loaded heuristics, the domain entries, the tagged
+techniques and the learned-pattern lead-ins, and prints a summary of each:
 
-Keep brief summaries only; don't fill context with full entries.
+```bash
+qualiow kb digest --for explore --domain <domain>
+```
+
+Add `--tag security` when the target has authentication, and `--tag data-integrity` when the
+app has transactions or any state change. Resolve the `qualiow` prefix first (`${CLAUDE_SKILL_DIR}/references/paths.md`)
+and write it literally.
+
+Read **only the digest**. When you need a heuristic's full question list, fetch that one entry
+— `qualiow list knowledge --entry <id>`, or `Grep` the release file for the heading. Never
+`Read` `<data>/knowledge/manifest.yml` or a release entry whole: see
+`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`.
 
 ## Step 4: Create the Session Directory
 
 Unless `--session <dir>` was given, create
 `output/sessions/<YYYY-MM-DD-HHmm>-explore-<slug>/` (scheme in `paths.md`; `<slug>` is the
 target id without a leading `_`, or the hostname with dots replaced by dashes) containing
-`screenshots/`, `bugs/`, `videos/`, and an empty `session-log.md`. With `--session`, reuse
-that directory and append to its `session-log.md`.
+`screenshots/`, `bugs/`, `videos/`, `snapshots/`, and an empty `session-log.md`. With
+`--session`, reuse that directory and append to its `session-log.md`.
 
 Choose the playwright-cli session id `-s=explore-<HHmm>-<slug>`. **Every `playwright-cli`
 call in this session carries `-s=<sid>`; the examples in the phase files omit the prefix.**
