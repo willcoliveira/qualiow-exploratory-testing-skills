@@ -48,8 +48,8 @@ jobs:
 
       - name: Shell syntax
         run: |
-          bash -n bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh
-          if command -v shellcheck >/dev/null; then shellcheck -S warning bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh || true; fi
+          bash -n bin/qualiow bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh
+          if command -v shellcheck >/dev/null; then shellcheck -S warning bin/qualiow bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh || true; fi
           node --check bin/mobile-cli.mjs
           node --check bin/wkeval.mjs
           node bin/mobile-cli.mjs --help >/dev/null
@@ -72,10 +72,13 @@ jobs:
           git diff --quiet                     # second init is a no-op
           npx qualiow validate --all
           test -x qa/bin/mcli
+          test ! -f qa/bin/qualiow             # the launcher shim never ships into a consumer project
           test -f .claude/skills/qa-explore/SKILL.md
           test -f .claude/agents/qa-gather-agent.md
           test -f qa/.env.example
           node qa/bin/mobile-cli.mjs version
+          npx qualiow kb digest --for explore | head -3
+          npx qualiow session list
           npx qualiow list sessions
 
       - name: Mobile toolchain doctor (report only)
@@ -85,4 +88,8 @@ jobs:
       - name: Plugin manifest
         run: |
           node -e "const p=require('./.claude-plugin/plugin.json'),k=require('./package.json'); if(p.name!=='qualiow'||p.version!==k.version){console.error('plugin.json mismatch');process.exit(1)}"
-          if command -v claude >/dev/null; then claude plugin validate . ; fi
+          npm install -g @anthropic-ai/claude-code || echo "::warning::could not install @anthropic-ai/claude-code — skipping claude plugin validate"
+          if command -v claude >/dev/null; then
+            claude plugin validate .
+            claude plugin validate .claude-plugin/marketplace.json
+          fi

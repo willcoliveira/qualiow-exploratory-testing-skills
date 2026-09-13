@@ -13,6 +13,12 @@ import { join, resolve } from 'node:path';
 import { runInit } from '../../src/cli/commands/init.js';
 import { getPackageVersion } from '../../src/utils/paths.js';
 
+/** Where init reads sub-agents from: shipped `agents/`, else canonical `.claude/agents/`. */
+function agentsSourceDir(): string {
+  const shipped = join(REPO_ROOT, 'agents');
+  return existsSync(shipped) ? shipped : join(REPO_ROOT, '.claude', 'agents');
+}
+
 const REPO_ROOT = resolve(process.cwd());
 
 const tmpDirs: string[] = [];
@@ -44,6 +50,15 @@ describe('runInit — fresh install', () => {
 
     expectFile('.claude/skills/qa-explore/SKILL.md');
     expectFile('.claude/agents/qa-gather-agent.md');
+
+    // Every *.md agent in the source tree lands in .claude/agents/ — not just
+    // qa-gather-agent by name.
+    const agentMdFiles = readdirSync(agentsSourceDir()).filter((f) => f.endsWith('.md'));
+    expect(agentMdFiles.length).toBeGreaterThan(0);
+    for (const f of agentMdFiles) {
+      expectFile(`.claude/agents/${f}`);
+    }
+
     expectFile('data/knowledge/manifest.yml');
     expectFile('data/domains/_default.yml');
     expectFile('data/templates/bug-report.md');
@@ -67,6 +82,10 @@ describe('runInit — fresh install', () => {
     expect(existsSync(mcliPath)).toBe(true);
     const mode = statSync(mcliPath).mode;
     expect(mode & 0o111).not.toBe(0);
+
+    // The qualiow launcher shim is never copied into a consumer project —
+    // it exists only to bootstrap a plugin-only (no dist/) checkout.
+    expect(existsSync(join(cwd, 'qa', 'bin', 'qualiow'))).toBe(false);
 
     // qa/bin/VERSION matches the package version.
     const versionPath = join(cwd, 'qa', 'bin', 'VERSION');

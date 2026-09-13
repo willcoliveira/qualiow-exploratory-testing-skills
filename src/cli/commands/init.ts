@@ -147,15 +147,15 @@ export async function runInit(
       }),
     );
 
-    // 2. Sub-agent → .claude/agents/
-    const agentCandidates = [
-      join(pkgRoot, 'agents', 'qa-gather-agent.md'),
-      join(pkgRoot, '.claude', 'agents', 'qa-gather-agent.md'),
-    ];
-    const agentSrc = agentCandidates.find((p) => existsSync(p));
-    if (agentSrc) {
+    // 2. Sub-agents → .claude/agents/
+    const agentsCandidates = [join(pkgRoot, 'agents'), join(pkgRoot, '.claude', 'agents')];
+    const agentsSrc = agentsCandidates.find((p) => existsSync(p));
+    if (agentsSrc) {
       copies.push(
-        copyEntry(agentSrc, join(cwd, '.claude', 'agents', 'qa-gather-agent.md'), copyOpts),
+        ...copyTree(agentsSrc, join(cwd, '.claude', 'agents'), {
+          ...copyOpts,
+          filter: (rel) => rel.endsWith('.md'),
+        }),
       );
     }
 
@@ -183,9 +183,16 @@ export async function runInit(
       }),
     );
 
-    // 4. Mobile driver + scripts → qa/bin/
+    // 4. Mobile driver + scripts → qa/bin/ (never the qualiow launcher shim
+    // itself — a consumer project runs the real npm-installed `qualiow` bin,
+    // not a copy of the plugin-only fallback shim).
     const binSrc = join(pkgRoot, 'bin');
-    copies.push(...copyTree(binSrc, join(cwd, 'qa', 'bin'), copyOpts));
+    copies.push(
+      ...copyTree(binSrc, join(cwd, 'qa', 'bin'), {
+        ...copyOpts,
+        filter: (rel) => rel !== 'qualiow',
+      }),
+    );
     if (existsSync(binSrc)) {
       const versionPath = join(cwd, 'qa', 'bin', 'VERSION');
       const version = `${getPackageVersion(pkgRoot)}\n`;

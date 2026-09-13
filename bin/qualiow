@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# qualiow — launcher shim so `${CLAUDE_PLUGIN_ROOT}/bin/qualiow` (or a checkout's
+# `bin/qualiow`) works even when this repo was installed as a Claude Code plugin
+# straight from git — a marketplace/plugin install has no `dist/` (tsup output)
+# and no `node_modules` (tsup does not bundle deps), so the real CLI entry point
+# `dist/cli/index.js` cannot run in place. When a built local copy exists, run it
+# directly; otherwise fall through to the published npm package via `npx`, pinned
+# to this checkout's own `.claude-plugin/plugin.json` version so the shim and the
+# skills it ships alongside stay in lockstep. Release order matters for that pin:
+# `npm publish` must land before this version becomes the current git tag, or the
+# pinned `npx` fetch 404s — see docs/ARCHITECTURE-DECISIONS.md ADR-012.
+set -euo pipefail
+
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
+done
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+
+if [ -f "$ROOT/dist/cli/index.js" ] && [ -d "$ROOT/node_modules" ]; then
+  exec node "$ROOT/dist/cli/index.js" "$@"
+fi
+
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$ROOT}"
+
+VER="$(node -p "try{require('$ROOT/.claude-plugin/plugin.json').version}catch{''}" 2>/dev/null || true)"
+[ -z "$VER" ] && VER="latest"
+
+exec npx -y -p "qualiow-exploratory-testing@$VER" qualiow "$@"
