@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { resolveSessionDir, runReport } from '../../src/cli/commands/report.js';
 import { runExplore, parseTimeBox } from '../../src/cli/commands/explore.js';
-import { readSessionIndex } from '../../src/cli/commands/list.js';
+import { readSessionIndex, runList } from '../../src/cli/commands/list.js';
 import { runValidate } from '../../src/cli/commands/validate.js';
 import { SESSION_DIR_RE, parseSessionDirName } from '../../src/utils/session-dir.js';
 
@@ -286,6 +286,7 @@ describe('runExplore — real run', () => {
     expect(existsSync(join(result.sessionDir, 'screenshots'))).toBe(true);
     expect(existsSync(join(result.sessionDir, 'bugs'))).toBe(true);
     expect(existsSync(join(result.sessionDir, 'videos'))).toBe(true);
+    expect(existsSync(join(result.sessionDir, 'snapshots'))).toBe(true);
   });
 
   it('rejects an invalid URL', async () => {
@@ -350,5 +351,121 @@ describe('runValidate — real repo data', () => {
   it('returns 0 failures for --all against the repo itself', () => {
     const failed = runValidate({ all: true }, REPO_ROOT);
     expect(failed).toBe(0);
+  });
+});
+
+// ─── runList knowledge ───────────────────────────────────────────────
+
+/** Collects what a runner logs, without the chalk escapes. */
+async function captureList(
+  type: string,
+  cwd: string,
+  options: Parameters<typeof runList>[2] = {},
+): Promise<string> {
+  const lines: string[] = [];
+  await runList(type, cwd, options, (line) => lines.push(line));
+  // chalk is already off when stdout is not a TTY; strip anyway so the
+  // assertions hold if a runner forces colour on.
+  return lines.join('\n').replace(/\[[0-9;]*m/g, '');
+}
+
+describe('runList knowledge — default listing', () => {
+  it('groups the entries by type and names the version', async () => {
+    const output = await captureList('knowledge', REPO_ROOT);
+    expect(output).toContain('Knowledge Base:');
+    expect(output).toMatch(/Version: \d+\.\d+\.\d+ \| Entries: \d+/);
+    expect(output).toMatch(/Heuristics \(\d+\):/);
+    expect(output).toContain('heuristic-sfdipot');
+  });
+
+  it('reads the package knowledge base from a cwd that has none', async () => {
+    const cwd = makeTmpCwd();
+    const output = await captureList('knowledge', cwd);
+    expect(output).toContain('heuristic-sfdipot');
+  });
+});
+
+describe('runList knowledge — filters', () => {
+  it('--type keeps only that type', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { type: 'checklist' });
+    expect(output).toContain('Filter: type checklist');
+    expect(output).toContain('checklist-accessibility-wcag');
+    expect(output).not.toContain('heuristic-sfdipot');
+  });
+
+  it('--tag keeps only entries carrying the tag', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { tag: 'accessibility' });
+    expect(output).toContain('Filter: tag accessibility');
+    expect(output).toContain('checklist-accessibility-wcag');
+    expect(output).not.toContain('heuristic-goldilocks');
+  });
+
+  it('--domain keeps domain-specific entries alongside the "all" entries', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { domain: 'fintech' });
+    expect(output).toContain('Filter: domain fintech');
+    expect(output).toContain('heuristic-sfdipot'); // domains: [all]
+  });
+
+  it('combined filters narrow further and report an empty result', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, {
+      type: 'checklist',
+      tag: 'does-not-exist',
+    });
+    expect(output).toContain('No entries match that filter.');
+  });
+});
+
+describe('runList knowledge — --entry', () => {
+  it('prints the raw YAML of the entry file', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { entry: 'heuristic-goldilocks' });
+    expect(output.startsWith('id: heuristic-goldilocks')).toBe(true);
+    expect(output).toContain('content:');
+  });
+
+  it('throws on an unknown id', async () => {
+    await expect(
+      captureList('knowledge', REPO_ROOT, { entry: 'heuristic-nope' }),
+    ).rejects.toThrow(/Unknown entry "heuristic-nope"/);
+  });
+});
+
+describe('runList knowledge — --changelog', () => {
+  it('prints each release with its date, summary and added ids', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { changelog: true });
+    expect(output).toContain('Knowledge Base Changelog:');
+    expect(output).toMatch(/v\d+\.\d+\.\d+ · \d{4}-\d{2}-\d{2}/);
+    expect(output).toContain('added:');
+    expect(output).toContain('technique-async-callback-contracts');
+  });
+});
+
+describe('runList knowledge — --stats', () => {
+  it('prints the stats block, the active releases and the loading-strategy counts', async () => {
+    const output = await captureList('knowledge', REPO_ROOT, { stats: true });
+    expect(output).toContain('Knowledge Base Stats:');
+    expect(output).toMatch(/total entries\s+\d+/);
+    expect(output).toContain('Active releases');
+    expect(output).toMatch(/always\s+\d+ entries/);
+    expect(output).toMatch(/by_domain\s+\d+ keys, \d+ references/);
+    expect(output).toMatch(/by_skill\s+\d+ keys, \d+ references/);
+  });
+});
+
+describe('runList knowledge — --data', () => {
+  it('reads the knowledge base from the directory it is given', async () => {
+    const cwd = makeTmpCwd();
+    cpSync(join(REPO_ROOT, 'data'), join(cwd, 'copied-data'), { recursive: true });
+    const output = await captureList('knowledge', cwd, {
+      data: join(cwd, 'copied-data'),
+      type: 'reference',
+    });
+    expect(output).toContain('reference-heuristic-praxis');
+  });
+
+  it('reports the path it looked at when the directory holds no manifest', async () => {
+    const cwd = makeTmpCwd();
+    const output = await captureList('knowledge', cwd, { data: cwd });
+    expect(output).toContain('No knowledge base at');
+    expect(output).toContain(cwd);
   });
 });

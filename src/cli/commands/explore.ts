@@ -109,7 +109,7 @@ export async function runExplore(
     return { sessionDir };
   }
 
-  for (const sub of ['', 'screenshots', 'bugs', 'videos']) {
+  for (const sub of ['', 'screenshots', 'bugs', 'videos', 'snapshots']) {
     mkdirSync(join(sessionDir, sub), { recursive: true });
   }
 
