@@ -6,7 +6,8 @@
 2. **ONE BUG = ONE REPORT** -- Never combine
 3. **Evidence for every bug** -- Screenshot + context
 4. **Real-time logging** -- Append to session-log.md continuously
-5. **Snapshot before every interaction** -- Always know the page state
+5. **Snapshot before every interaction** -- Always know the page state. `--depth=3` or
+   `snapshot <ref>` by default; a full tree goes to `snapshots/` (phase 3 policy)
 
 ## Quality Thinking
 

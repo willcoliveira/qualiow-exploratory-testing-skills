@@ -27,6 +27,11 @@ to find the most recent session, or take the user-specified directory. Any sessi
 (`explore`, `quick`, `mobile`, `backend`) is valid. Read the session's `session-report.md`
 and all `bugs/BUG-*.md` files.
 
+The phase files and `snapshots/` are not needed for feedback — the report and the bugs carry
+every claim the user is reviewing. A `session-report.md` over 300 lines is read in windows:
+`Grep '^## '` for the headings, then `Read` with `offset`/`limit` on Coverage Map, Bugs Found,
+Observations and Reflection.
+
 ### 2. Review Bugs with User
 
 For each bug found, ask the user:

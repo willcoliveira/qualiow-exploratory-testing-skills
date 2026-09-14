@@ -63,6 +63,10 @@ Never write actual `.env` values, storage-state contents, or session cookies to 
 file. Raw probe output and API response bodies are the most common leak; redact them on the
 way in.
 
+Two layers check the same list behind you: `qualiow session finalize` scans every artefact in
+the session directory, and the plugin's write guard applies it before a file under `output/`
+is written (`QUALIOW_HOOKS=off` disables the guard). Neither replaces redacting on the way in.
+
 ## Session Isolation
 
 1. Every `playwright-cli` command in a session carries the session id

@@ -70,15 +70,19 @@ One file per bug, `bugs/BUG-NNN.md`, in exactly the format of
 
 Redact per `security-rules.md` before writing.
 
-## Write the Session Report
+## Write phase-7-notes.md
 
-`session-report.md` in the format of `output-contract.md`: header, `# Session Report — <target>`,
-`## Session Metadata`, `## Executive Summary` (3 sentences: what was tested, what was found,
-the biggest risk), `## Summary Stats`, `## Coverage Map` with the header
-`| Area | Risk | Status | Bugs | Notes |` (Status: tested / partial / not-tested /
-code-verified-only), `## Bugs Found`, `## Observations` (including what's MISSING and the
-data-integrity results), `## Areas Not Tested` with reasons, `## Recommendations` for the
-next session, `## Reflection` (the five answers above), `## Session Stats`.
+Your judgement, in your own words, in `output/sessions/<session-dir>/phase-7-notes.md`. The
+confidentiality header first, then exactly these sections — the report is assembled from
+them, so a section you leave out is a section nobody can write for you:
+
+- `## Executive Summary` — 3 sentences: what was tested, what was found, the biggest risk
+- `## Coverage Map` — rows for `| Area | Risk | Status | Bugs | Notes |`
+  (Status: tested / partial / not-tested / code-verified-only)
+- `## Observations` — including what's MISSING and the data-integrity results
+- `## Areas Not Tested` — each with its reason
+- `## Recommendations` — for the next session
+- `## Reflection` — the five answers above
 
 ## Session Stats
 
@@ -86,26 +90,35 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 (`session_id`, `kind: "explore"`, `target`, `date`, `duration_min`, `bugs_found`,
 `severity_counts`, `pages_explored`, plus the optional `domain`, `started_at`,
 `completed_at`, `phases_completed`, `total_phases: 8`, `coverage`, `evidence`,
-`areas_not_tested`, `blocked_by`). No other top-level keys.
+`areas_not_tested`, `blocked_by`). No other top-level keys. The `## Session Stats` table in
+the report is rendered from this file.
 
-Append the same numbers as the `## Session Stats` table at the end of `session-report.md`.
+## Assemble and Finalize
 
-## Finalize
+The bugs, the stats and the notes are yours; assembling them into the report is not. Invoke
+the `qa-reporting-agent` sub-agent (`qualiow:qa-reporting-agent` under a plugin install) with
+the session directory and `kind: explore`. It reads `charter.md`, `stats.json`, `bugs/*.md`,
+the phase files in windows and `phase-7-notes.md`, writes `session-report.md` in the format
+of `${CLAUDE_SKILL_DIR}/references/output-contract.md` — copying your Executive Summary,
+Recommendations and Reflection verbatim — and then runs `qualiow session finalize`, which
+validates `stats.json` against the strict schema, checks the confidentiality header on every
+artefact, scans the directory against the redaction list, appends the session row to
+`output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records the
+session metrics and sets `progress.json` to `complete`. It is idempotent.
+
+Read its return (at most 8 lines). If it reports a missing notes section or a violation it
+could not fix, fix that yourself and re-run the check:
 
 ```bash
-qualiow session finalize output/sessions/<session-dir>
+qualiow session finalize output/sessions/<session-dir> --check
 ```
 
-It validates `stats.json` against the strict schema, checks the confidentiality header on
-every artefact and scans the directory against the redaction list, then appends the session
-row to `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records
-the session metrics and sets `progress.json` to `complete`. It is idempotent — running it
-twice changes nothing.
+`--check` writes nothing and prints a numbered list of violations naming each file. Resolve
+the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/references/paths.md`; if the CLI is unavailable,
+write the index rows by hand in the column order defined there.
 
-On exit 1 it prints a numbered list of violations naming each file: fix those files and run
-it again. `--check` validates and writes nothing. Resolve the `qualiow` prefix per
-`${CLAUDE_SKILL_DIR}/references/paths.md`; if the CLI is unavailable, write the rows by hand
-in the column order defined there.
+If sub-agents are unavailable, do the step yourself as in 2.1.0: write `session-report.md`
+from the notes in the contract's format and run `qualiow session finalize output/sessions/<session-dir>`.
 
 ## Close the Browser Session
 

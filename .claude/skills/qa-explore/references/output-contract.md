@@ -25,8 +25,9 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `screenshots/BUG-NNN.png`, other `screenshots/*.png` | as taken |
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
 | `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
+| `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
 | `bugs/BUG-NNN.md` | phase 7 |
-| `session-report.md` | phase 7 |
+| `session-report.md` | the `qa-reporting-agent` sub-agent, from `phase-7-notes.md`, the bugs, `stats.json` and the phase files (quick sessions write it directly) |
 | `stats.json` | phase 7 |
 | mobile: `logs/BUG-NNN.log` · backend: `ac-matrix.md`, `evidence/`, `probes/`, `expected-behaviour.md` | as produced |
 
