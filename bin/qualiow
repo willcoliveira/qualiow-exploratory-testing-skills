@@ -16,11 +16,30 @@ while [ -L "$SELF" ]; do
   LINK="$(readlink "$SELF")"
   case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
 done
-ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+# `pwd -P` on both sides: the tmp/symlinked-path case must still compare equal.
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd -P)"
 
 if [ -f "$ROOT/dist/cli/index.js" ] && [ -d "$ROOT/node_modules" ]; then
   exec node "$ROOT/dist/cli/index.js" "$@"
 fi
+
+# No build here. If the working directory is inside this very tree, `npx` resolves
+# the *local* project context first — it finds a package.json named
+# qualiow-exploratory-testing with no linked bin and fails with a bare
+# "sh: qualiow: command not found". Say what is actually wrong instead.
+case "$(pwd -P)/" in
+  "$ROOT"/*)
+    cat >&2 <<MSG
+qualiow: no CLI build in $ROOT (dist/ and node_modules are both missing), and the
+         working directory is inside that tree, so npx cannot resolve the published
+         package from here.
+
+  Build it once:   cd "$ROOT" && npm install && npm run build
+  Or run from a project directory outside $ROOT.
+MSG
+    exit 1
+    ;;
+esac
 
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$ROOT}"
 

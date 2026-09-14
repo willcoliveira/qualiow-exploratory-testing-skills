@@ -811,7 +811,25 @@ session, so "the CLI is not there" stops being cosmetic.
 - **Release order matters.** The shim pins the npm version to whatever
   `.claude-plugin/plugin.json` says, so `npm publish` must land **before** the tag is pushed
   and the GitHub release is cut. A tag that arrives first gives plugin installs a pinned fetch
-  that 404s, and they fall back to `@latest` — the previous release.
+  that fails outright — `npm error notarget`, since the shim has no fallback and npm does not
+  substitute another version. Measured on 2026-09-14: `npx -p qualiow-exploratory-testing@99.99.99`
+  errors rather than resolving `@latest`.
+- **A plugin install caches by manifest version, so a fix needs a version bump to travel.** The
+  cache path is `plugins/cache/<marketplace>/<plugin>/<version>/`, and `claude plugin update`
+  compares versions only: with `.claude-plugin/plugin.json` unchanged it reports "already at the
+  latest version" and refetches nothing, even when `main` has moved (measured 2026-09-14 against a
+  local marketplace). A new install on a machine with no cache does pick up current `main`. So a
+  change that must reach *existing* plugin installs has to bump the version — and because the shim
+  pins its `npx` fetch to that same version, the bump obliges an npm publish of it. A change that
+  can wait rides along with the next release instead.
+- **`npx` cannot be reached from inside an unbuilt copy of this repository.** With the working
+  directory anywhere under the tree, npm resolves the *local* project context first, finds a
+  `package.json` named `qualiow-exploratory-testing` with no linked bin, and exits with a bare
+  `sh: qualiow: command not found` — nothing to do with the pin or the registry. Passing a
+  neutral `--prefix` does not change it. The shim therefore detects that case before falling
+  through and says what is wrong: build once, or run from a project directory outside the tree.
+  It only affects a contributor who has not run `npm install`; a plugin install invoked from a
+  user's project is unaffected, which is the path `tests/unit/shim.test.ts` pins down.
 - **The install copies the whole repository**, `src/`, `tests/` and the POC target configs
   included, because `source: "./"` has no file filter. Nothing private travels with it:
   `data/targets/local-*.yml`, `.auth/`, `.env` and `qa/.env` are gitignored, so what ships is

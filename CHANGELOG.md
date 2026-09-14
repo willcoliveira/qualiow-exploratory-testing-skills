@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`bin/qualiow` explains an unbuilt checkout instead of failing through `npx`.** Run the
+  launcher with the working directory anywhere inside a copy of this repository that has no
+  `dist/` and no `node_modules` — a fresh clone, or the plugin directory itself — and npm
+  resolved the local project context, found a `package.json` named
+  `qualiow-exploratory-testing` with no linked bin, and exited with a bare
+  `sh: qualiow: command not found`. The launcher now detects that case and names the fix
+  (build once, or run from a project directory outside the tree). A plugin install invoked
+  from a user's project still takes the `npx` path unchanged; `tests/unit/shim.test.ts` covers
+  the local-build path, the guard and a nested directory. Root resolution moved to `pwd -P` so
+  the comparison holds through symlinked paths.
+
 ## [2.2.0] - 2026-09-14
 
 The second half of the routing work 2.1.0 started. 2.1.0 gave the deterministic work to the CLI; this release gives the bounded reads and the report assembly to four cheap sub-agents, and adds two `PreToolUse` hooks that enforce the read thresholds instead of merely stating them. The judgement stays exactly where it was: severity, priority, business impact, the bug reports, the charter and risk ranking, what is missing, the AC verdicts, the executive summary and the reflection are still written by the session. The interaction phases are untouched — element refs and the observe-decide loop never leave the session. Additive: no skill, command, schema or library export was renamed or removed. Rationale, the routing procedure and the exclusions: `docs/ARCHITECTURE-DECISIONS.md` ADR-011.
