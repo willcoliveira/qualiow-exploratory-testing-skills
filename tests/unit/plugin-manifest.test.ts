@@ -24,6 +24,21 @@ describe('.claude-plugin/plugin.json', () => {
     expect(plugin.hooks).toBeUndefined();
   });
 
+  it('ships the four sub-agents under .claude/agents/', () => {
+    const canonicalDir = join(REPO_ROOT, '.claude', 'agents');
+    for (const agent of [
+      'qa-gather-agent',
+      'qa-reporting-agent',
+      'qa-diff-indexer-agent',
+      'qa-page-mapper-agent',
+    ]) {
+      expect(
+        existsSync(join(canonicalDir, `${agent}.md`)),
+        `missing .claude/agents/${agent}.md`,
+      ).toBe(true);
+    }
+  });
+
   it('every *.md in .claude/agents/ has a byte-identical twin in agents/ (or agents/ is absent)', () => {
     const canonicalDir = join(REPO_ROOT, '.claude', 'agents');
     const mirrorDir = join(REPO_ROOT, 'agents');
