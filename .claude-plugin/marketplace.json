@@ -12,7 +12,7 @@
       "name": "qualiow",
       "source": "./",
       "description": "AI-driven exploratory testing for Claude Code: web (playwright-cli), iOS/Android simulators (Maestro via mobile-cli), and backend/API acceptance-criteria verification — with a versioned QA knowledge base.",
-      "version": "2.2.0",
+      "version": "2.2.1",
       "category": "testing",
       "keywords": [
         "exploratory-testing",
