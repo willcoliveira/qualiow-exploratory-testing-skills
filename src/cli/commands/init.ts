@@ -18,11 +18,13 @@ import {
 } from '../../utils/paths.js';
 import { INDEX_MD_HEADER, ALL_BUGS_MD_HEADER } from '../../utils/index-files.js';
 import { mergeGitignore } from '../../utils/gitignore.js';
+import { mergeQualiowHookSettings } from '../../utils/settings-merge.js';
 
 export interface InitOptions {
   includeExamples: boolean;
   force: boolean;
   dryRun: boolean;
+  hooks?: boolean;
 }
 
 export type CopyStatus = 'installed' | 'unchanged' | 'overwritten' | 'skipped';
@@ -45,6 +47,11 @@ export function initCommand(): Command {
     .option('--include-examples', 'Also install the _example-* and testers-ai target configs', false)
     .option('--force', 'Overwrite files that already exist and differ', false)
     .option('--dry-run', 'Print what would be written without writing anything', false)
+    .option(
+      '--hooks',
+      'Install the PreToolUse guard hooks into qa/hooks/ and wire them into .claude/settings.json',
+      false,
+    )
     .action(async (options: InitOptions) => {
       try {
         await runInit(options, { cwd: process.cwd() });
@@ -213,6 +220,35 @@ export async function runInit(
     }
   }
 
+  // 5b. Hooks (opt-in) → qa/hooks/ + .claude/settings.json
+  let hooksSettingsChanged = false;
+  if (options.hooks) {
+    const hooksScriptsSrc = join(pkgRoot, 'hooks', 'scripts');
+    copies.push(
+      ...copyTree(hooksScriptsSrc, join(cwd, 'qa', 'hooks'), {
+        ...copyOpts,
+        filter: (rel) => rel.endsWith('.mjs'),
+      }),
+    );
+
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    const settingsExisted = existsSync(settingsPath);
+    let existingSettings: unknown;
+    if (settingsExisted) {
+      try {
+        existingSettings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+      } catch {
+        existingSettings = undefined;
+      }
+    }
+    const { settings, changed } = mergeQualiowHookSettings(existingSettings);
+    hooksSettingsChanged = changed || !settingsExisted;
+    if (!options.dryRun) {
+      mkdirSync(dirname(settingsPath), { recursive: true });
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+    }
+  }
+
   // 6. Output directories
   for (const dir of ['output/sessions', 'output/bugs', 'output/context', '.auth', 'qa']) {
     const full = join(cwd, dir);
@@ -268,6 +304,13 @@ export async function runInit(
       ? chalk.green('  ✓ Updated .gitignore (Qualiow block)')
       : chalk.cyan('  ○ .gitignore already up to date'),
   );
+  if (options.hooks) {
+    log(
+      hooksSettingsChanged
+        ? chalk.green('  ✓ Wired hooks into .claude/settings.json')
+        : chalk.cyan('  ○ .claude/settings.json hooks already up to date'),
+    );
+  }
 
   log('');
   log(chalk.cyan.bold(options.dryRun ? 'Dry run complete.' : 'Qualiow initialized.'));
@@ -275,6 +318,9 @@ export async function runInit(
   log(chalk.white('Next steps:'));
   log(chalk.white('  1. npx playwright-cli install --skills   # official Playwright skill, next to qualiow'));
   log(chalk.white('  2. cp qa/.env.example qa/.env            # credentials by env var name only'));
+  if (options.hooks) {
+    log(chalk.white('     QUALIOW_HOOKS=off or QUALIOW_READ_MAX_LINES=<n> under "env" in .claude/settings.json tune the guards'));
+  }
   log(chalk.white('  3. /qa-target-setup   or   /qa-explore https://your-app.com'));
   log(chalk.white('  4. mobile: qa/bin/doctor-mobile.sh       # then /qa-explore-mobile --target <id>'));
   log('');

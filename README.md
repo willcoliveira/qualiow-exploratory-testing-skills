@@ -36,7 +36,7 @@ qualiow init
 | Copied | To |
 |--------|----|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the `qa-gather-agent` sub-agent | `.claude/agents/` |
+| the four sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles (`*.yml`), templates, security policy | `data/` |
 | `_default.yml` target (with `--include-examples`: the `_example-*.yml` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver, `setup-mobile.sh`, `doctor-mobile.sh` (executable) | `qa/bin/` |
@@ -48,7 +48,8 @@ It also creates `output/{sessions,bugs,context}`, `.auth/` and `qa/`, and append
 `.playwright-cli/`, `*.trace.zip`, `*.webm`).
 
 Re-running `init` is a no-op — existing files are kept unless you pass `--force`, and
-`--dry-run` prints the plan without writing anything.
+`--dry-run` prints the plan without writing anything. Add `--hooks` to install the two guard
+hooks into the project as well — see [Hooks](#hooks).
 
 ```bash
 cp qa/.env.example qa/.env      # credentials live here, never in YAML
@@ -105,7 +106,7 @@ from the shell.
 
 | Command | Flags | What it does |
 |---------|-------|--------------|
-| `qualiow init` | `--include-examples` `--force` `--dry-run` | Install skills, agent, data, `qa/bin/` and the output tree into the current project. Idempotent |
+| `qualiow init` | `--include-examples` `--force` `--dry-run` `--hooks` | Install skills, sub-agents, data, `qa/bin/` and the output tree into the current project. Idempotent. `--hooks` also copies the guard scripts to `qa/hooks/` and merges the hook and permission entries into `.claude/settings.json` |
 | `qualiow explore [url]` | `-t <target>` `-c <context>` `--time-box 45m` `--dry-run` | **Pre-flight only.** Validates the inputs, creates the session directory skeleton, and prints the `/qa-explore … --session <dir>` command to paste into Claude Code. It does not drive a browser |
 | `qualiow validate` | `--targets` `--domains` `--knowledge` `--kb` `--all` | Validate configs against their schemas; exits 1 on any failure. `--all` also checks a project-local `qa/target.yml` and cross-checks the knowledge base against its manifest |
 | `qualiow list <type>` | `sessions` \| `knowledge` \| `targets` \| `domains`; for `knowledge` also `--domain` `--tag` `--type` `--entry <id>` `--changelog` `--stats` | List what is installed or recorded. `list knowledge --entry <id>` prints that entry's YAML; `--changelog` and `--stats` read the knowledge changelog and the manifest counts |
@@ -134,11 +135,68 @@ and the five always-load entries (~964 lines) whole, and it ends with
 never hand-written; `/qa-knowledge-list` and `/qa-explore-cleanup` are wrappers around
 `list knowledge` and `session …`.
 
+Below the CLI sits a second tier, new in 2.2.0: bulk reads that need light judgement go to a
+cheap sub-agent that returns a bounded, cited digest rather than a whole file.
+
 Everything that requires judgement stays where it is: severity, priority, business impact,
 the bug reports themselves, the charter and risk ranking, what is *missing*, the AC verdicts,
 the executive summary and the reflection. The list of what is never delegated, and the read
 thresholds that route the rest, is
 [`skills/qa-explore/references/delegation-rules.md`](skills/qa-explore/references/delegation-rules.md).
+
+### Sub-agents
+
+Four sub-agents ship with the pack, in `.claude/agents/` (mirrored to `agents/`). Each one
+reads or writes on the session's behalf and hands back a bounded result:
+
+| Sub-agent | Model | Returns | Called by |
+|-----------|-------|---------|-----------|
+| `qa-gather-agent` | `sonnet` | the requirements context file, with `[GAP]` and `[ASSUMPTION]` markers where a source was silent | `/qa-gather`, which runs entirely inside it |
+| `qa-reporting-agent` | `sonnet`, `effort: low` | `session-report.md` assembled from the phase files and `phase-7-notes.md`, then `qualiow session finalize`; a summary of at most eight lines | the reporting phase of `/qa-explore`, `/qa-explore-mobile` and `/qa-verify-backend`, and `/qa-explore-report` |
+| `qa-diff-indexer-agent` | `haiku`, `effort: low` | a table of file → symbols or resources → line ranges → candidate AC ids, plus the files that map to no AC and the ACs that map to no file | the static-review phase of `/qa-verify-backend`, when the diff crosses the gate |
+| `qa-page-mapper-agent` | `haiku`, `effort: low` | a map of one raw snapshot: forms and their fields, navigation text → ref, interactive controls, visible error and empty-state text, hidden/disabled counts | the discovery phase of `/qa-explore`, for a snapshot too large to read |
+
+**None of them returns a verdict.** No severity, no priority, no business impact, no "this is
+a bug", no `PASS`/`FAIL`. They extract, index and assemble; the session decides. A delegate
+that volunteers a judgement has exceeded its brief and that part of its answer is discarded.
+
+Quick sessions write their own report — spinning up an agent costs more than it saves for a
+15-minute session.
+
+### Hooks
+
+Two `PreToolUse` hooks enforce what the delegation rules ask for, and they are scoped to
+qualiow-owned paths so they never interfere with ordinary coding in the same project:
+
+- **`read-guard.mjs`** (matcher `Read`) fires only for `data/knowledge/manifest.yml`,
+  `data/knowledge/releases/**`, `output/sessions/*/phase-*.md` and
+  `output/sessions/*/snapshots/*`. A whole-file read of one of those over
+  `QUALIOW_READ_MAX_LINES` lines (default 300) is denied, with the cheaper route named in the
+  reason — `qualiow kb digest`, `qualiow list knowledge --entry <id>`, a `Grep` plus a `Read`
+  with `offset`/`limit`, or `qa-page-mapper-agent`. A `Read` that already carries `offset` or
+  `limit` passes untouched.
+- **`write-guard.mjs`** (matcher `Write|Edit|MultiEdit`) fires only for files under `output/`
+  and never inside `snapshots/`. It denies content matching the same redaction list the
+  formatters and `qualiow session finalize` apply, naming the categories it matched, so a
+  secret is caught before it reaches disk rather than after.
+
+Set `QUALIOW_HOOKS=off` to disable both, and `QUALIOW_READ_MAX_LINES` to move the threshold —
+in `.claude/settings.json` under `env`:
+
+```json
+{ "env": { "QUALIOW_HOOKS": "off", "QUALIOW_READ_MAX_LINES": "500" } }
+```
+
+**Plugin installs get the hooks by default** — `hooks/hooks.json` ships with the plugin and is
+discovered without any configuration. **npm projects opt in** with `qualiow init --hooks`,
+which copies the scripts to `qa/hooks/` and merges into `.claude/settings.json` the two hook
+entries plus `permissions.allow` rules for `Bash(playwright-cli:*)`,
+`Bash(npx playwright-cli:*)` and `Bash(qualiow:*)`. The merge is by exact string, so running
+it twice changes nothing and hooks you already had are left alone. `docs/GETTING-STARTED.md`
+carries the same snippet for anyone who would rather write it by hand.
+
+Do not enable both in one project. The plugin's hooks and the project's copies would both
+run — a harmless double deny, and two node processes per tool call for nothing.
 
 ## Running sessions
 
@@ -170,6 +228,11 @@ Quick sessions produce the same artefacts as a full one — `session-report.md`,
 
 Writes `output/context/<TICKET>-context.md`, which `/qa-explore` and `/qa-verify-backend`
 consume via `--context`.
+
+`/qa-gather` runs in the `qa-gather-agent` sub-agent, which starts with the invocation and
+nothing else, so **everything it needs must be in the same message**: the file paths, the
+URLs, or the pasted text itself. It cannot ask a follow-up question; whatever a source leaves
+unsaid comes back as a `[GAP]` or `[ASSUMPTION]` marker in the context file.
 
 ### After a session
 
@@ -458,8 +521,9 @@ const csv  = await generateJiraExport(session);
 | `/qa-knowledge-list` | Browse and search the knowledge base |
 | `/qa-target-setup` | Configure a target application (auth, scope, domain) |
 
-Under the plugin install these are `/qualiow:qa-explore` and so on. One sub-agent ships
-alongside them: `qa-gather-agent`, the background runner behind `/qa-gather`.
+Under the plugin install these are `/qualiow:qa-explore` and so on. Four sub-agents ship
+alongside them — `qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent` and
+`qa-page-mapper-agent` — described under [Sub-agents](#sub-agents).
 
 ## Project structure
 
@@ -467,12 +531,15 @@ alongside them: `qa-gather-agent`, the background runner behind `/qa-gather`.
 qualiow-exploratory-testing-skills/
   .claude/
     skills/                   # the 11 skills — CANONICAL source
-    agents/qa-gather-agent.md # the gather sub-agent — CANONICAL source
+    agents/                   # the 4 sub-agents — CANONICAL source
   skills/                     # generated mirror (npm + plugin) — npm run sync:plugin
   agents/                     # generated mirror
   .claude-plugin/
     plugin.json               # Claude Code plugin manifest
     marketplace.json          # the repo is its own marketplace (source: "./")
+  hooks/
+    hooks.json                # PreToolUse registrations (plugin default discovery path)
+    scripts/                  # read-guard.mjs, write-guard.mjs, secret-patterns.mjs
   bin/
     qualiow                   # CLI launcher shim (local build, else npx the npm package)
     mcli, mobile-cli.mjs      # Maestro/simctl/adb shim + permission-friendly wrapper
@@ -506,13 +573,15 @@ In a project you ran `qualiow init` in:
 ```
 my-project/
   .claude/skills/qa-*         # the 11 skills
-  .claude/agents/qa-gather-agent.md
+  .claude/agents/             # the 4 sub-agents
+  .claude/settings.json       # hook + permission entries, with qualiow init --hooks
   data/                       # knowledge, domains, templates, security, targets
   qa/
     target.yml                # project-local target (from /qa-target-setup)
     .env                      # credentials — gitignored
     .env.example
     bin/                      # mobile driver + setup/doctor scripts
+    hooks/                    # the guard scripts, with qualiow init --hooks
   output/sessions|bugs|context
   .auth/                      # storage states and browser profiles — gitignored
 ```
@@ -564,7 +633,8 @@ file is what a session applies.
 - **Redaction before disk.** Private keys, JWTs, `Authorization`/`Cookie` headers, AWS keys,
   `sk-`/`gh*_`/`xox*-` tokens, API keys, password/token/secret assignments, emails, SSNs and
   Luhn-valid card numbers are replaced with `[REDACTED]` — in the skills and in every
-  formatter.
+  formatter, checked by `qualiow session finalize` and blocked at the write by the plugin's
+  write guard.
 - **Sessions are isolated.** Each carries its own `playwright-cli -s=<id>`, closed and
   `delete-data`'d at the end.
 - **All output is confidential and local.** Every artefact opens with the confidentiality

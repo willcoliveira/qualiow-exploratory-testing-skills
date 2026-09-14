@@ -3,7 +3,9 @@
 Skip if the live lane is BLOCKED — but still write every probe command into
 `evidence/live-probes.md` so a human with credentials can run them unchanged.
 
-Read `${CLAUDE_SKILL_DIR}/references/aws-readonly-probes.md` for the command catalogue. Read
+`${CLAUDE_SKILL_DIR}/references/aws-readonly-probes.md` is the command catalogue: Grep it for
+the heading of the resource you need (`Grep '^## ' <file>` lists them) and Read only that
+section with `offset`/`limit`; never the whole file. Read
 `${CLAUDE_SKILL_DIR}/references/safety-rules.md` before the first probe, and confirm the fingerprint from
 phase 0 step 3c is on file — a probe of an environment that does not run the change
 measures something else.

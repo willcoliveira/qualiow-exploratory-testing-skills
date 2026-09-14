@@ -13,6 +13,17 @@ Group changed files by AC. Any file group that maps to **no** AC is either scope
 or an undocumented dependency — both worth a line in the report. Any AC that maps to
 **no** file is a candidate `FAIL` before you have read a single line.
 
+**Gate on the size of the change.** 25 or more files, or 1,500 or more changed lines, in
+the `--stat` output: invoke the `qa-diff-indexer-agent` sub-agent
+(`qualiow:qa-diff-indexer-agent` under a plugin install) with the repo path, the base, the
+branch and the AC list from phase 1. It returns an index — file, symbols or resources
+touched, line ranges, candidate AC ids, note — plus the two lists that matter here: files
+matching no AC, and ACs matching no file. It returns no verdicts and no severities; the
+grouping above is still yours. Then read **only the ranges it names**, with
+`git show <branch>:<path>`. Never diff the whole branch into context. If sub-agents are
+unavailable, do the step yourself as in 2.1.0: read the diff by `--stat` first, then per
+file.
+
 ## Step 2: Read the Implementation Against Each Claim
 
 Work AC by AC. For each, open the actual resource or handler and compare it to the

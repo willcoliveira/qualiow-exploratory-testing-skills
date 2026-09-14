@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   mkdtempSync,
+  mkdirSync,
   rmSync,
   existsSync,
   readFileSync,
@@ -185,5 +186,80 @@ describe('runInit — includeExamples', () => {
     // Still never local-*.
     const targetFiles = readdirSync(join(cwd, 'data', 'targets'));
     expect(targetFiles.some((f) => f.startsWith('local-'))).toBe(false);
+  });
+});
+
+describe('runInit — --hooks', () => {
+  const QUALIOW_ALLOW = ['Bash(playwright-cli:*)', 'Bash(npx playwright-cli:*)', 'Bash(qualiow:*)'];
+
+  it('installs the guard scripts and wires settings.json idempotently', async () => {
+    const cwd = makeTmpCwd();
+    const ctx = { cwd, pkgRoot: REPO_ROOT, log: silentLog };
+    const opts = { includeExamples: false, force: false, dryRun: false, hooks: true };
+    await runInit(opts, ctx);
+
+    for (const f of ['read-guard.mjs', 'write-guard.mjs', 'secret-patterns.mjs']) {
+      expect(existsSync(join(cwd, 'qa', 'hooks', f))).toBe(true);
+    }
+    expect(existsSync(join(cwd, 'qa', 'hooks', 'secret-patterns.d.mts'))).toBe(false);
+
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    const first = readFileSync(settingsPath, 'utf-8');
+    const parsed = JSON.parse(first) as {
+      hooks: { PreToolUse: { matcher: string; hooks: { command: string }[] }[] };
+      permissions: { allow: string[] };
+    };
+    expect(parsed.hooks.PreToolUse.map((e) => e.matcher)).toEqual(['Read', 'Write|Edit|MultiEdit']);
+    expect(parsed.hooks.PreToolUse[0].hooks[0].command).toContain('qa/hooks/read-guard.mjs');
+    expect(parsed.hooks.PreToolUse[1].hooks[0].command).toContain('qa/hooks/write-guard.mjs');
+    expect(parsed.permissions.allow).toEqual(expect.arrayContaining(QUALIOW_ALLOW));
+    expect(first.endsWith('\n')).toBe(true);
+
+    await runInit(opts, ctx);
+    expect(readFileSync(settingsPath, 'utf-8')).toBe(first);
+  });
+
+  it('preserves existing user hooks, allow rules and other keys', async () => {
+    const cwd = makeTmpCwd();
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    const userHook = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo user-hook' }] };
+    writeFileSync(
+      settingsPath,
+      JSON.stringify(
+        {
+          env: { QUALIOW_READ_MAX_LINES: '500' },
+          hooks: { PreToolUse: [userHook] },
+          permissions: { allow: ['Bash(ls:*)', 'Bash(qualiow:*)'] },
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    await runInit(
+      { includeExamples: false, force: false, dryRun: false, hooks: true },
+      { cwd, pkgRoot: REPO_ROOT, log: silentLog },
+    );
+    const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8')) as {
+      env: Record<string, string>;
+      hooks: { PreToolUse: { matcher: string; hooks: { command: string }[] }[] };
+      permissions: { allow: string[] };
+    };
+    expect(parsed.env).toEqual({ QUALIOW_READ_MAX_LINES: '500' });
+    expect(parsed.hooks.PreToolUse).toHaveLength(3);
+    expect(parsed.hooks.PreToolUse[0]).toEqual(userHook);
+    expect(parsed.permissions.allow).toEqual(['Bash(ls:*)', 'Bash(qualiow:*)', 'Bash(playwright-cli:*)', 'Bash(npx playwright-cli:*)']);
+  });
+
+  it('does nothing hook-related without --hooks, and writes nothing on --dry-run', async () => {
+    const plain = makeTmpCwd();
+    await runInit({ includeExamples: false, force: false, dryRun: false }, { cwd: plain, pkgRoot: REPO_ROOT, log: silentLog });
+    expect(existsSync(join(plain, 'qa', 'hooks'))).toBe(false);
+    expect(existsSync(join(plain, '.claude', 'settings.json'))).toBe(false);
+
+    const dry = makeTmpCwd();
+    await runInit({ includeExamples: false, force: false, dryRun: true, hooks: true }, { cwd: dry, pkgRoot: REPO_ROOT, log: silentLog });
+    expect(existsSync(join(dry, 'qa', 'hooks'))).toBe(false);
+    expect(existsSync(join(dry, '.claude', 'settings.json'))).toBe(false);
   });
 });

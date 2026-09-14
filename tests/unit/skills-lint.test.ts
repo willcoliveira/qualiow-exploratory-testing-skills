@@ -14,6 +14,8 @@ const ALLOWED_FRONTMATTER_KEYS = new Set([
   'disable-model-invocation',
   'user-invocable',
   'model',
+  'effort',
+  'background',
   'context',
   'agent',
   'paths',

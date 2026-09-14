@@ -1,7 +1,8 @@
 # Phase 7: Reflection & Reporting (Mobile)
 
 Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/07-reporting.md` for the reflection
-questions and the report structure; every artefact uses the format in
+questions, the `phase-7-notes.md` sections and the hand-off to the reporting agent; every
+artefact uses the format in
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` (confidentiality header
 first). The mobile differences (both modes):
 
@@ -68,9 +69,12 @@ qa/bin/mcli logs --since 30 --errors > output/sessions/<session-dir>/logs/BUG-NN
 Redact the log excerpt per `security-rules.md` before it is saved: process logs routinely
 carry tokens and emails.
 
-## Session report — mobile additions
+## phase-7-notes.md — mobile additions
 
-`session-report.md` per the contract with `Kind: mobile`, then append after `## Session Stats`:
+Write `phase-7-notes.md` with the sections the web phase lists (`## Executive Summary`,
+`## Coverage Map`, `## Observations`, `## Areas Not Tested`, `## Recommendations`,
+`## Reflection`), then these two — they are copied into `session-report.md` after
+`## Session Stats`:
 
 ```markdown
 ## Mobile Context
@@ -100,9 +104,9 @@ shows up as a known gap.
 
 ## Requirements coverage cross-check (optional)
 
-If the session was scoped to gathered requirements / tickets, add a cross-check table. This
-is **not** test execution; it is "did exploration touch the areas those requirements
-designed?":
+If the session was scoped to gathered requirements / tickets, add a cross-check table to the
+notes; it is carried into the report with the other sections. This is **not** test execution;
+it is "did exploration touch the areas those requirements designed?":
 
 ```markdown
 ## Requirements Cross-Check
@@ -139,20 +143,29 @@ block under `coverage.mobile` (the schema is strict; no other top-level keys):
 
 (For native mode set `"mode": "native"`, `app_under_test` to the app id, and `target_url` to null.)
 
-## Finalize
+## Assemble and Finalize
 
-```bash
-qualiow session finalize output/sessions/<session-dir>
-```
-
-It validates `stats.json` against the strict schema, checks the confidentiality header on
-every artefact and scans the directory against the redaction list — the logcat / simctl
-excerpts under `logs/` are scanned like everything else — then appends the session row to
-`output/sessions/INDEX.md` (`Kind` = `mobile`) and one row per bug to
+Invoke the `qa-reporting-agent` sub-agent (`qualiow:qa-reporting-agent` under a plugin
+install) with the session directory and `kind: mobile`. It assembles `session-report.md` from
+`phase-7-notes.md`, the bugs, `stats.json` and the phase files — keeping `## Mobile Context`
+and `## Deferred Tests` after `## Session Stats` — and then runs
+`qualiow session finalize`, which validates `stats.json` against the strict schema, checks the
+confidentiality header on every artefact and scans the directory against the redaction list —
+the logcat / simctl excerpts under `logs/` are scanned like everything else — then appends the
+session row to `output/sessions/INDEX.md` (`Kind` = `mobile`) and one row per bug to
 `output/bugs/all-bugs.md`, records the session metrics and sets `progress.json` to
 `complete`. It is idempotent.
 
-On exit 1 it prints a numbered list of violations naming each file: fix those files and run
-it again. `--check` validates and writes nothing. Resolve the `qualiow` prefix per
-`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`; if the CLI is unavailable, write the
-rows by hand in the column order defined there.
+Read its return (at most 8 lines). If it reports a missing notes section or a violation it
+could not fix, fix that yourself and re-run the check:
+
+```bash
+qualiow session finalize output/sessions/<session-dir> --check
+```
+
+`--check` writes nothing and prints a numbered list of violations naming each file. Resolve
+the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`; if the CLI
+is unavailable, write the rows by hand in the column order defined there.
+
+If sub-agents are unavailable, do the step yourself as in 2.1.0: write `session-report.md`
+from the notes in the contract's format and run `qualiow session finalize output/sessions/<session-dir>`.

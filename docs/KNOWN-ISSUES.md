@@ -1,7 +1,7 @@
 # Known Issues
 
-Repo-only notes — this file is not shipped in the npm package. Last reviewed 2026-09-08
-(2.0.0).
+Repo-only notes — this file is not shipped in the npm package. Last reviewed 2026-09-13
+(2.2.0).
 
 ## ISSUE-001: Autonomous sub-agent sessions and Bash permissions
 
@@ -47,6 +47,26 @@ reject it), so a marketplace install would still depend on the consuming project
 Until that has actually been run and counted, this stays open. Note that `qualiow explore` is
 deliberately pre-flight only today (it prints the command for you to run in Claude Code) —
 turning it into a real orchestrator is the follow-up that would close this issue properly.
+
+### Update 2026-09-13 (2.2.0)
+
+`qualiow init --hooks` now writes the `permissions.allow` half of the experiment above —
+`Bash(playwright-cli:*)`, `Bash(npx playwright-cli:*)` and `Bash(qualiow:*)` — into
+`.claude/settings.json`, alongside the two `PreToolUse` guard entries. So the allow rules the
+prescribed run needs are one command away instead of a hand-edit, and a plugin install carries
+the hooks already.
+
+The four sub-agents this release ships (`qa-gather-agent`, `qa-reporting-agent`,
+`qa-diff-indexer-agent`, `qa-page-mapper-agent`) deliberately declare **no** `permissionMode`:
+a plugin-distributed agent rejects the field, and these ship through the marketplace.
+`tests/unit/agents-lint.test.ts` enforces that, so no agent in this repository can acquire one
+by accident. Permission behaviour therefore comes from the consuming project's settings alone,
+which is exactly the configuration the experiment is meant to measure.
+
+None of that closes the issue: these four are bounded delegates for reads and report assembly,
+not a session runner driving `playwright-cli` unattended. The measurement described above —
+run a full `/qa-explore` through a sub-agent and count the approval prompts — has still not
+been done, and the orchestrator follow-up is unchanged.
 
 ---
 

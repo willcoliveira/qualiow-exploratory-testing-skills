@@ -52,6 +52,7 @@ jobs:
           if command -v shellcheck >/dev/null; then shellcheck -S warning bin/qualiow bin/mcli bin/wadb bin/wk-ios bin/doctor-mobile.sh bin/setup-mobile.sh || true; fi
           node --check bin/mobile-cli.mjs
           node --check bin/wkeval.mjs
+          for f in hooks/scripts/*.mjs; do node --check "$f"; done
           node bin/mobile-cli.mjs --help >/dev/null
           node bin/mobile-cli.mjs version
 
@@ -66,16 +67,19 @@ jobs:
           npm install --no-audit --no-fund "$TGZ"
           npx qualiow --version | grep -q "$(node -p "require('$GITHUB_WORKSPACE/package.json').version")"
           npx qualiow init
+          npx qualiow init --hooks
           git init -q && git config user.email ci@example.com && git config user.name ci
           git add -A && git commit -qm init
           npx qualiow init
-          git diff --quiet                     # second init is a no-op
+          npx qualiow init --hooks
+          git diff --quiet                     # second init (with and without --hooks) is a no-op
           npx qualiow validate --all
           test -x qa/bin/mcli
           test ! -f qa/bin/qualiow             # the launcher shim never ships into a consumer project
           test -f .claude/skills/qa-explore/SKILL.md
           test -f .claude/agents/qa-gather-agent.md
           test -f qa/.env.example
+          test -f qa/hooks/read-guard.mjs && test -f qa/hooks/write-guard.mjs && test -f .claude/settings.json
           node qa/bin/mobile-cli.mjs version
           npx qualiow kb digest --for explore | head -3
           npx qualiow session list

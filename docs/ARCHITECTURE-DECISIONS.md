@@ -4,10 +4,10 @@ Every major design choice evaluated with trade-offs, real-world evidence from ou
 
 *Internal document — repo only, not shipped in the npm package.*
 
-## Status as of 2026-09-13 (2.1.0)
+## Status as of 2026-09-13 (2.2.0)
 
-Records 001–010 were written during the 2026-03 POC; 012 was written for this release. This
-table is the current reading of each one; where the two disagree, this table wins.
+Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0 and 011 for
+2.2.0. This table is the current reading of each one; where the two disagree, this table wins.
 
 | ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
@@ -19,8 +19,9 @@ table is the current reading of each one; where the two disagree, this table win
 | 006 | File-based output plus a structured log | **Done** | `output/metrics.jsonl` is written by `qualiow report` via `appendSessionMetricsDeduped`, one deduplicated line per session. The dashboard the record sketches was not built |
 | 007 | Storage state plus adaptive login | **Keep** | The freshness check is implemented as guidance in the auth phase, not as code |
 | 008 | Domain configs as markdown → YAML | **Done in 2.0.0** | The `.md` domain files are removed; `data/domains/*.yml` is the only format, `DomainConfigSchema` matches the shipped files, and `qualiow validate --all` covers them |
-| 009 | Single monolithic agent per session | **Revisit** | Phases hand off through files, which is most of the benefit, but sessions still run in one context. Blocked on the same question as `KNOWN-ISSUES.md` ISSUE-001 |
+| 009 | Single monolithic agent per session | **Partially done in 2.2.0** | Reporting, gather, page-mapper and diff-indexer are sub-agents; the session orchestrator remains blocked on `KNOWN-ISSUES.md` ISSUE-001 |
 | 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
+| 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. Record below |
 | 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
 
 ---
@@ -569,8 +570,197 @@ This requires Playwright MCP with `--caps vision` or the agent reading screensho
 
 ---
 
-*ADR-011 is reserved for the model-routing record that lands with 2.2.0 (cheap-model
-sub-agents for the I/O-heavy reads, plus the hooks that enforce the read thresholds).*
+## ADR-011: Model Routing — deterministic CLI first, cheap sub-agents second, the session model for reasoning
+
+*Written 2026-09-13 for 2.2.0, not during the POC.*
+
+### Context
+
+The prompt for this work was a published routing plugin built on a hosted worker model: it
+pushes bulk reads and boilerplate generation off the main model through hooks that block
+expensive reads, scripts that call a cheaper worker, and instructions that tell the assistant
+when to use them. The question was whether the same shape fits an exploratory-testing pack
+whose entire value is the reasoning it does — and the answer is that it fits the *input and
+output*, not the thinking.
+
+An inventory of the canonical skills found the bulk work sitting in six places:
+
+| Sink | What the session read or wrote |
+|------|-------------------------------|
+| The session-start knowledge load | `data/knowledge/manifest.yml`, the always-load entries, `learned-patterns.md` and a domain profile, all read whole |
+| Snapshots | full accessibility trees, re-taken before every interaction, with no size policy. ADR-002's POC evidence already put snapshot analysis at the top of its token list |
+| Reporting | `session-report.md`, `stats.json`, the INDEX row and the `all-bugs.md` rows hand-written against a fixed contract restated in six skill files |
+| `/qa-explore-report`, `/qa-knowledge-list`, `/qa-explore-cleanup` | whole sessions and the whole manifest re-read only to reformat or list them |
+| The backend static lane and the probe catalogues | an unbounded `git show` of the branch, and two reference catalogues read from top to bottom for one resource type |
+| `/qa-gather` | unbounded files, URLs and diffs pulled into the session that then has to test against them |
+
+None of those is judgement. All of them were competing for the same context as the judgement.
+
+### Decision Made
+
+**Route the input and output; keep the reasoning.** Three tiers, cheapest first, with a
+hook layer that makes the thresholds real instead of advisory.
+
+- **Tier 0 — deterministic code.** Anything with a fixed contract is a `qualiow` CLI command.
+  Shipped in 2.1.0: `kb digest`, `session finalize|list|archive|delete|prune`,
+  `list knowledge` with filters.
+- **Tier 1 — cheap sub-agents.** Reads that need light judgement and can answer in a bounded,
+  cited structure. Four of them ship, pinned in their own frontmatter:
+  `qa-gather-agent` (`sonnet`), `qa-reporting-agent` (`sonnet`, `effort: low`),
+  `qa-diff-indexer-agent` (`haiku`, `effort: low`), `qa-page-mapper-agent` (`haiku`,
+  `effort: low`).
+- **Tier 2 — the session model.** Exploration, interaction, and every judgement in the
+  never-delegate list below.
+
+The routing procedure is three questions, in order, and the first "yes" wins:
+
+1. **Is the answer determined by the inputs?** Then it is code — a CLI command, not a model.
+   A command costs nothing and cannot hallucinate an index row.
+2. **Does it need light judgement over a large input, and can the answer be returned as a
+   bounded structure?** Then it is a cheap sub-agent: an extraction, an index, a map, an
+   assembly against a contract.
+3. **Is the answer an opinion?** Then it is this session, and it stays here.
+
+### The never-delegate list
+
+Whatever the tiering, these stay with the session model, and
+`qa-explore/references/delegation-rules.md` is the operative copy:
+
+- Severity and priority, including the "when in doubt, go lower" call
+- Business impact — revenue, trust, regulatory, data, scale
+- The decision that something *is* a bug, and every word of `bugs/BUG-NNN.md`
+- The charter and the P0–P3 risk ranking behind it
+- **What is missing** — the negative-space question no extraction pass can ask
+- The verdicts `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`, `NOT-REACHABLE`, `UNVERIFIABLE`
+- The executive summary, the recommendations and the reflection
+
+A delegate that returns one of these has exceeded its brief; that part of its answer is
+discarded and the call is made here.
+
+### Why the interaction phases are excluded
+
+Phases 4 to 6 — journeys, features, edge cases — are not routed at all, even though they are
+the phases that read the most snapshot text. Three reasons, and any one of them would be
+enough:
+
+- **Element refs are context.** `e17` means something only inside the snapshot that produced
+  it and only until the page re-renders. Handing refs across an agent boundary buys a stale-ref
+  failure mode in exchange for nothing.
+- **The next action depends on the last observation.** Exploration is a loop, not a batch. A
+  delegate would have to come back after every click, and the round trip costs more than the
+  read it saved.
+- **The bug is found in the gap between what happened and what should have happened.** That
+  comparison is the product. Sending it to a cheaper model to save input tokens is selling the
+  only thing being bought.
+
+Discovery is the exception, and only for the raw tree: mapping a static snapshot into forms,
+navigation and controls is extraction, and the session keeps driving the page itself.
+
+### Why the hooks are scoped, and why 300 lines
+
+The hooks are enforcement, not policy — the policy is in the skills, and the hooks catch the
+cases where a model reaches for a whole file anyway (including inside a sub-agent, which is
+why the reporting agent reads in windows).
+
+- **Scoped to qualiow-owned paths.** `read-guard.mjs` fires only for
+  `data/knowledge/manifest.yml`, `data/knowledge/releases/**`,
+  `output/sessions/*/phase-*.md` and `output/sessions/*/snapshots/*`; `write-guard.mjs` only
+  for files under `output/`, and never inside `snapshots/`. A global read block would police
+  the user's ordinary coding in the same project, which is not this package's business — and
+  a tool that gets in the way of unrelated work gets switched off entirely. That is the
+  deliberate difference from the plugin that prompted this.
+- **300 lines** is the ceiling because it is the size at which a cheaper route always exists
+  for our own files: `qualiow kb digest`, `qualiow list knowledge --entry <id>`, a `Grep` for
+  the heading plus a `Read` with `offset`/`limit`, or `qa-page-mapper-agent`. Below it there
+  is no cheaper route worth the indirection. The same reasoning sets the diff gate: a branch
+  diff reaching 25 files or 1,500 changed lines goes through `qa-diff-indexer-agent` instead
+  of being read into context.
+- A `Read` that already carries `offset` or `limit` passes: the reader has already said it
+  wants a window, and the guard has nothing to add.
+- `write-guard.mjs` mechanises security rule 3, which was prompt-only until now. It shares the
+  redaction list with `src/utils/redact.ts` by duplicating the patterns — a hook has to answer
+  in milliseconds and cannot afford the CLI's start-up — with a parity test asserting that the
+  same sample strings give the same answer through both.
+
+### Why the report is split into notes and assembly
+
+`session-report.md` is two different jobs wearing one filename. The executive summary, the
+coverage map, the recommendations and the reflection are the session's opinion; everything
+around them is a contract that `references/output-contract.md` already specifies exactly.
+
+So the session writes `phase-7-notes.md` first — its own words, header first — and
+`qa-reporting-agent` assembles the report around them, runs `qualiow session finalize`, and
+fixes only header and format violations. The split is what makes the delegation safe: the
+agent cannot invent a summary, because the summary already exists and its instruction is to
+copy it. Bug reports and `stats.json` are never delegated. If the Agent tool is unavailable,
+the session writes the report itself and runs `finalize` — the notes file is a valid input to
+both paths.
+
+Quick sessions keep writing their own report. Spinning up an agent to assemble roughly thirty
+lines costs more than it saves.
+
+### Why `/qa-gather` forks entirely
+
+Gather is the one skill whose *whole job* is reading things the session should not be carrying
+— tickets, PRs, design docs, diffs, pasted text — and whose output is a single file that the
+next session reads instead. It has no interactive step to lose, so the skill runs with
+`context: fork` in `qa-gather-agent` and the session sees only the resulting context path.
+
+The cost is that the agent starts with the invocation and nothing else: paths, URLs and pasted
+text must be in the same message, and gaps become `[GAP]` / `[ASSUMPTION]` markers rather than
+a follow-up question. That was already the skill's convention, so the fork made it a rule
+instead of a habit.
+
+### What a delegate must return
+
+Bounded — the request states the maximum size. Structured — a table or a fixed heading set.
+Cited — `file:line`, an element ref, or the probe command that produced it. Free of opinions:
+no "looks fine", no "this is probably a bug", no severity, no verdict. The session reasons
+over the delegate's output; it never pastes that output into a report unchanged.
+
+Each agent also carries a `maxTurns` ceiling in its own frontmatter, so a delegate that starts
+wandering stops instead of quietly becoming a second session.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| A third-party routing runtime | Claude Code already has the pieces — sub-agents that pin a model and an effort, forked skill contexts, and plugin-native `PreToolUse` hooks. Adding a runtime would add an install step, a process and a failure mode for capability we already have |
+| Route everything, including the interaction phases | Sells the product. See the exclusion above |
+| A global read block, as the plugin that prompted this does | Polices the user's own code in the same project. Scoped guards are the version that survives contact with a real repository |
+| Hooks only, no sub-agents | A hook can refuse a read; it cannot answer the question the read was for. Refusal without a route is just a broken session |
+| Sub-agents only, no hooks | Instructions are followed most of the time, and "most of the time" is how the whole manifest ends up in context on the one session that mattered |
+| One big orchestrator agent per session (ADR-009 as written) | Still blocked on ISSUE-001 permission inheritance under plugin installs. The four bounded agents are the part that could ship without it |
+
+### Overrides
+
+- `QUALIOW_HOOKS=off` in `.claude/settings.json` `env` — disables both guards for a project.
+- `QUALIOW_READ_MAX_LINES=<n>` — moves the read ceiling for a project.
+- `model: inherit` in a project's copy of an agent — runs that delegate on the session's own
+  model, for anyone who would rather pay for the read than route it.
+- `CLAUDE_CODE_SUBAGENT_MODEL` — the environment-level override for the whole set.
+- The agents ship without `permissionMode`, deliberately: a plugin-distributed agent cannot
+  declare one (ISSUE-001), so permission behaviour is the consuming project's
+  `settings.json`, not ours. `tests/unit/agents-lint.test.ts` enforces the absence.
+
+### Consequences
+
+- **A refusal must always name a route.** The read guard's deny message carries the cheaper
+  command, because a block with no alternative just moves the cost to the retry loop.
+- **The contract for each delegate lives in its agent file**, not in the calling skill, so the
+  routing can be re-tuned without touching skill text that six files copy from each other.
+- **Two enabled hook sets is a supported mistake, not a broken one.** A plugin install and a
+  project that ran `init --hooks` both fire: the same deny twice and two node spawns per tool
+  call. Documented, not guarded against.
+- **Measurement is `/skill-doctor` before and after**, plus a dogfood `/qa-explore-quick`
+  followed by `/qa-explore-report latest` against the shipped `testers-ai` target. The
+  per-skill context-cost lines are recorded in the pull request and the changelog **only as
+  measured** — this record states no saving, and no number belongs here until that run has
+  happened. ISSUE-003 is the standing reason: an unrepeatable measurement is not evidence.
+
+**Status: DONE in 2.2.0**
+
+---
 
 ## ADR-012: Marketplace Distribution and the `bin/qualiow` Launcher
 

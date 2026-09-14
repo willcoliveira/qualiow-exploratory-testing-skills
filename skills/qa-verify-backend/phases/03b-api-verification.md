@@ -8,7 +8,9 @@ Run it whenever the ticket touches a request/response contract: a search or list
 endpoint, validation rules, pagination, filter values, an error contract, a payload
 shape a consumer reads. Skip it when the change has no HTTP surface at all.
 
-Read `${CLAUDE_SKILL_DIR}/references/api-probes.md` for the mechanics and the case catalogue,
+`${CLAUDE_SKILL_DIR}/references/api-probes.md` holds the mechanics and the case catalogue:
+Grep it for the heading of the section you need (`Grep '^## ' <file>` lists them) and Read
+only that section with `offset`/`limit`; never the whole file. Read
 `${CLAUDE_SKILL_DIR}/references/environment-fingerprinting.md` before you believe any result, and
 `${CLAUDE_SKILL_DIR}/references/payload-verification.md` once you have one — a well-shaped `200` says nothing
 about whether the numbers in it are right.

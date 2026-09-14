@@ -7,7 +7,9 @@ description: >
   Use when user says: "gather requirements", "prepare context", "analyze this ticket",
   "what should I test", or provides requirements documents before an explore session.
 argument-hint: "<file | url | text> [--domain <id>] [--output <file>]"
-allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git:*)
+allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git:*), Bash(wc:*)
+context: fork
+agent: qa-gather-agent
 ---
 
 # Requirements Gathering & Analysis for Exploratory Testing
@@ -19,9 +21,11 @@ to `output/context/` (gitignored). Paths and the data-resolution order:
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`. The context file this skill writes
 is the input to a session whose artefacts follow
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` — the confidentiality
-header rule there applies to the context file too. For a long or multi-source gather, this
-skill can run in the background as the `qa-gather-agent` sub-agent
-(`.claude/agents/qa-gather-agent.md`), which follows this same process.
+header rule there applies to the context file too. This skill runs in the
+`qa-gather-agent` sub-agent (`qualiow:qa-gather-agent` under a plugin install), on Sonnet, in
+a forked context: everything it needs must be in the invocation — file paths, URLs, or the
+pasted text in the same message. There is no way to ask a follow-up question; every
+ambiguity becomes a `[GAP]` / `[ASSUMPTION]` marker in the context file.
 
 You are a **Senior QA Analyst** preparing context for an exploratory testing session. Your job is to collect requirements from whatever sources are available, analyze them for completeness and testability, and produce a structured context file that the `/qa-explore` skill can consume.
 
@@ -58,7 +62,17 @@ You are a **Senior QA Analyst** preparing context for an exploratory testing ses
 ## Input Sources
 
 ### Source: Local File
-Read the file and extract:
+Size it before you open it:
+
+```bash
+wc -l <file>
+```
+
+At most 300 lines — read it whole. Over 300 lines — `Grep '^#'` for the headings and `Read`
+only the sections that carry requirements (description, acceptance criteria, out-of-scope,
+open questions), with `offset`/`limit`. Never read a long specification end to end.
+
+Extract:
 - Feature description
 - Acceptance criteria (look for "AC:", "Given/When/Then", numbered criteria, checkboxes)
 - Technical details (APIs, data models, components mentioned)
@@ -79,12 +93,15 @@ Parse the user's inline text for requirements information. People paste:
 - Verbal descriptions of what the feature should do
 
 ### Source: Git/PR
-If a git repo is available:
+If a git repo is available, take the shape of the change first and the content second:
 ```bash
-git log --oneline -20  # Recent changes
-git diff main...HEAD   # What changed on this branch
+git log --oneline -20              # Recent changes
+git diff --stat main...HEAD        # What changed on this branch — file names and sizes only
+git diff main...HEAD -- <path>     # One file that maps to the ticket
 ```
-Extract: files changed, components affected, commit messages describing intent.
+Never diff the whole branch into context. Read the `--stat` output, pick the files that map
+to the ticket, and diff those one at a time. Extract: files changed, components affected,
+commit messages describing intent.
 
 ### Source: Multiple Combined
 When multiple sources are provided, merge them into a unified context. Resolve conflicts by noting both versions.
@@ -116,8 +133,12 @@ Compare extracted requirements against the relevant domain checklist (read from 
 [GAP] No mention of mobile/responsive behavior
 [GAP] Acceptance criteria says "user can checkout" but doesn't specify: with what payment methods? Is address required?
 [AMBIGUITY] "Fast checkout" — what is "fast"? Under 3 seconds? Under 5?
+[ASSUMPTION] Read "supported cards" as Visa and Mastercard only — the ticket never says
 [MISSING AC] No acceptance criteria for: empty cart, duplicate submission, session timeout
 ```
+
+You cannot ask the user a question from a forked context: anything you had to decide to keep
+going is an `[ASSUMPTION]` line, named so the session can challenge it.
 
 ### Step 3: Extract Test Scenarios
 From the requirements, derive:
