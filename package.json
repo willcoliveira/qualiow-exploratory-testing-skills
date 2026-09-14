@@ -18,6 +18,7 @@
     "skills/",
     "agents/",
     "bin/",
+    "hooks/",
     ".claude-plugin/",
     "data/domains/*.yml",
     "data/knowledge/",
