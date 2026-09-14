@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.2.0] - 2026-09-13
+## [2.2.0] - 2026-09-14
 
 The second half of the routing work 2.1.0 started. 2.1.0 gave the deterministic work to the CLI; this release gives the bounded reads and the report assembly to four cheap sub-agents, and adds two `PreToolUse` hooks that enforce the read thresholds instead of merely stating them. The judgement stays exactly where it was: severity, priority, business impact, the bug reports, the charter and risk ranking, what is missing, the AC verdicts, the executive summary and the reflection are still written by the session. The interaction phases are untouched — element refs and the observe-decide loop never leave the session. Additive: no skill, command, schema or library export was renamed or removed. Rationale, the routing procedure and the exclusions: `docs/ARCHITECTURE-DECISIONS.md` ADR-011.
 
@@ -27,7 +27,9 @@ The second half of the routing work 2.1.0 started. 2.1.0 gave the deterministic 
 - **`/qa-gather` needs its input in the same message.** The fork has no way to ask.
 - **Release order is unchanged from 2.1.0:** `npm publish` lands before `git push --follow-tags` and the GitHub release, because `bin/qualiow` pins its `npx` fetch to the version in `.claude-plugin/plugin.json`.
 
-## [2.1.0] - 2026-09-13
+## [2.1.0] - 2026-09-14
+
+_Merged to `main` ahead of 2.2.0 and shipped inside it; there is no standalone 2.1.0 on npm. Everything in this section is present in 2.2.0._
 
 Work with a fixed contract moves out of the session and into the `qualiow` CLI: the knowledge load becomes a digest, the end of a session becomes one `session finalize` call, and the knowledge-list and cleanup skills become wrappers over commands the CLI already needed. The repository also becomes its own Claude Code marketplace, which required a launcher shim to make the CLI reachable from a plugin install. Additive — no skill, command, schema or library export was renamed or removed. The second half of the routing work (cheap-model sub-agents for the I/O-heavy reads, and hooks that enforce the read thresholds) lands in 2.2.0.
 
