@@ -30,7 +30,7 @@ That writes:
 | What | Where |
 |------|-------|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the `qa-gather-agent` sub-agent | `.claude/agents/qa-gather-agent.md` |
+| the four sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
 | the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
@@ -44,6 +44,58 @@ the plan first.
 ```bash
 cp qa/.env.example qa/.env             # credentials go here, never in a YAML file
 npx playwright-cli install --skills    # optional: the official Playwright skill alongside
+```
+
+### Optionally, install the guard hooks
+
+```bash
+qualiow init --hooks
+```
+
+Optional, and only for npm projects — a plugin install already ships the same two hooks and
+has them on by default, so do not enable both in one project. `--hooks` copies the guard
+scripts to `qa/hooks/` and merges into `.claude/settings.json` two `PreToolUse` entries and
+three `permissions.allow` rules. The merge is by exact string: running it again changes
+nothing, and hooks you already had are kept.
+
+What the guards do: `read-guard.mjs` denies a whole-file `Read` of a qualiow file over
+`QUALIOW_READ_MAX_LINES` lines (default 300) — the knowledge manifest, a knowledge release
+file, a session phase file or a raw snapshot — and names the cheaper route in the refusal; a
+`Read` with `offset` or `limit` passes. `write-guard.mjs` refuses a `Write` or `Edit` under
+`output/` whose content matches the redaction list, so a secret never reaches disk. Neither
+one looks at anything else in your project. `QUALIOW_HOOKS=off` disables both.
+
+To write it by hand instead, this is the whole of it:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs\"" }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs\"" }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(playwright-cli:*)",
+      "Bash(npx playwright-cli:*)",
+      "Bash(qualiow:*)"
+    ]
+  },
+  "env": {
+    "QUALIOW_READ_MAX_LINES": "300"
+  }
+}
 ```
 
 ### Or install it as a Claude Code plugin
@@ -87,8 +139,9 @@ Claude will:
    --domain <domain>`, rather than reading the manifest and the entry files whole
 5. Explore across eight phases, saving findings to disk between each
 6. File one bug report per finding in `bugs/`
-7. Write `session-report.md`, then run `qualiow session finalize <session-dir>` — it validates
-   the session and appends the index rows
+7. Write `phase-7-notes.md` — the executive summary, coverage map, recommendations and
+   reflection — then hand the assembly of `session-report.md` and the
+   `qualiow session finalize <session-dir>` call to the `qa-reporting-agent` sub-agent
 
 The eight phases and their share of the 45-minute cap:
 
@@ -102,6 +155,16 @@ The eight phases and their share of the 45-minute cap:
 | 5 | Features | 10 | Deep testing of the highest-risk features |
 | 6 | Edge cases | 6 | Boundaries, negative input, security, "what is missing?" |
 | 7 | Reporting | 4 | Reflection, coverage map, session report, cleanup |
+
+Three points in that run are not done by the session itself. At setup the knowledge base
+arrives as a `qualiow kb digest` call rather than as the manifest and the entry files. In
+discovery, a page whose raw accessibility tree runs past 300 lines is saved to
+`snapshots/` and handed to the `qa-page-mapper-agent` sub-agent, which returns the forms,
+navigation, controls and error text as a short map — the session works from that instead of
+the tree, and keeps driving the page itself. At the end, the session writes its judgements
+into `phase-7-notes.md` and the `qa-reporting-agent` sub-agent assembles `session-report.md`
+around them and runs `finalize`; the bug reports, `stats.json` and every word of the summary
+and reflection are still the session's own.
 
 ### Option B: quick check on one page
 
@@ -118,7 +181,10 @@ session, so reports, feedback and cleanup all work on it.
 /qa-gather
 ```
 
-Point it at a ticket, a PR, a design doc, a URL or pasted text. It writes
+Point it at a ticket, a PR, a design doc, a URL or pasted text. It runs in the
+`qa-gather-agent` sub-agent, which sees only the invocation, so put the paths, the URLs or the
+pasted text in the same message — it cannot come back with a question, and anything a source
+leaves unsaid is marked `[GAP]` or `[ASSUMPTION]`. It writes
 `output/context/<TICKET>-context.md`, which you then pass to a session:
 
 ```bash
@@ -140,11 +206,13 @@ output/sessions/2026-09-08-1813-explore-parabank/
   phase-4-journeys.md
   phase-5-features.md
   phase-6-edge-cases.md
+  phase-7-notes.md        # the session's own summary, coverage map, recommendations
   bugs/
     BUG-001.md            # one bug = one report
     BUG-002.md
   screenshots/
     BUG-001.png
+  snapshots/              # raw page snapshots — working files, never part of the report
   videos/
   session-report.md       # the deliverable
   stats.json              # machine-readable session metrics
@@ -316,6 +384,7 @@ decide which entries a skill always gets without touching the skill itself.
 
 ```bash
 qualiow init --dry-run              # preview what init would write
+qualiow init --hooks                # add the read/write guards to .claude/settings.json
 qualiow validate --all              # targets + qa/target.yml + domains + knowledge base
 qualiow list sessions               # also: knowledge | targets | domains
 qualiow list knowledge --stats      # also: --domain --tag --type --entry <id> --changelog

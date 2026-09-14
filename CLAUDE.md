@@ -34,8 +34,12 @@ No framework and no test scripts — Claude's own QA reasoning plus a driver per
 | `/qa-knowledge-list` | Browse the knowledge base |
 | `/qa-target-setup` | Configure a target application (auth, scope, domain) |
 
-One sub-agent ships with them: `.claude/agents/qa-gather-agent.md`, the background runner
-behind `/qa-gather`.
+Four sub-agents ship with them in `.claude/agents/`, none of which ever returns a verdict:
+`qa-gather-agent` (sonnet — `/qa-gather` runs forked in it), `qa-reporting-agent` (sonnet,
+effort low — assembles `session-report.md` from `phase-7-notes.md` and runs
+`qualiow session finalize`), `qa-diff-indexer-agent` (haiku, effort low — indexes a large diff
+to candidate ACs), `qa-page-mapper-agent` (haiku, effort low — maps a raw snapshot over 300
+lines).
 
 Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc.
 
@@ -54,6 +58,12 @@ The fixed-contract work belongs to the CLI, not to the model:
 - `list knowledge [--domain] [--tag] [--type] [--entry <id>] [--changelog] [--stats]` — what
   `/qa-knowledge-list` wraps; `session list|archive|delete|prune` is what `/qa-explore-cleanup`
   wraps.
+- `init --hooks` — copy the guard scripts to `qa/hooks/` and merge the two `PreToolUse`
+  entries plus `permissions.allow` for `Bash(playwright-cli:*)`, `Bash(npx playwright-cli:*)`
+  and `Bash(qualiow:*)` into `.claude/settings.json`. Idempotent; for npm projects only — a
+  plugin install ships the same hooks on by default, and enabling both in one project only
+  buys a double deny. `QUALIOW_HOOKS=off` disables them, `QUALIOW_READ_MAX_LINES` (default
+  300) moves the read ceiling.
 
 What is never delegated (severity, business impact, bug reports, charter and risk ranking,
 verdicts, executive summary, reflection): `.claude/skills/qa-explore/references/delegation-rules.md`.
@@ -88,9 +98,11 @@ claude plugin install qualiow@qualiow
 - `.claude/skills/` — the 11 skills, **canonical**; `skills/` is the generated mirror shipped
   to npm and used by the plugin (`npm run sync:plugin`; CI fails on drift — never hand-edit
   the mirror)
-- `.claude/agents/` — `qa-gather-agent`; mirrored to `agents/` the same way
+- `.claude/agents/` — the 4 sub-agents; mirrored to `agents/` the same way
 - `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
   repo is its own marketplace; the single plugin's `source` is `"./"`)
+- `hooks/` — `hooks.json` (two `PreToolUse` registrations, plugin default discovery path) and
+  `scripts/` (`read-guard.mjs`, `write-guard.mjs`, `secret-patterns.mjs`; node builtins only)
 - `bin/` — `qualiow` (CLI launcher shim: local build if present, else `npx` the published
   package pinned to `plugin.json`), `mcli` + `mobile-cli.mjs` (mobile driver), `wadb`,
   `wk-ios` + `wkeval.mjs` (iOS WebKit DOM bridge), `setup-mobile.sh`, `doctor-mobile.sh`
@@ -112,7 +124,8 @@ claude plugin install qualiow@qualiow
 - `tests/` — vitest unit tests and fixtures
 - `output/sessions/`, `output/bugs/`, `output/context/` — session outputs, the aggregated bug
   list, and gathered ticket context
-- `qa/` — project-local config in a consumer project: `target.yml`, `.env`, `bin/`
+- `qa/` — project-local config in a consumer project: `target.yml`, `.env`, `bin/`, and
+  `hooks/` after `qualiow init --hooks`
 - `.auth/` — Playwright storage-state files **and** persistent browser profile directories
   holding live session cookies (gitignored in full; the API lane depends on them)
 
@@ -316,7 +329,8 @@ The single operative rule set every skill applies:
 3. **Credentials never in output** — scan every artefact before writing: private keys, JWTs,
    `Authorization`/`Cookie` headers, AWS keys, `sk-`/`gh*_`/`xox*-` tokens, API keys,
    password/token/secret assignments, emails, SSNs, Luhn-valid card numbers → `[REDACTED]`.
-   `src/utils/redact.ts` implements the same list and every formatter applies it.
+   `src/utils/redact.ts` implements the same list and every formatter applies it; enforced by
+   `qualiow session finalize` and by the plugin's write guard.
 4. **Sessions are isolated** — every `playwright-cli` command carries `-s=<kind>-<HHmm>-<slug>`;
    the session ends with `close` then `delete-data`. Never read from another session's output.
 5. **Production is read-only** — a **hostname** (backend: account id, AWS profile, resource
