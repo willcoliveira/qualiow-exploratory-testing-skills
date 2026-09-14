@@ -75,12 +75,18 @@ export {
 export {
   SESSION_KINDS,
   SESSION_DIR_RE,
+  LEGACY_SESSION_DIR_RE,
   slugify,
   sessionTimestamp,
   sessionDirName,
   parseSessionDirName,
+  describeSessionDir,
 } from './utils/session-dir.js';
-export type { SessionKind, ParsedSessionDir } from './utils/session-dir.js';
+export type {
+  SessionKind,
+  ParsedSessionDir,
+  DiscoveredSessionDir,
+} from './utils/session-dir.js';
 export { parseMarkdownTable } from './utils/markdown-table.js';
 export type { ParsedTable } from './utils/markdown-table.js';
 export {
@@ -94,6 +100,9 @@ export {
   ALL_BUGS_COLUMNS,
   INDEX_MD_HEADER,
   ALL_BUGS_MD_HEADER,
+  headersMatchColumns,
+  missingColumns,
+  buildTableRow,
 } from './utils/index-files.js';
 export {
   QUALIOW_GITIGNORE_ENTRIES,

@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import type { TargetConfig, DomainConfig } from '../../types/index.js';
 import { parseMarkdownTable } from '../../utils/markdown-table.js';
 import { INDEX_COLUMNS } from '../../utils/index-files.js';
-import { SESSION_DIR_RE } from '../../utils/session-dir.js';
+import { describeSessionDir, type DiscoveredSessionDir } from '../../utils/session-dir.js';
 import { resolveDataDir } from '../../utils/paths.js';
 import { KnowledgeManifestSchema } from '../../schemas/knowledge-manifest.schema.js';
 import { KnowledgeChangelogSchema } from '../../schemas/knowledge-changelog.schema.js';
@@ -61,7 +61,7 @@ export async function runList(
 ): Promise<void> {
   switch (type) {
     case 'sessions':
-      listSessions(cwd);
+      listSessions(cwd, log);
       break;
     case 'knowledge':
       listKnowledge(cwd, options, log);
@@ -109,45 +109,59 @@ export function readSessionIndex(indexPath: string): SessionRow[] {
   return rows;
 }
 
-function listSessions(cwd: string): void {
+/**
+ * The session directory an INDEX.md report cell points at. Handles both a bare
+ * path and the `[label](path)` link form an earlier version wrote.
+ */
+function reportDirName(report: string): string {
+  const link = /\]\(([^)]+)\)/.exec(report);
+  const path = (link ? link[1] : report).trim();
+  return basename(path.replace(/\/session-report\.md$/, ''));
+}
+
+function listSessions(cwd: string, log: (line: string) => void): void {
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   const indexPath = join(sessionsDir, 'INDEX.md');
   if (!existsSync(sessionsDir)) {
-    console.log(chalk.yellow('No sessions directory. Run `npx qualiow init` first, then start a session.'));
+    log(chalk.yellow('No sessions directory. Run `npx qualiow init` first, then start a session.'));
     return;
   }
 
   const rows = readSessionIndex(indexPath);
-  const indexedDirs = new Set(rows.map((r) => basename(r.report.replace(/\/session-report\.md$/, ''))));
+  const indexedDirs = new Set(rows.map((r) => reportDirName(r.report)));
+  // Legacy directory names are listed too: omitting them hides output that is
+  // still on disk in a project upgraded from an earlier version.
   const unindexed = readdirSync(sessionsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && SESSION_DIR_RE.test(d.name) && !indexedDirs.has(d.name))
-    .map((d) => d.name)
-    .sort();
+    .filter((d) => d.isDirectory())
+    .map((d) => describeSessionDir(d.name))
+    .filter((d): d is DiscoveredSessionDir => d !== null && !indexedDirs.has(d.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  console.log(chalk.cyan.bold('\nSessions:'));
-  console.log('');
+  log(chalk.cyan.bold('\nSessions:'));
+  log('');
   if (rows.length === 0 && unindexed.length === 0) {
-    console.log(chalk.yellow('  No sessions recorded yet.'));
-    console.log(chalk.white('  Start one with: /qa-explore <url>'));
-    console.log('');
+    log(chalk.yellow('  No sessions recorded yet.'));
+    log(chalk.white('  Start one with: /qa-explore <url>'));
+    log('');
     return;
   }
 
-  const widths = [16, 8, 22, 5, 9, 12];
+  const widths = [16, 8, 22, 5, 9, 18];
   const header = INDEX_COLUMNS.map((c, i) => (i < widths.length ? pad(c, widths[i]) : c)).join(' ');
-  console.log(chalk.bold(`  ${header}`));
-  console.log(`  ${widths.map((w) => '─'.repeat(w)).join(' ')} ${'─'.repeat(30)}`);
+  log(chalk.bold(`  ${header}`));
+  log(`  ${widths.map((w) => '─'.repeat(w)).join(' ')} ${'─'.repeat(30)}`);
   for (const r of rows) {
-    console.log(
-      `  ${pad(r.date, 16)} ${pad(r.kind, 8)} ${pad(r.target, 22)} ${pad(r.bugs, 5)} ${pad(r.duration, 9)} ${pad(r.status, 12)} ${r.report}`,
+    log(
+      `  ${pad(r.date, 16)} ${pad(r.kind, 8)} ${pad(r.target, 22)} ${pad(r.bugs, 5)} ${pad(r.duration, 9)} ${pad(r.status, 18)} ${r.report}`,
     );
   }
   for (const d of unindexed) {
-    console.log(chalk.gray(`  ${pad(d.slice(0, 15), 16)} ${pad('', 8)} ${pad('', 22)} ${pad('', 5)} ${pad('', 9)} ${pad('unindexed', 12)} ${d}`));
+    const status = d.legacy ? 'unindexed (legacy)' : 'unindexed';
+    log(chalk.gray(`  ${pad(d.name.slice(0, 15), 16)} ${pad('', 8)} ${pad('', 22)} ${pad('', 5)} ${pad('', 9)} ${pad(status, 18)} ${d.name}`));
   }
-  console.log('');
-  console.log(chalk.white(`  Total: ${rows.length} session(s)` + (unindexed.length ? chalk.gray(` (+${unindexed.length} unindexed)`) : '')));
-  console.log('');
+  log('');
+  log(chalk.white(`  Total: ${rows.length} session(s)` + (unindexed.length ? chalk.gray(` (+${unindexed.length} unindexed)`) : '')));
+  log('');
 }
 
 function listKnowledge(cwd: string, options: ListOptions, log: (line: string) => void): void {

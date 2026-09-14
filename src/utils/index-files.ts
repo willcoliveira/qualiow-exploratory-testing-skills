@@ -39,3 +39,47 @@ export const ALL_BUGS_MD_HEADER = table(
   '_Consolidated index across all exploratory testing sessions._',
   ALL_BUGS_COLUMNS,
 );
+
+/** Column names as table keys: trimmed and lower-cased, the way rows are keyed. */
+function keysOf(columns: readonly string[]): string[] {
+  return columns.map((c) => c.trim().toLowerCase());
+}
+
+/**
+ * True when a table's own header is the canonical column set — same names in the
+ * same order, compared case-insensitively.
+ */
+export function headersMatchColumns(
+  headers: readonly string[],
+  columns: readonly string[],
+): boolean {
+  const a = keysOf(headers);
+  const b = keysOf(columns);
+  return a.length === b.length && a.every((h, i) => h === b[i]);
+}
+
+/**
+ * Canonical columns a table's header does not carry, in canonical order — what a
+ * file written by an earlier version is missing.
+ */
+export function missingColumns(
+  headers: readonly string[],
+  columns: readonly string[],
+): string[] {
+  const present = new Set(keysOf(headers));
+  return columns.filter((c) => !present.has(c.trim().toLowerCase()));
+}
+
+/**
+ * Renders one row in a table's OWN column order, taking each cell from `values`
+ * keyed by lower-cased column name. A column with no value is left empty, so an
+ * index written by an earlier version keeps its width instead of gaining cells
+ * that would shift every value one column to the right when read back.
+ */
+export function buildTableRow(
+  headers: readonly string[],
+  values: Record<string, string>,
+): string {
+  const cells = keysOf(headers).map((key) => values[key] ?? '');
+  return `| ${cells.join(' | ')} |`;
+}
