@@ -45,7 +45,7 @@
     "check:mirror": "diff -rq .claude/skills skills && diff -rq .claude/agents agents",
     "check:pack": "node scripts/check-pack.mjs",
     "lint": "tsc --noEmit",
-    "version": "node scripts/sync-version.mjs && git add .claude-plugin/plugin.json",
+    "version": "node scripts/sync-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json",
     "prepublishOnly": "npm run build && npm run lint && npm test && npm run check:pack"
   },
   "keywords": [

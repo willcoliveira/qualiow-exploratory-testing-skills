@@ -6,7 +6,7 @@ description: >
   Use when user says: "add knowledge", "add heuristic", "learn this", "save this technique",
   "add to knowledge base", or provides QA documentation to ingest.
 argument-hint: "[<text> | <url> | <file>]"
-allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(node:*), Bash(npx qualiow:*), Bash(qualiow:*)
+allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(node:*), Bash(npx qualiow:*), Bash(npx:*), Bash(qualiow:*)
 ---
 
 # Add QA Knowledge
@@ -76,7 +76,8 @@ Present the structured entry and ask:
 
 ### 5. Determine Release Version
 
-Read `<data>/knowledge/manifest.yml` for current version.
+`Grep '^version:' <data>/knowledge/manifest.yml` for the current version — never read the
+manifest whole.
 - If adding to existing release: place in current version's entries/
 - If user wants a new release: bump version, create new release directory
 
@@ -87,12 +88,16 @@ Default: add to current release unless user specifies otherwise.
 1. Write the YAML entry:
    - inside this repository: `data/knowledge/releases/<version>/entries/<id>.yml`, and add its id to that release's `release.yml` `entries:` list (bump `entry_count`)
    - in a consumer project: `$PWD/data/knowledge/custom/<id>.yml`
-2. Update `data/knowledge/manifest.yml`: run `npx qualiow kb sync` (regenerates the `entries:`
+2. Update `data/knowledge/manifest.yml`: run `qualiow kb sync` (regenerates the `entries:`
    registry and `stats` from the release files); if the CLI is unavailable, add the entry to
    `entries:` by hand with `id`, `file`, `type`, `priority`, `tags`, `domains` and bump `stats`.
-   Then add the id to `loading_strategy` (`always`, `by_domain`, or `by_tag`).
+   Then add the id to `loading_strategy` (`always`, `by_domain`, `by_tag`, or `by_skill`).
 3. Update `data/knowledge/changelog.yml`: add the entry to the current release's `entries_added` list.
-4. Verify: `npx qualiow validate --all` (or `npx qualiow kb check`) must pass.
+4. Verify: `qualiow validate --all` (or `qualiow kb check`) must pass.
+
+Resolve the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md` and
+write it literally; in a project that depends on the npm package that is
+`npx -y -p qualiow-exploratory-testing qualiow`, never bare `npx qualiow`.
 
 ### 7. Confirm
 

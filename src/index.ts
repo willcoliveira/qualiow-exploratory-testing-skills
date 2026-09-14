@@ -105,6 +105,7 @@ export {
   getPackageVersion,
   resolveSkillsSource,
   resolveTargetPath,
+  resolveDataDir,
   resolveDomainPath,
 } from './utils/paths.js';
 export {
@@ -136,5 +137,7 @@ export type { InitOptions, InitResult, CopyRecord, CopyStatus } from './cli/comm
 export { runExplore, parseTimeBox } from './cli/commands/explore.js';
 export { runReport, resolveSessionDir } from './cli/commands/report.js';
 export { runList, readSessionIndex } from './cli/commands/list.js';
+export type { ListOptions, SessionRow } from './cli/commands/list.js';
 export { runValidate } from './cli/commands/validate.js';
-export { runKb } from './cli/commands/kb.js';
+export { runKb, runKbDigest } from './cli/commands/kb.js';
+export type { KbDigestOptions } from './cli/commands/kb.js';

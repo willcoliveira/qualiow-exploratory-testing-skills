@@ -25,6 +25,7 @@ stats:
 # "always"    — loaded at the start of every session
 # "by_domain" — loaded only when the target's domain matches
 # "by_tag"    — loaded only when a matching tag is requested or relevant
+# "by_skill"  — loaded for a named skill (`qualiow kb digest --for <skill>`)
 loading_strategy:
   always:
     - heuristic-sfdipot
@@ -158,6 +159,27 @@ loading_strategy:
     exploration:
       - reference-exploratory-testing-types
       - reference-heuristic-praxis
+  # "by_skill" — selected by `qualiow kb digest --for <skill>`, on top of "always"
+  by_skill:
+    explore: []
+    mobile: []
+    backend:
+      - technique-verification-mode-selection
+      - technique-environment-fingerprinting
+      - technique-functional-diff-analysis
+      - technique-llm-output-verification
+      - technique-authenticated-api-probing
+      - technique-ui-api-differential
+      - technique-silent-failure-audit
+      - technique-derived-value-verification
+      - technique-presentation-integrity
+      - technique-expected-behaviour-specification
+      - technique-config-surface-verification
+      - technique-release-readiness-verification
+      - technique-exactly-once-verification
+      - technique-async-callback-contracts
+      - technique-contract-narrowing
+      - technique-test-suite-audit
 
 # Entry registry — quick lookup without scanning the filesystem
 entries:

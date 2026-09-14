@@ -4,18 +4,47 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import { globSync } from 'glob';
 import chalk from 'chalk';
-import type { KnowledgeManifest, TargetConfig, DomainConfig } from '../../types/index.js';
+import type { TargetConfig, DomainConfig } from '../../types/index.js';
 import { parseMarkdownTable } from '../../utils/markdown-table.js';
 import { INDEX_COLUMNS } from '../../utils/index-files.js';
 import { SESSION_DIR_RE } from '../../utils/session-dir.js';
+import { resolveDataDir } from '../../utils/paths.js';
+import { KnowledgeManifestSchema } from '../../schemas/knowledge-manifest.schema.js';
+import { KnowledgeChangelogSchema } from '../../schemas/knowledge-changelog.schema.js';
+
+type ParsedManifest = ReturnType<typeof KnowledgeManifestSchema.parse>;
+
+export interface ListOptions {
+  /** Knowledge only: keep entries carrying this domain (or `all`). */
+  domain?: string;
+  /** Knowledge only: keep entries carrying this tag. */
+  tag?: string;
+  /** Knowledge only: keep entries of this type. */
+  type?: string;
+  /** Knowledge only: print one entry's YAML file instead of the listing. */
+  entry?: string;
+  /** Knowledge only: print the release changelog instead of the listing. */
+  changelog?: boolean;
+  /** Knowledge only: print stats, releases and loading-strategy counts. */
+  stats?: boolean;
+  /** Knowledge only: read the knowledge base from this data directory. */
+  data?: string;
+}
 
 export function listCommand(): Command {
   const cmd = new Command('list')
     .description('List sessions, knowledge, targets, or domains')
     .argument('<type>', 'What to list: sessions, knowledge, targets, domains')
-    .action(async (type: string) => {
+    .option('--domain <id>', 'knowledge: only entries for this domain')
+    .option('--tag <tag>', 'knowledge: only entries carrying this tag')
+    .option('--type <type>', 'knowledge: only entries of this type (heuristic, technique, …)')
+    .option('--entry <id>', 'knowledge: print this entry\'s YAML file instead of the listing')
+    .option('--changelog', 'knowledge: print the release changelog')
+    .option('--stats', 'knowledge: print stats, active releases and loading-strategy counts')
+    .option('--data <dir>', 'knowledge: read the knowledge base from this data directory')
+    .action(async (type: string, options: ListOptions) => {
       try {
-        await runList(type, process.cwd());
+        await runList(type, process.cwd(), options);
       } catch (err) {
         console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
         process.exit(1);
@@ -24,13 +53,18 @@ export function listCommand(): Command {
   return cmd;
 }
 
-export async function runList(type: string, cwd: string): Promise<void> {
+export async function runList(
+  type: string,
+  cwd: string,
+  options: ListOptions = {},
+  log: (line: string) => void = (line) => console.log(line),
+): Promise<void> {
   switch (type) {
     case 'sessions':
       listSessions(cwd);
       break;
     case 'knowledge':
-      listKnowledge(cwd);
+      listKnowledge(cwd, options, log);
       break;
     case 'targets':
       listTargets(cwd);
@@ -116,45 +150,155 @@ function listSessions(cwd: string): void {
   console.log('');
 }
 
-function listKnowledge(cwd: string): void {
-  const knowledgeDir = resolve(cwd, 'data', 'knowledge');
+function listKnowledge(cwd: string, options: ListOptions, log: (line: string) => void): void {
+  const dataDir = resolveDataDir(cwd, options.data);
+  const knowledgeDir = join(dataDir, 'knowledge');
   const manifestPath = join(knowledgeDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
-    console.log(chalk.yellow('No knowledge base found. Run `npx qualiow init` first.'));
+    log(chalk.yellow(`No knowledge base at ${manifestPath}. Run \`npx qualiow init\` first.`));
     return;
   }
 
-  const manifest = parseYaml(readFileSync(manifestPath, 'utf-8')) as KnowledgeManifest;
+  const manifest = KnowledgeManifestSchema.parse(
+    parseYaml(readFileSync(manifestPath, 'utf-8')),
+  );
+
+  if (options.entry) {
+    log(readEntryFile(knowledgeDir, manifest.entries, options.entry));
+    return;
+  }
+
+  if (options.changelog) {
+    printKnowledgeChangelog(knowledgeDir, log);
+    return;
+  }
+
+  if (options.stats) {
+    printKnowledgeStats(manifest, log);
+    return;
+  }
+
   const filesOnDisk = globSync(join(knowledgeDir, 'releases', '*', 'entries', '*.yml')).length;
 
-  console.log(chalk.cyan.bold('\nKnowledge Base:'));
-  console.log(chalk.white(`  Version: ${manifest.version} | Entries: ${manifest.entries.length}`));
+  log(chalk.cyan.bold('\nKnowledge Base:'));
+  log(chalk.white(`  Version: ${manifest.version} | Entries: ${manifest.entries.length}`));
   if (filesOnDisk !== manifest.entries.length || manifest.stats.total_entries !== filesOnDisk) {
-    console.log(
+    log(
       chalk.yellow(
         `  ⚠ Registry (${manifest.entries.length}) / stats (${manifest.stats.total_entries}) disagree with ${filesOnDisk} entry files — run: npx qualiow kb sync`,
       ),
     );
   }
-  console.log('');
 
-  const grouped = new Map<string, typeof manifest.entries>();
-  for (const entry of manifest.entries) {
+  const filters: string[] = [];
+  if (options.domain) filters.push(`domain ${options.domain}`);
+  if (options.tag) filters.push(`tag ${options.tag}`);
+  if (options.type) filters.push(`type ${options.type}`);
+
+  // `domains: [all]` marks an entry that applies to every domain.
+  const entries = manifest.entries.filter(
+    (e) =>
+      (!options.domain || e.domains.includes(options.domain) || e.domains.includes('all')) &&
+      (!options.tag || e.tags.includes(options.tag)) &&
+      (!options.type || e.type === options.type),
+  );
+
+  if (filters.length) {
+    log(chalk.white(`  Filter: ${filters.join(', ')} → ${entries.length} entries`));
+  }
+  log('');
+
+  if (entries.length === 0) {
+    log(chalk.yellow('  No entries match that filter.'));
+    log('');
+    return;
+  }
+
+  const grouped = new Map<string, typeof entries>();
+  for (const entry of entries) {
     const list = grouped.get(entry.type) ?? [];
     list.push(entry);
     grouped.set(entry.type, list);
   }
 
-  for (const [type, entries] of grouped) {
-    console.log(chalk.cyan(`  ${type.charAt(0).toUpperCase() + type.slice(1)}s (${entries.length}):`));
-    for (const entry of entries) {
+  for (const [type, group] of grouped) {
+    log(chalk.cyan(`  ${type.charAt(0).toUpperCase() + type.slice(1)}s (${group.length}):`));
+    for (const entry of group) {
       const priorityColor =
         entry.priority === 'high' ? chalk.red : entry.priority === 'medium' ? chalk.yellow : chalk.white;
       const tags = entry.tags.map((t) => chalk.gray(t)).join(', ');
-      console.log(`    ${priorityColor(`[${entry.priority}]`)} ${entry.id}  ${chalk.gray('tags:')} ${tags}`);
+      log(`    ${priorityColor(`[${entry.priority}]`)} ${entry.id}  ${chalk.gray('tags:')} ${tags}`);
     }
-    console.log('');
+    log('');
   }
+}
+
+/** `--entry <id>`: the raw YAML, the route for entries too long to Read. */
+function readEntryFile(
+  knowledgeDir: string,
+  entries: { id: string; file: string }[],
+  id: string,
+): string {
+  const meta = entries.find((e) => e.id === id);
+  const path = meta ? join(knowledgeDir, meta.file) : join(knowledgeDir, 'custom', `${id}.yml`);
+  if (!existsSync(path)) {
+    throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
+  }
+  return readFileSync(path, 'utf-8').trimEnd();
+}
+
+function printKnowledgeChangelog(knowledgeDir: string, log: (line: string) => void): void {
+  const changelogPath = join(knowledgeDir, 'changelog.yml');
+  if (!existsSync(changelogPath)) {
+    log(chalk.yellow(`No changelog at ${changelogPath}.`));
+    return;
+  }
+  const changelog = KnowledgeChangelogSchema.parse(
+    parseYaml(readFileSync(changelogPath, 'utf-8')),
+  );
+
+  log(chalk.cyan.bold('\nKnowledge Base Changelog:'));
+  log('');
+  for (const release of changelog.releases) {
+    log(`  ${chalk.bold(`v${release.version}`)} ${chalk.gray(`· ${release.date}`)}`);
+    log(`    ${release.summary}`);
+    const added = release.entries_added.map((e) => e.id);
+    if (added.length) log(`    ${chalk.gray('added:')} ${added.join(', ')}`);
+    if (release.entries_modified.length) {
+      log(`    ${chalk.gray('modified:')} ${release.entries_modified.join(', ')}`);
+    }
+    if (release.entries_removed.length) {
+      log(`    ${chalk.gray('removed:')} ${release.entries_removed.join(', ')}`);
+    }
+    log('');
+  }
+}
+
+function printKnowledgeStats(manifest: ParsedManifest, log: (line: string) => void): void {
+  log(chalk.cyan.bold('\nKnowledge Base Stats:'));
+  log(chalk.white(`  Version: ${manifest.version}`));
+  log('');
+  for (const [key, value] of Object.entries(manifest.stats)) {
+    log(`  ${pad(key.replace(/_/g, ' '), 18)} ${value}`);
+  }
+  log('');
+  log(chalk.cyan(`  Active releases (${manifest.active_releases.length}):`));
+  log(`    ${manifest.active_releases.join(', ')}`);
+  log('');
+
+  const ls = manifest.loading_strategy;
+  log(chalk.cyan('  Loading strategy:'));
+  log(`    ${pad('always', 12)} ${ls.always.length} entries`);
+  for (const [bucket, map] of [
+    ['by_domain', ls.by_domain],
+    ['by_tag', ls.by_tag],
+    ['by_skill', ls.by_skill ?? {}],
+  ] as const) {
+    const keys = Object.keys(map);
+    const total = Object.values(map).reduce((n, ids) => n + ids.length, 0);
+    log(`    ${pad(bucket, 12)} ${keys.length} keys, ${total} references`);
+  }
+  log('');
 }
 
 function listTargets(cwd: string): void {

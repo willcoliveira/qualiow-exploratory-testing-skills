@@ -139,11 +139,20 @@ block under `coverage.mobile` (the schema is strict; no other top-level keys):
 
 (For native mode set `"mode": "native"`, `app_under_test` to the app id, and `target_url` to null.)
 
-## Update progress.json — final
+## Finalize
 
-Same as qa-explore. Set `status: complete`, all phases to their final status.
+```bash
+qualiow session finalize output/sessions/<session-dir>
+```
 
-## Update indexes
+It validates `stats.json` against the strict schema, checks the confidentiality header on
+every artefact and scans the directory against the redaction list — the logcat / simctl
+excerpts under `logs/` are scanned like everything else — then appends the session row to
+`output/sessions/INDEX.md` (`Kind` = `mobile`) and one row per bug to
+`output/bugs/all-bugs.md`, records the session metrics and sets `progress.json` to
+`complete`. It is idempotent.
 
-Append the session row to `output/sessions/INDEX.md` (`Kind` = `mobile`) and one row per
-bug to `output/bugs/all-bugs.md`, in the column order defined in `paths.md`.
+On exit 1 it prints a numbered list of violations naming each file: fix those files and run
+it again. `--check` validates and writes nothing. Resolve the `qualiow` prefix per
+`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`; if the CLI is unavailable, write the
+rows by hand in the column order defined there.

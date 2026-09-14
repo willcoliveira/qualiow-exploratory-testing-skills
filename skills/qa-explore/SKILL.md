@@ -8,7 +8,7 @@ description: >
   Use when user says: "explore", "test this site", "find bugs", "QA check", "exploratory session",
   or provides a URL to test.
 argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>]"
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(diff:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx:*), Bash(wc:*), Bash(diff:*), Read, Write, Glob, Grep
 ---
 
 # Exploratory Testing Session
@@ -73,5 +73,6 @@ Consult these as needed throughout the session:
 - **`${CLAUDE_SKILL_DIR}/references/security-rules.md`** — prompt-injection resistance, production rule, redaction list, session isolation, output classification
 - **`${CLAUDE_SKILL_DIR}/references/severity-guide.md`** — severity definitions, the "when in doubt go LOWER" rule, risk matrix, priority table
 - **`${CLAUDE_SKILL_DIR}/references/session-rules.md`** — 20 testing-discipline rules: 45-min cap, one bug one report, evidence, risk-proportional time, adapt mid-session, log WHY, AI-bias avoidance
+- **`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`** — what the `qualiow` CLI does instead of you, the never-delegate list (severity, impact, bug reports, verdicts, reflection) and the read thresholds
 - **`${CLAUDE_SKILL_DIR}/references/context-integration.md`** — how `--context` changes the session (context file, inline context, blind mode)
 - **`${CLAUDE_SKILL_DIR}/references/playwright-agents-integration.md`** — opt-in handoff to Playwright Test Agents (planner / generator / healer, Playwright 1.56+) when a reproducible bug should become a regression test; requires the optional `@playwright/test` peer dependency

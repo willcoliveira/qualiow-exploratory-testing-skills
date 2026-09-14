@@ -149,6 +149,7 @@ export function validateKnowledgeBase(dataDir: string): ValidationResult[] {
         always: string[];
         by_domain: Record<string, string[]>;
         by_tag: Record<string, string[]>;
+        by_skill?: Record<string, string[]>;
       };
       entries: { id: string; file: string; type: string; domains: string[] }[];
     };
@@ -177,6 +178,7 @@ export function validateKnowledgeBase(dataDir: string): ValidationResult[] {
       ...ls.always,
       ...Object.values(ls.by_domain).flat(),
       ...Object.values(ls.by_tag).flat(),
+      ...Object.values(ls.by_skill ?? {}).flat(),
     ];
     for (const id of allRefs) {
       if (!registryIds.has(id)) {

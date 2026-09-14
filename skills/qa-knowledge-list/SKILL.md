@@ -6,58 +6,46 @@ description: >
   Use when user says: "list knowledge", "show heuristics", "what's in the knowledge base",
   "knowledge stats", "show changelog".
 argument-hint: "[--domain <id>] [--tag <tag>] [--type <type>] [--entry <id>] [--changelog] [--stats]"
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Grep, Bash(qualiow:*), Bash(npx:*)
 ---
 
 # Browse QA Knowledge Base
 
-Read the base from `<data>/knowledge/` (resolution order in
-`${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`), plus any `$PWD/data/knowledge/custom/*.yml`.
+This skill is a thin wrapper around the `qualiow` CLI, which reads the base from
+`<data>/knowledge/` plus any `$PWD/data/knowledge/custom/*.yml`. Resolve the `qualiow` prefix
+once per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md` and write it literally.
+
 Never paste a full entry into a session report or a website; the knowledge base is internal
 (`${CLAUDE_SKILL_DIR}/../qa-explore/references/security-rules.md`). Cite an entry by id in
 the `## Observations` section of a session report instead — see
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md`.
 
-## Commands
+## Flag mapping
 
-### List All
-Read `<data>/knowledge/manifest.yml` and display:
-- Total entries by type (heuristics, techniques, checklists, references, patterns), counted
-  from the `entries:` registry; if `stats` disagrees with the count, say so (run `npx qualiow kb sync`)
-- Active releases
-- Last updated date
+| The user asks for | Run |
+|---|---|
+| everything | `qualiow list knowledge` |
+| `--domain <id>` | `qualiow list knowledge --domain <id>` |
+| `--tag <tag>` | `qualiow list knowledge --tag <tag>` |
+| `--type <type>` | `qualiow list knowledge --type <type>` |
+| `--entry <id>` | `qualiow list knowledge --entry <id>` |
+| `--changelog` | `qualiow list knowledge --changelog` |
+| `--stats` | `qualiow list knowledge --stats` |
 
-Then list all entries grouped by type:
+Flags combine; pass them through exactly as given. `--type` ∈ `heuristic` · `technique` ·
+`checklist` · `reference` · `pattern`.
+
+```bash
+qualiow list knowledge --domain fintech --tag security
+qualiow list knowledge --entry heuristic-sfdipot
 ```
-## Heuristics (N)
-- SFDIPOT - Product Elements (v0.1.0) [high] [tags: exploration, what-to-test]
-- FEW HICCUPPS - Consistency Oracles (v0.1.0) [high] [tags: oracles, recognize-problems]
-...
 
-## Techniques (N)
-...
-```
+## Rules
 
-### Filter by Domain
-`/qa-knowledge-list --domain ecommerce`
-Show only entries where `domains` includes the specified domain or "all".
-
-### Filter by Tag
-`/qa-knowledge-list --tag security`
-Show only entries with the specified tag.
-
-### Filter by Type
-`/qa-knowledge-list --type heuristic`
-Show only entries of the specified type.
-
-### Show Entry Detail
-`/qa-knowledge-list --entry heuristic-sfdipot`
-Read and display the full YAML entry content.
-
-### Show Changelog
-`/qa-knowledge-list --changelog`
-Read `<data>/knowledge/changelog.yml` and display recent changes.
-
-### Show Stats
-`/qa-knowledge-list --stats`
-Display from manifest: entry counts, release history, loading strategy summary.
+- Print the command output verbatim. Do not re-order it, re-summarize it, or add entries
+  from memory.
+- Never `Read` `<data>/knowledge/manifest.yml` or a release entry directly — `--entry <id>`
+  returns one entry in full, and `Grep` answers a single-line question. The reasoning behind
+  this is in `${CLAUDE_SKILL_DIR}/../qa-explore/references/delegation-rules.md`.
+- If the CLI is unavailable, say so and offer to `Grep` the manifest for what was asked
+  rather than reading it whole.

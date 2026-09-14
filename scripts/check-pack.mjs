@@ -18,6 +18,8 @@ const MUST_INCLUDE = [
   'skills/qa-verify-backend/SKILL.md',
   'agents/qa-gather-agent.md',
   '.claude-plugin/plugin.json',
+  '.claude-plugin/marketplace.json',
+  'bin/qualiow',
   'bin/mcli',
   'bin/mobile-cli.mjs',
   'bin/wadb',

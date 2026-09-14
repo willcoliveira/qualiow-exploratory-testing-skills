@@ -24,6 +24,7 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `phase-3-discovery.md` … `phase-6-edge-cases.md` | phases 3–6 (file number = phase number) |
 | `screenshots/BUG-NNN.png`, other `screenshots/*.png` | as taken |
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
+| `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
 | `bugs/BUG-NNN.md` | phase 7 |
 | `session-report.md` | phase 7 |
 | `stats.json` | phase 7 |
@@ -176,7 +177,10 @@ verdict counts under `coverage.verdicts`.
 ## Index rows
 
 Every session ends by appending one row to `output/sessions/INDEX.md` and one row per bug
-to `output/bugs/all-bugs.md`. The column order (defined once in `paths.md`) is:
+to `output/bugs/all-bugs.md`. Both rows are written by `qualiow session finalize <session-dir>`,
+which refuses the session — exit 1, naming the file — when an artefact is missing the
+confidentiality header, an unredacted secret survives the scan, or `stats.json` does not
+conform. The column order (defined once in `paths.md`) is:
 
 ```
 | Date | Kind | Target | Bugs | Duration | Status | Report |
