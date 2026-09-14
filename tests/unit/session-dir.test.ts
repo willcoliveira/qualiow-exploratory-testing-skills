@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import {
   SESSION_KINDS,
   SESSION_DIR_RE,
+  LEGACY_SESSION_DIR_RE,
   slugify,
   sessionTimestamp,
   sessionDirName,
   parseSessionDirName,
+  describeSessionDir,
 } from '../../src/utils/session-dir.js';
 
 describe('SESSION_KINDS', () => {
@@ -128,5 +130,53 @@ describe('parseSessionDirName', () => {
   it('returns null for a non-matching name', () => {
     expect(parseSessionDirName('not-a-session-dir')).toBeNull();
     expect(parseSessionDirName('20260101-0900-old')).toBeNull();
+  });
+});
+
+describe('LEGACY_SESSION_DIR_RE', () => {
+  it('matches a date-prefixed name with and without an HHmm segment', () => {
+    expect(LEGACY_SESSION_DIR_RE.test('2026-05-22-1045-demo-target')).toBe(true);
+    expect(LEGACY_SESSION_DIR_RE.test('2026-07-09-quick-preprod-product-search')).toBe(true);
+  });
+
+  it('matches a current-scheme name too — discovery is the wider net', () => {
+    expect(LEGACY_SESSION_DIR_RE.test('2026-09-08-1813-explore-example')).toBe(true);
+  });
+
+  it('rejects a name with no date prefix', () => {
+    expect(LEGACY_SESSION_DIR_RE.test('snapshots')).toBe(false);
+    expect(LEGACY_SESSION_DIR_RE.test('20260101-0900-old')).toBe(false);
+  });
+});
+
+describe('describeSessionDir', () => {
+  it('reports a current-scheme directory as non-legacy with its own HHmm', () => {
+    expect(describeSessionDir('2026-09-08-1813-explore-example')).toEqual({
+      name: '2026-09-08-1813-explore-example',
+      timestamp: new Date(2026, 8, 8, 18, 13),
+      legacy: false,
+    });
+  });
+
+  it('reports a legacy name carrying an HHmm with that time', () => {
+    expect(describeSessionDir('2026-05-22-1045-demo-target')).toEqual({
+      name: '2026-05-22-1045-demo-target',
+      timestamp: new Date(2026, 4, 22, 10, 45),
+      legacy: true,
+    });
+  });
+
+  it('reports a legacy name with no HHmm at local midnight', () => {
+    expect(describeSessionDir('2026-07-09-quick-preprod-product-search')).toEqual({
+      name: '2026-07-09-quick-preprod-product-search',
+      timestamp: new Date(2026, 6, 9, 0, 0),
+      legacy: true,
+    });
+  });
+
+  it('returns null for a directory that is not date-prefixed', () => {
+    expect(describeSessionDir('snapshots')).toBeNull();
+    expect(describeSessionDir('20260101-0900-old')).toBeNull();
+    expect(describeSessionDir('2026-05-22')).toBeNull();
   });
 });

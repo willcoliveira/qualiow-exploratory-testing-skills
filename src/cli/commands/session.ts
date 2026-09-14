@@ -24,12 +24,23 @@ import { resolveSessionDir } from './report.js';
 import { runList } from './list.js';
 import { parseSession } from '../../utils/parse-session.js';
 import { SessionMetricsSchema } from '../../schemas/session-metrics.schema.js';
-import { parseSessionDirName, SESSION_DIR_RE } from '../../utils/session-dir.js';
+import {
+  describeSessionDir,
+  parseSessionDirName,
+  type DiscoveredSessionDir,
+} from '../../utils/session-dir.js';
 import { hasConfidentialityHeader } from '../../utils/confidentiality.js';
 import { containsSecrets, redact } from '../../utils/redact.js';
-import { ALL_BUGS_MD_HEADER, INDEX_COLUMNS, INDEX_MD_HEADER } from '../../utils/index-files.js';
+import {
+  ALL_BUGS_COLUMNS,
+  ALL_BUGS_MD_HEADER,
+  INDEX_COLUMNS,
+  INDEX_MD_HEADER,
+  buildTableRow,
+  headersMatchColumns,
+  missingColumns,
+} from '../../utils/index-files.js';
 import { parseMarkdownTable } from '../../utils/markdown-table.js';
-import { readSessionIndex } from './list.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import type { SessionMetrics } from '../../types/index.js';
 
@@ -100,6 +111,21 @@ export function sessionCommand(): Command {
     .action((dir: string, options: { yes: boolean }) => {
       try {
         runSessionDelete(dir, options, { cwd: process.cwd() });
+      } catch (err) {
+        console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
+        process.exit(1);
+      }
+    });
+
+  cmd
+    .command('repair-index')
+    .description(
+      'Merge an INDEX.md / all-bugs.md table split into blocks by blank lines between its rows (dry run unless --yes)',
+    )
+    .option('--yes', 'Rewrite the files instead of a dry run', false)
+    .action((options: { yes: boolean }) => {
+      try {
+        runSessionRepairIndex(options, { cwd: process.cwd() });
       } catch (err) {
         console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
         process.exit(1);
@@ -236,28 +262,48 @@ export async function runSessionFinalize(
   const allBugsPath = join(bugsOutputDir, 'all-bugs.md');
   ensureFileWithHeader(allBugsPath, ALL_BUGS_MD_HEADER);
 
+  const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
   let indexRowAdded = false;
-  const existingIndexRows = readSessionIndex(indexPath);
-  if (!existingIndexRows.some((r) => r.report.includes(`${dirName}/`))) {
-    const row =
-      `| ${finalStats.date} | ${kind} | ${finalStats.target} | ${finalStats.bugs_found} | ` +
-      `${finalStats.duration_min} min | complete | ${dirName}/session-report.md |\n`;
-    appendFileSync(indexPath, row);
+  if (!tableRowsText(indexPath).some((t) => t.includes(`${dirName}/`))) {
+    appendIndexRow({
+      date: finalStats.date,
+      kind,
+      target: finalStats.target,
+      bugs: String(finalStats.bugs_found),
+      duration: `${finalStats.duration_min} min`,
+      status: 'complete',
+      report: `${dirName}/session-report.md`,
+    });
     indexRowAdded = true;
   }
 
   const parsedSession = await parseSession(sessionDir);
   const bugs = [...parsedSession.bugs].sort((a, b) => a.id.localeCompare(b.id));
   const existingBugRows = readAllBugsRows(allBugsPath);
+  const existingBugRowsText = tableRowsText(allBugsPath);
+  const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
   const bugRowsAdded: string[] = [];
   for (const bug of bugs) {
+    const reportPath = `${dirName}/bugs/${bug.id}.md`;
+    // Either identification is enough: the id/session pair under the current columns,
+    // the report path under a layout that names them differently.
     if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
+    if (existingBugRowsText.some((t) => t.includes(reportPath))) continue;
     const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
     const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
-    const row = `| ${bug.id} | ${dirName} | ${title} | ${severity} | open | ${dirName}/bugs/${bug.id}.md |\n`;
-    appendFileSync(allBugsPath, row);
+    appendBugRow({
+      id: bug.id,
+      session: dirName,
+      title,
+      severity,
+      status: 'open',
+      report: reportPath,
+    });
     bugRowsAdded.push(bug.id);
   }
+
+  warnSplitTable(indexPath, 'INDEX.md', log);
+  warnSplitTable(allBugsPath, 'all-bugs.md', log);
 
   if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats)) {
     log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
@@ -285,6 +331,276 @@ function ensureFileWithHeader(path: string, header: string): void {
   if (existsSync(path)) return;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, header);
+}
+
+// ─── index tables ───────────────────────────────────────────────────
+//
+// A project initialised by an earlier version has an INDEX.md / all-bugs.md whose
+// header predates the current column set. Appending a row built from the current
+// columns would make that row wider than its header, and every value in it would
+// then be read back under the wrong column name. Rows are written in the layout
+// the file already has instead; existing rows are never widened or rewritten.
+
+/** The header cells of the first markdown table in `path`, or null if there is none. */
+function readTableHeaders(path: string): string[] | null {
+  if (!existsSync(path)) return null;
+  return parseMarkdownTable(readFileSync(path, 'utf-8'))?.headers ?? null;
+}
+
+function isTableLine(line: string): boolean {
+  return line.trim().startsWith('|');
+}
+
+/** A separator line — cells made only of dashes, colons and spaces. */
+function isSeparatorLine(line: string): boolean {
+  const t = line.trim();
+  return t.startsWith('|') && /^[|\s:-]+$/.test(t) && t.includes('--');
+}
+
+/** A row with nothing in any cell, which a markdown reader skips. */
+function isEmptyRowLine(line: string): boolean {
+  return /^[|\s]+$/.test(line.trim());
+}
+
+/**
+ * The span of the first table: its header line, and the line the table ends
+ * before. A heading closes it, so a second table further down the file — under
+ * its own heading — is never read or rewritten as part of this one.
+ */
+function tableBounds(lines: string[]): { headerIdx: number; endIdx: number } {
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length - 1; i++) {
+    if (isTableLine(lines[i]) && isSeparatorLine(lines[i + 1])) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx === -1) return { headerIdx, endIdx: lines.length };
+  let endIdx = lines.length;
+  for (let i = headerIdx + 2; i < lines.length; i++) {
+    if (/^#{1,6}\s/.test(lines[i])) {
+      endIdx = i;
+      break;
+    }
+  }
+  return { headerIdx, endIdx };
+}
+
+/**
+ * Every data row line of the table, in every block — header, separators and empty
+ * rows excluded. A parser stops at the first blank line, this does not.
+ */
+function tableRowLines(lines: string[]): { index: number; text: string }[] {
+  const { headerIdx, endIdx } = tableBounds(lines);
+  if (headerIdx === -1) return [];
+  const out: { index: number; text: string }[] = [];
+  for (let i = headerIdx + 1; i < endIdx; i++) {
+    const line = lines[i];
+    if (!isTableLine(line) || isSeparatorLine(line) || isEmptyRowLine(line)) continue;
+    out.push({ index: i, text: line });
+  }
+  return out;
+}
+
+/**
+ * Every data row of the table in `path`, for reference checks. Read line by line
+ * rather than through the parser, so a row below a blank line still counts as
+ * present — otherwise finalize would append a second copy of it.
+ */
+function tableRowsText(path: string): string[] {
+  if (!existsSync(path)) return [];
+  return tableRowLines(readFileSync(path, 'utf-8').split('\n')).map((r) => r.text);
+}
+
+/**
+ * Returns an appender that writes rows into `path` in that file's own column
+ * order, keyed by lower-cased column name. The header is read on the first
+ * write, and a layout that is not the canonical one is reported once.
+ */
+function tableRowAppender(
+  path: string,
+  columns: readonly string[],
+  label: string,
+  log: Log,
+): (values: Record<string, string>) => void {
+  let headers: string[] | undefined;
+  return (values) => {
+    if (!headers) {
+      headers = readTableHeaders(path) ?? [...columns];
+      if (!headersMatchColumns(headers, columns)) {
+        const missing = missingColumns(headers, columns);
+        const detail = missing.length
+          ? `an older column set (no ${missing.join(', ')})`
+          : 'a different column set';
+        log(chalk.yellow(`  ○ ${label} uses ${detail}; row written in that layout`));
+      }
+    }
+    insertTableRow(path, buildTableRow(headers, values));
+  };
+}
+
+/**
+ * Writes `row` directly after the last table line in the file. A table a person
+ * has split into blocks with blank lines gains the row inside its last block
+ * instead of below the blank lines at end of file, where no reader would reach
+ * it. On a file whose table runs to the end this writes the same bytes as an
+ * append.
+ */
+function insertTableRow(path: string, row: string): void {
+  if (!existsSync(path)) {
+    appendFileSync(path, `${row}\n`);
+    return;
+  }
+  const lines = readFileSync(path, 'utf-8').split('\n');
+  const { headerIdx, endIdx } = tableBounds(lines);
+  let last = -1;
+  for (let i = headerIdx === -1 ? 0 : headerIdx; i < endIdx; i++) {
+    if (isTableLine(lines[i])) last = i;
+  }
+  if (last === -1) {
+    appendFileSync(path, `${row}\n`);
+    return;
+  }
+  lines.splice(last + 1, 0, row);
+  writeFileSync(path, lines.join('\n'));
+}
+
+// ─── split tables ───────────────────────────────────────────────────
+//
+// A hand-maintained index can carry blank lines between its rows, which splits
+// one markdown table into several one-row blocks. A reader stops at the first
+// blank line, so the rows under it are on disk and invisible: `list sessions`
+// undercounts and a finalized session reads back as unindexed. Finalize reports
+// the gap; `session repair-index` closes it.
+
+interface SplitTableReport {
+  /** Data rows in the file, in every block. */
+  total: number;
+  /** Data rows a markdown reader reaches. */
+  visible: number;
+  /** Line indices of the blank lines that sit strictly between two table lines. */
+  blankLines: number[];
+}
+
+function nonBlankNeighbour(lines: string[], from: number, step: -1 | 1): number {
+  for (let i = from + step; i >= 0 && i < lines.length; i += step) {
+    if (lines[i].trim() !== '') return i;
+  }
+  return -1;
+}
+
+function analyseTable(content: string): SplitTableReport {
+  const lines = content.split('\n');
+  const { headerIdx, endIdx } = tableBounds(lines);
+  if (headerIdx === -1) return { total: 0, visible: 0, blankLines: [] };
+
+  const blankLines: number[] = [];
+  for (let i = headerIdx + 1; i < endIdx; i++) {
+    if (lines[i].trim() !== '') continue;
+    // Removable only with a table line on both sides: a blank line before the
+    // table, after it, or between the title and the header stays where it is.
+    const prev = nonBlankNeighbour(lines, i, -1);
+    const next = nonBlankNeighbour(lines, i, 1);
+    if (prev >= headerIdx && next !== -1 && isTableLine(lines[prev]) && isTableLine(lines[next])) {
+      blankLines.push(i);
+    }
+  }
+
+  return {
+    total: tableRowLines(lines).length,
+    visible: parseMarkdownTable(content)?.rows.length ?? 0,
+    blankLines,
+  };
+}
+
+/** Reports rows a reader cannot see, once per file, with counts taken from disk. */
+function warnSplitTable(path: string, label: string, log: Log): void {
+  if (!existsSync(path)) return;
+  const report = analyseTable(readFileSync(path, 'utf-8'));
+  const hidden = report.total - report.visible;
+  if (hidden <= 0) return;
+  log(
+    chalk.yellow(
+      `  ○ ${label} has ${hidden} row(s) outside the first table block (blank lines split it); ` +
+        `readers see ${report.visible} of ${report.total} — run \`qualiow session repair-index\``,
+    ),
+  );
+}
+
+// ─── repair-index ───────────────────────────────────────────────────
+
+export interface RepairedIndexFile {
+  file: string;
+  /** Blank lines sitting between two table rows. */
+  blankLines: number;
+  /** Rows a reader cannot currently see. */
+  hiddenRows: number;
+  repaired: boolean;
+}
+
+export interface SessionRepairIndexResult {
+  ok: boolean;
+  dryRun: boolean;
+  files: RepairedIndexFile[];
+}
+
+/**
+ * Removes the blank lines that sit strictly between two rows of the same table,
+ * and nothing else: row text is never reflowed, re-aligned, re-ordered or
+ * rewritten, and a row with a stray pipe in it survives byte for byte.
+ */
+export function runSessionRepairIndex(
+  options: { yes?: boolean },
+  ctx: { cwd: string; log?: Log },
+): SessionRepairIndexResult {
+  const cwd = ctx.cwd;
+  const log = ctx.log ?? defaultLog;
+  const targets = [
+    { path: resolve(cwd, 'output', 'sessions', 'INDEX.md'), label: 'INDEX.md' },
+    { path: resolve(cwd, 'output', 'bugs', 'all-bugs.md'), label: 'all-bugs.md' },
+  ];
+
+  const files: RepairedIndexFile[] = [];
+  for (const { path, label } of targets) {
+    if (!existsSync(path)) continue;
+    const content = readFileSync(path, 'utf-8');
+    const report = analyseTable(content);
+    const hiddenRows = Math.max(report.total - report.visible, 0);
+    const blankLines = report.blankLines.length;
+
+    if (blankLines === 0) {
+      log(chalk.green(`  ✓ ${label}: nothing to repair`));
+      files.push({ file: label, blankLines, hiddenRows: 0, repaired: false });
+      continue;
+    }
+
+    if (!options.yes) {
+      log(
+        chalk.cyan(
+          `  ${label}: ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) would become visible`,
+        ),
+      );
+      files.push({ file: label, blankLines, hiddenRows, repaired: false });
+      continue;
+    }
+
+    const drop = new Set(report.blankLines);
+    writeFileSync(path, content.split('\n').filter((_, i) => !drop.has(i)).join('\n'));
+    log(
+      chalk.green(
+        `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
+      ),
+    );
+    files.push({ file: label, blankLines, hiddenRows, repaired: true });
+  }
+
+  if (files.length === 0) {
+    log(chalk.yellow('  No output/sessions/INDEX.md or output/bugs/all-bugs.md found.'));
+  } else if (!options.yes && files.some((f) => f.blankLines > 0)) {
+    log(chalk.white('  Re-run with --yes to rewrite.'));
+  }
+
+  return { ok: true, dryRun: !options.yes, files };
 }
 
 interface AllBugsRow {
@@ -366,7 +682,11 @@ export function runSessionArchive(
 
 function setIndexRowStatus(indexPath: string, dirName: string, status: string): void {
   if (!existsSync(indexPath)) return;
-  const statusIdx = INDEX_COLUMNS.indexOf('Status');
+  // The Status cell is located from the file's own header: its position differs in
+  // an index written before the Kind column existed.
+  const headers = readTableHeaders(indexPath) ?? [...INDEX_COLUMNS];
+  const statusIdx = headers.findIndex((h) => h.trim().toLowerCase() === 'status');
+  if (statusIdx === -1) return;
   const lines = readFileSync(indexPath, 'utf-8').split('\n');
   const updated = lines.map((line) => {
     if (!line.trim().startsWith('|')) return line;
@@ -411,8 +731,10 @@ export function runSessionDelete(
 
   const indexPath = join(sessionsDir, 'INDEX.md');
   const allBugsPath = resolve(cwd, 'output', 'bugs', 'all-bugs.md');
-  const indexRows = readSessionIndex(indexPath).filter((r) => r.report.includes(`${dirName}/`));
-  const bugRows = readAllBugsRows(allBugsPath).filter((r) => r.session === dirName);
+  // Counted by reference rather than by column name, so the numbers hold on an
+  // index whose header predates the current column set.
+  const indexRows = tableRowsText(indexPath).filter((t) => t.includes(`${dirName}/`));
+  const bugRows = tableRowsText(allBugsPath).filter((t) => t.includes(`${dirName}/bugs/`));
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — would delete ${dirName}`));
@@ -507,37 +829,31 @@ export function runSessionPrune(
   }
 
   const thresholdMs = days * 24 * 60 * 60 * 1000;
+  // Directories named before the current scheme are discovered too: a project
+  // upgraded from an earlier version has output that would otherwise be unprunable.
   const dirs = readdirSync(sessionsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && SESSION_DIR_RE.test(d.name))
-    .map((d) => d.name)
-    .sort();
+    .filter((d) => d.isDirectory())
+    .map((d) => describeSessionDir(d.name))
+    .filter((d): d is DiscoveredSessionDir => d !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  const candidates = dirs.filter((name) => {
-    const parsed = parseSessionDirName(name);
-    if (!parsed) return false;
-    const dirDate = timestampToDate(parsed.timestamp);
-    return now.getTime() - dirDate.getTime() > thresholdMs;
-  });
+  const selected = dirs.filter((d) => now.getTime() - d.timestamp.getTime() > thresholdMs);
+  const candidates = selected.map((d) => d.name);
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — ${candidates.length} session(s) older than ${days} day(s):`));
-    for (const c of candidates) log(chalk.white(`  ${c}`));
+    for (const d of selected) {
+      log(chalk.white(`  ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
+    }
     if (!candidates.length) log(chalk.white('  (none)'));
     log('');
     return { ok: true, dryRun: true, candidates };
   }
 
-  for (const name of candidates) {
-    performDelete(cwd, join(sessionsDir, name));
-    log(chalk.green(`  ✓ Deleted ${name}`));
+  for (const d of selected) {
+    performDelete(cwd, join(sessionsDir, d.name));
+    log(chalk.green(`  ✓ Deleted ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
   }
 
   return { ok: true, dryRun: false, candidates };
-}
-
-function timestampToDate(ts: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})$/.exec(ts);
-  if (!m) return new Date(NaN);
-  const [, y, mo, d, h, mi] = m;
-  return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi));
 }
