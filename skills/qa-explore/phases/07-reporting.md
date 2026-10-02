@@ -88,7 +88,7 @@ verdict adds later:
 
 Redact per `security-rules.md` before writing. Number from `BUG-001`; ids are final — a draft
 the judge refutes keeps its number under `bugs/refuted/`, so a gap in `bugs/` is expected and
-means exactly that. Nothing goes into `bugs/` yet.
+means exactly that. In judge mode nothing goes into `bugs/` yet.
 
 ## Verify Bugs (Second Opinion)
 
@@ -99,7 +99,8 @@ never mid-session; it is the one bounded exception in
 `${CLAUDE_SKILL_DIR}/references/delegation-rules.md`.
 
 Zero drafts → append `[<timestamp>] [VERIFY] no candidate bugs — verification skipped` to
-`session-log.md` and continue with the notes.
+`session-log.md` and continue with the notes. No `verification/` directory exists then, so
+skip `## Refuted Findings` and `coverage.verification` exactly as in off mode.
 
 ### 1. Claim cards
 
@@ -163,7 +164,9 @@ under a plugin install) with exactly this prompt:
 - **Sequential, not parallel** — the target and the storage state are shared resources.
 - **Budget: about 5 minutes per claim, 15 minutes in total, on top of the 45-minute cap.**
   Verification never eats exploration time. Out of budget → the remaining drafts ship as
-  `Unverified (not judged — budget)`.
+  `Unverified (not judged — budget)`, and each still gets a `verification/VERDICT-NNN.md`
+  you write yourself with `VERDICT: UNVERIFIED (not judged — budget)`, so its
+  `Full verdict:` link resolves.
 
 ### 4. Record the verdicts
 
@@ -176,10 +179,12 @@ the bug still ships, marked Unverified.
 For every REFUTED verdict append its `FALSE_POSITIVE_PATTERN` line to
 `verification/proposed-patterns.md` (header first, one bullet per pattern, tagged with the
 bug id). NEVER write to `<data>/knowledge/learned-patterns.md` from a session — a human
-promotes patterns through `/qa-explore-feedback`.
+reviews `proposed-patterns.md` and promotes what holds up by hand (a review step in
+`/qa-explore-feedback` is planned, not shipped).
 
 Append the tally to `session-log.md`:
-`[<timestamp>] [VERIFY] 4 judged — 2 confirmed, 1 adjusted, 1 refuted, 0 unverified`.
+`[<timestamp>] [VERIFY] 4 judged — 2 confirmed, 1 adjusted, 1 refuted, 0 unreproducible, 0 unverified`.
+The `stats.json` counts are defined in `output-contract.md`.
 
 ## Finalize Bug Reports
 
@@ -201,8 +206,9 @@ severity, the business impact and the priority are yours:
   you can disprove — ship it as `Verified (judge overruled: <reason>)` and say so in
   `## Verification`.
 
-Delete `verification/drafts/` once every draft is sorted. Every file under `bugs/`,
-`bugs/refuted/` and `verification/` starts with the confidentiality header.
+Leave `verification/drafts/` in place once every draft is sorted: it is a working directory,
+header-checked and secret-scanned like the rest, and nothing reads it for the report. Every
+file under `bugs/`, `bugs/refuted/` and `verification/` starts with the confidentiality header.
 
 ## Write phase-7-notes.md
 
@@ -270,5 +276,6 @@ playwright-cli close
 playwright-cli delete-data
 ```
 
-(both with `-s=<sid>`; also close and `delete-data` any extra session such as `-s=<sid>-race`).
+(both with `-s=<sid>`; also close and `delete-data` any extra session such as `-s=<sid>-race`,
+and any `-s=judge-<HHmm>-<NNN>` session a judge left open when it ran out of turns).
 Append to `session-log.md`: `[<timestamp>] [PHASE] Reporting complete — <N> bugs, session closed`.

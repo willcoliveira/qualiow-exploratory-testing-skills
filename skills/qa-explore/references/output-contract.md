@@ -26,7 +26,7 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
 | `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
 | `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
-| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft only until its verdict sorts it. All header-first, all secret-scanned |
+| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned |
 | `bugs/refuted/BUG-NNN.md` | phase 7 — a candidate the judge REFUTED or found UNREPRODUCIBLE, with the verdict under `## Refutation (Judge)`. Excluded from `bugs_found`, the index rows and `## Bugs Found`; listed only in `## Refuted Findings` |
 | `bugs/BUG-NNN.md` | phase 7 |
 | `session-report.md` | the `qa-reporting-agent` sub-agent, from `phase-7-notes.md`, the bugs, `stats.json` and the phase files (quick sessions write it directly) |
@@ -198,7 +198,11 @@ The first eight keys are required; the rest are optional. No other top-level key
 schema is strict). Mobile puts its device block under `coverage.mobile`; backend puts the
 verdict counts under `coverage.verdicts`; a session that ran the bug judge puts its counts
 under `coverage.verification` (`bugs_found` and `severity_counts` count shipped bugs only —
-never the refuted ones).
+never the refuted ones). Its keys: `judged` = candidate bugs (drafts), whether or not the judge
+reached them; `verified` = CONFIRMED + CONFIRMED-ADJUSTED, including overruled refutations;
+`unverified` = UNVERIFIED plus not judged; `refuted`; `unreproducible` (the five sum to
+`judged`); `budget_min` = the minutes allotted, not spent. The report's `## Session Stats`
+renders them as one row, `| Bugs judged | <judged> (verified <n>, unverified <n>, refuted <n>, unreproducible <n>) |`.
 
 ## Index rows
 

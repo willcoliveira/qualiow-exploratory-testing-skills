@@ -20,7 +20,7 @@
   minutes, on top of the 45-minute cap; a bug the judge could not reach ships `Unverified`
   with the reason (fail open, flagged, never silent). Refuted verdicts stage a
   `FALSE_POSITIVE_PATTERN` line in `verification/proposed-patterns.md` for a human to
-  promote through `/qa-explore-feedback` — a session never writes to `learned-patterns.md`.
+  promote by hand — a session never writes to `learned-patterns.md`.
   Counts live under `coverage.verification` in `stats.json`, so the strict schema is
   unchanged. `qa-reporting-agent` renders the optional `Verification` column and the
   appendix only when a `verification/` directory exists, so sessions without the judge
@@ -46,6 +46,10 @@
   is required. The cost of leaving it on is documented in the README's "Bug verification"
   section: the judge pins opus, adds up to 15 minutes, and marks bugs `Unverified` where that
   model is unavailable. Setup logs the resolved mode next to `read_only`.
+- **Upgrading an npm-installed project needs `npx qualiow init --force`.** A plain `init`
+  adds `.claude/agents/qa-bug-judge.md` but keeps existing files, so the 2.2.1 `qa-explore`
+  skill, `qa-reporting-agent` and templates stay in place and the judge never runs until
+  `--force` refreshes them. Harmless either way; plugin installs update as a whole.
 - **The delegation docs name the exception.** The never-delegate list's "Verdicts" bullet is now
   "AC verdicts"; `README.md` (Token routing, Sub-agents, Skills), `CLAUDE.md`, the
   `qa-explore` skill and `docs/KNOWN-ISSUES.md` describe five sub-agents, four of which never
@@ -55,8 +59,10 @@
 ### Deferred (next release)
 
 - Verification in `/qa-explore-mobile` and `/qa-explore-quick --verify`, the refutation
-  review step in `/qa-explore-feedback`, and verification rendering in `/qa-explore-report`
-  and the HTML/JSON/Jira formatters (`ParsedBug.verification`, `refutedBugs`).
+  review step in `/qa-explore-feedback` (for `verification/proposed-patterns.md`), and
+  verification rendering in the HTML/JSON/Jira formatters (`ParsedBug.verification`,
+  `refutedBugs`). `/qa-explore-report` regeneration now keeps the `Verification` column and
+  `## Refuted Findings`.
 
 ## [2.2.1] - 2026-09-14
 

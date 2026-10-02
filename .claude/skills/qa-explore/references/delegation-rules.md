@@ -89,6 +89,6 @@ in an npm project — and belong in the `env` block of the project's `.claude/se
 
 - `CLAUDE_CODE_SUBAGENT_MODEL` — overrides the model of every sub-agent, whatever each agent
   file pins — `qa-bug-judge` included: under that override the second opinion comes from the
-  overriding model, and the `## Verification` section should say so
+  overriding model
 - `model: inherit` in a project's own copy of an agent file — that one delegate runs on the
   session's model instead of the cheap one

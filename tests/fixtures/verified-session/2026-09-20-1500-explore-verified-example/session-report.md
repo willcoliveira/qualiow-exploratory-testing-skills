@@ -81,7 +81,7 @@ default card once a second card is saved.
 | Pages explored | 10 |
 | Screenshots taken | 4 |
 | Console errors found | 0 |
-| Bugs judged | 4 (verified 2, unverified 1, refuted 1) |
+| Bugs judged | 4 (verified 2, unverified 1, refuted 1, unreproducible 0) |
 
 ## Refuted Findings
 

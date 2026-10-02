@@ -57,7 +57,9 @@ it here.
 **markdown** (default): the full session report per `output-contract.md`
 (`# Session Report — <target>`, Session Metadata, Executive Summary, Summary Stats, Coverage
 Map with `| Area | Risk | Status | Bugs | Notes |`, Bugs Found, Observations, Areas Not
-Tested, Recommendations, Reflection, Session Stats; mobile and backend additions preserved).
+Tested, Recommendations, Reflection, Session Stats; mobile and backend additions preserved;
+for a session with a `verification/` directory, the `Verification` column in Bugs Found and
+`## Refuted Findings` after Session Stats, as `qa-reporting-agent` defines them).
 
 **summary**: a brief executive summary: target, date, duration; bug count by severity; top 3
 findings; key recommendation.

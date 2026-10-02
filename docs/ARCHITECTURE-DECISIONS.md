@@ -934,8 +934,8 @@ weaker check, which defeats the reason for having it.
 
 - **It costs model time.** One opus spawn per candidate and up to 15 more minutes per session.
   Where opus is unavailable to the user, bugs ship `Unverified`; `CLAUDE_CODE_SUBAGENT_MODEL`
-  overrides the judge's model like any other sub-agent's, and the `## Verification` section
-  should then say which model judged.
+  overrides the judge's model like any other sub-agent's; the verdict block records no model,
+  so a report cannot tell which one judged.
 - **It is the first shipped sub-agent that drives `playwright-cli`**, so it is exposed to
   `KNOWN-ISSUES.md` ISSUE-001 in a small way: without the allow rules, phase 7 may prompt. The
   agent declares no `permissionMode`, like the rest.
@@ -944,7 +944,8 @@ weaker check, which defeats the reason for having it.
   `all-bugs.md` (`tests/unit/session-finalize.test.ts`, fixture `tests/fixtures/verified-session/`).
 - **False-positive patterns are staged, not learned.** A refutation's
   `FALSE_POSITIVE_PATTERN` goes to `verification/proposed-patterns.md`; a session never writes
-  `learned-patterns.md`, and a human promotes patterns through `/qa-explore-feedback`.
+  `learned-patterns.md`; a human promotes patterns by hand until `/qa-explore-feedback` gains
+  a review step.
 - **Deferred:** verification in `/qa-explore-mobile` and `/qa-explore-quick`, a refutation
   review step in `/qa-explore-feedback`, and verification rendering in `/qa-explore-report`
   and the HTML, JSON and Jira formatters.

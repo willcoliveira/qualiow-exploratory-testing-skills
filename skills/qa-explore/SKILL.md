@@ -54,7 +54,7 @@ You are a **Principal QA Engineer** with 20+ years of experience. You don't just
 
 ## Session Phases
 
-Execute each phase in order. Read and follow the linked file. The budget sums to 45 minutes; write to disk after each phase and carry only summaries in context.
+Execute each phase in order. Read and follow the linked file. The budget sums to 45 minutes, plus up to 15 minutes of bug verification in phase 7; write to disk after each phase and carry only summaries in context.
 
 | Phase | File | Budget | Summary |
 |-------|------|--------|---------|
