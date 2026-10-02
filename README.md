@@ -118,6 +118,7 @@ from the shell.
 | `qualiow session archive <dir>` | `--remove` | Tar the session directory; `--remove` also deletes it and marks its INDEX row archived |
 | `qualiow session delete <dir>` | `--yes` | Remove a session directory and its index rows. Dry-run until `--yes` |
 | `qualiow session prune` | `--older-than <days>` `--yes` | The same, for every session older than N days |
+| `qualiow judge triage <claim-file>` | `--target <id>` `--out <dir>` `--evidence-max-lines <n>` `--dry-run` `--mock <json>` `--provider typesafe\|laya` `--endpoint <url>` | **Opt-in, advisory.** Asks a decision model typed questions about one claim card and records the answers beside the judge's verdict. Sends nothing unless the target sets `verification.mode: triage-shadow` and lists the provider; exit 2 = not enabled (nothing sent), 3 = unavailable |
 | `qualiow --version` | — | Print the package version |
 
 `qualiow gather` was **removed in 2.0.0** — it was a stub that wrote nothing. Use the
@@ -172,6 +173,35 @@ disprove. See [Bug verification](#bug-verification).
 
 Quick sessions write their own report — spinning up an agent costs more than it saves for a
 15-minute session.
+
+### Advisory triage (opt-in)
+
+Phase 7 of `/qa-explore` can also ask a **decision model** — one that returns typed
+probabilities about text, not prose — how a claim card looks before the judge runs, and record
+the answers next to the judge's verdict. It is off by default and strictly advisory: the judge
+still sees every claim, in the same order and with the same budget, never reads the triage
+files, and nothing ships or is skipped on the triage's say-so. A target opts in with:
+
+```yaml
+verification:
+  mode: triage-shadow            # judge (default) | off | triage-shadow
+  triage_providers: [laya]       # laya (self-hosted, loopback only) and/or typesafe (hosted)
+  # triage_api_key_env: TYPESAFE_API_KEY   # typesafe only; the value lives in qa/.env or .env
+```
+
+- `laya` — a self-hosted Laya server on `/v1/systemone`. Its endpoint must be loopback, checked
+  before anything is sent, and redirects are refused, so nothing leaves the machine.
+- `typesafe` — TypeSafe's hosted Jev. One scrubbed claim card per candidate bug leaves the
+  machine; the exact request is saved as `verification/JEV-NNN.json`. The scrubbing is
+  pattern-based and has gaps (IP addresses, single-label hosts, URL paths, free-text names),
+  so read a `--dry-run` first.
+- `--provider` only narrows the target's own list; it cannot add a provider the target did not
+  name.
+
+Each run writes `verification/JEV-NNN.*` or `LAYA-NNN.*`: a predicted verdict, a recorded
+reading (`refute-risk`, `unclear`, `likely-confirmed`), a severity fit and the evidence that
+was and was not sent. The predicted verdict is a guess at the judge's, never a verdict. Full
+reference: [`skills/qa-explore/references/evidence-triage.md`](skills/qa-explore/references/evidence-triage.md).
 
 ### Hooks
 
@@ -682,7 +712,9 @@ file is what a session applies.
 - **Sessions are isolated.** Each carries its own `playwright-cli -s=<id>`, closed and
   `delete-data`'d at the end.
 - **All output is confidential and local.** Every artefact opens with the confidentiality
-  blockquote, and nothing is sent to an external service.
+  blockquote, and nothing is sent to an external service, with one opt-in exception: the
+  hosted provider of the advisory triage sends one scrubbed claim card per bug, only when the
+  target lists it and the key is present, and the exact request is saved next to the verdict.
 
 ## Documentation
 

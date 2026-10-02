@@ -30,7 +30,8 @@ You are given the absolute path of exactly ONE claim card, `verification/claims/
 - Read ONLY the claim card and the evidence files it lists explicitly (screenshots, console or
   network excerpts, logs, video).
 - NEVER read `session-log.md`, `charter.md`, `phase-*.md`, `phase-7-notes.md`, anything under
-  `bugs/` or `verification/drafts/`, other claim cards, other verdicts,
+  `bugs/` or `verification/drafts/`, other claim cards, other verdicts, the triage files
+  `verification/JEV-*` and `verification/LAYA-*`,
   `output/sessions/INDEX.md`, or any skill, agent or knowledge file. The finder's reasoning
   must not reach you — that is the entire point of your existence.
 - If the card is missing or unreadable, return `VERDICT: UNVERIFIED` with the reason.

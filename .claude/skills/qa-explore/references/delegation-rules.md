@@ -11,6 +11,7 @@ file: most large reads have a cheaper route that returns the same facts.
 | **0 — deterministic code** | the `qualiow` CLI (`${CLAUDE_SKILL_DIR}/references/paths.md` resolves the binary) | anything with a fixed contract: knowledge digests, index rows, `stats.json` validation, the redaction scan, session listing and archival |
 | **1 — cheap-model sub-agents** | `qa-reporting-agent` (sonnet), `qa-page-mapper-agent` (haiku), `qa-diff-indexer-agent` (haiku), `qa-gather-agent` (sonnet) | bounded reads that need light judgement and return a structured digest |
 | **1b — adversarial verification** | `qa-bug-judge` (opus, effort high) | one claim card in, one verdict block out: a second opinion on a candidate bug from a context that never saw how it was found |
+| **0b — decision model (opt-in, advisory)** | `qualiow judge triage`, only when the target sets `verification.mode: triage-shadow` | probabilities over one scrubbed claim card, recorded beside the verdict and never acted on (`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`) |
 | **2 — this session** | the model reading these rules | exploration, interaction, bug finding, every judgement below |
 
 Tier 0 beats tier 1 whenever the answer is deterministic: a command costs no tokens and
@@ -55,6 +56,12 @@ second opinion. Everything else stays here: whether to ship (a REFUTED verdict m
 overruled with the reason written into `## Verification`), the final severity (write
 `Verified (severity kept at X; judge proposed Y)` when you disagree), business impact,
 priority, and every word of the shipped report.
+
+**The triage is not a second exception.** Under `verification.mode: triage-shadow` the
+`qualiow judge triage` command returns probabilities, and its predicted verdict is a guess at
+what the judge will say — not a verdict. It does not replace the judge, gate it, order it or
+shorten it: every claim is judged as if the triage had not run. Severity, impact, priority
+and the ship decision never leave this session.
 
 ## What a delegate must return
 

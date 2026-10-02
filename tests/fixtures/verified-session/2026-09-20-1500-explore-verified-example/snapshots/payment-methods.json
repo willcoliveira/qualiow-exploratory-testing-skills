@@ -1,0 +1,8 @@
+{
+  "page": "/account/payment-methods",
+  "saved_cards": [
+    { "role": "row", "name": "Card ending 4242", "cells": ["Visa ending 4242", "Expires 08/29", ""] },
+    { "role": "row", "name": "Card ending 0005", "cells": ["Mastercard ending 0005", "Expires 11/30", ""] }
+  ],
+  "notice": "No default card"
+}

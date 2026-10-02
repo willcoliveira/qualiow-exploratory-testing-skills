@@ -8,6 +8,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, basename } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -124,4 +125,21 @@ export function resolveDomainPath(dataDir: string, id: string): string {
 /** The id a target/domain file should carry: its filename without extension. */
 export function idFromFilename(filePath: string): string {
   return basename(filePath, '.yml');
+}
+
+/**
+ * Read one credential by NAME in the order `paths.md` defines for the skills:
+ * a variable already in the environment wins, then `<cwd>/qa/.env`, then
+ * `<cwd>/.env`. Files never override the process environment, and the value
+ * is returned to the caller only — never logged.
+ */
+export function readEnvVar(cwd: string, name: string): string | undefined {
+  const fromProcess = process.env[name];
+  if (fromProcess) return fromProcess;
+  for (const file of [resolve(cwd, 'qa', '.env'), resolve(cwd, '.env')]) {
+    if (!existsSync(file)) continue;
+    const value = parseEnv(readFileSync(file, 'utf-8'))[name];
+    if (value) return value;
+  }
+  return undefined;
 }

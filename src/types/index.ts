@@ -102,10 +102,30 @@ export interface SourceBranchConfig {
   components?: Record<string, string>;
 }
 
+export type TriageProvider = 'typesafe' | 'laya';
+
+export interface LayaTriageConfig {
+  endpoint?: string;
+  model?: string;
+  max_len?: number;
+  /** NAME of the env var holding the local server's key, only when it requires one. */
+  api_key_env?: string;
+}
+
 export interface VerificationConfig {
   /** `judge` (default): every candidate bug faces `qa-bug-judge` before it ships.
-   *  `off`: drafts ship unverified, with no `verification/` directory. */
-  mode?: 'judge' | 'off';
+   *  `off`: drafts ship unverified, with no `verification/` directory.
+   *  `triage-shadow`: the judge as in `judge`, plus an advisory decision-model
+   *  triage of each claim recorded beside the verdict. */
+  mode?: 'judge' | 'off' | 'triage-shadow';
+  /** Single-provider shorthand. `laya` = a self-hosted, loopback-only server. */
+  triage_provider?: TriageProvider;
+  /** Several providers side by side, each recorded in its own file. */
+  triage_providers?: TriageProvider[];
+  /** NAME of the env var holding the TypeSafe API key (default TYPESAFE_API_KEY). */
+  triage_api_key_env?: string;
+  laya?: LayaTriageConfig;
+  evidence_max_lines?: number;
 }
 
 export interface TargetConfig {

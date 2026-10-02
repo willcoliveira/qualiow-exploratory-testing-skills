@@ -41,3 +41,6 @@ output/context/*.md
 qa/.env
 qa/bin/
 output/metrics.jsonl
+
+# Local evaluation output (never shipped, never committed)
+output/review/

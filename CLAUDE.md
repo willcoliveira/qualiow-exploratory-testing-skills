@@ -47,14 +47,22 @@ candidates go to `bugs/refuted/` and appear only in the report's `## Refuted Fin
 judge is on by default and costs opus time (up to 15 minutes on top of the 45-minute cap; a bug
 it cannot reach ships `Unverified`). `/qa-explore <url> --no-judge`, or
 `verification: { mode: off }` in a web target, turns it off: phase 7 then writes `bugs/`
-directly and creates no `verification/` directory.
+directly and creates no `verification/` directory. `verification.mode: triage-shadow` adds an
+opt-in, advisory decision-model triage before the judge (TypeSafe's hosted Jev and/or a
+self-hosted, loopback-only Laya): typed probabilities about each claim card, recorded beside
+the verdict as `verification/JEV-NNN.*` / `LAYA-NNN.*` and never acted on — the judge still
+sees every claim and never reads them (`.claude/skills/qa-explore/references/evidence-triage.md`,
+ADR-014).
 
 Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc.
 
 ## CLI
 
 `qualiow` — `init`, `explore` (pre-flight only), `validate`, `list <sessions|knowledge|targets|domains>`,
-`report`, `kb <sync|check|digest>`, `session <finalize|list|archive|delete|prune>`.
+`report`, `kb <sync|check|digest>`, `session <finalize|list|archive|delete|prune>`,
+`judge triage <claim-file>` (opt-in, advisory decision-model triage of one claim card — off
+unless the target sets `verification.mode: triage-shadow`; exit 2 = not enabled, nothing sent;
+3 = unavailable).
 
 The fixed-contract work belongs to the CLI, not to the model:
 
@@ -359,3 +367,19 @@ The single operative rule set every skill applies:
    blockquote; session reports may contain internal URLs, vulnerabilities and PII.
 7. **No external data transmission** — all output stays local. Never send session data, bug
    reports, or screenshots to external APIs or services.
+
+   **One gated exception: the hosted decision-model triage.** `qualiow judge triage` sends data
+   off the machine only when the target config sets `verification.mode: triage-shadow`, lists
+   `typesafe` as a provider, and the key is present under the env var the config names. Per
+   candidate bug it sends one claim card (title, URL path, claimed severity, environment,
+   reproduction rate, expected and actual behaviour, steps), the console and network excerpts
+   written on it, the text evidence files it lists from inside the session directory (capped per
+   file), and the known false-positive pattern lead-ins. It never sends screenshots, video, the
+   storage state, the session log, the charter, the drafts, other claims or any verdict. Before
+   anything leaves, every string passes the redaction list, then every URL is cut to its path,
+   every dotted hostname becomes `[HOST]`, every absolute path under a common root its basename and every `.auth/`
+   reference `[AUTH_STATE]`; the exact request is saved as `verification/JEV-NNN.json`. The
+   scrubbing is pattern-based and does not remove IP addresses, single-label hostnames, URL paths,
+   or free-text product, company or people names. The self-hosted `laya` provider is not an
+   exception: its endpoint must be loopback, checked before anything is sent, and redirects are
+   refused.

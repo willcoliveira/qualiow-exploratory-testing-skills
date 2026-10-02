@@ -6,6 +6,7 @@ import { reportCommand } from './commands/report.js';
 import { exploreCommand } from './commands/explore.js';
 import { kbCommand } from './commands/kb.js';
 import { sessionCommand } from './commands/session.js';
+import { judgeCommand } from './commands/judge.js';
 import { getPackageVersion } from '../utils/paths.js';
 
 const program = new Command()
@@ -20,5 +21,6 @@ program.addCommand(reportCommand());
 program.addCommand(exploreCommand());
 program.addCommand(kbCommand());
 program.addCommand(sessionCommand());
+program.addCommand(judgeCommand());
 
 program.parse();

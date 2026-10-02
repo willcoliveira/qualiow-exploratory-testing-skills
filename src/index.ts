@@ -5,6 +5,8 @@ export type {
   ScopeConfig,
   SafetyConfig,
   VerificationConfig,
+  TriageProvider,
+  LayaTriageConfig,
   TargetConfig,
   MobileDeviceConfig,
   MobileAppConfig,
@@ -37,6 +39,8 @@ export {
   ScopeConfigSchema,
   SafetyConfigSchema,
   VerificationConfigSchema,
+  TriageProviderSchema,
+  LayaTriageConfigSchema,
   WebTargetConfigSchema,
   MobileDeviceConfigSchema,
   MobileAppConfigSchema,
@@ -118,6 +122,7 @@ export {
   resolveTargetPath,
   resolveDataDir,
   resolveDomainPath,
+  readEnvVar,
 } from './utils/paths.js';
 export {
   buildManifestRegistry,
@@ -126,7 +131,7 @@ export {
   listReleaseDirs,
 } from './utils/kb-sync.js';
 export type { RegistryEntry, ManifestStats, SyncResult } from './utils/kb-sync.js';
-export { parseSession, parseBugReport } from './utils/parse-session.js';
+export { parseSession, parseBugReport, extractSection, extractNumberedList } from './utils/parse-session.js';
 export type { ParsedSession, ParsedBug } from './utils/parse-session.js';
 
 // Formatters
@@ -152,3 +157,54 @@ export type { ListOptions, SessionRow } from './cli/commands/list.js';
 export { runValidate } from './cli/commands/validate.js';
 export { runKb, runKbDigest } from './cli/commands/kb.js';
 export type { KbDigestOptions } from './cli/commands/kb.js';
+export {
+  runJudgeTriage,
+  judgeCommand,
+  resolveProviders,
+  combineRoutes,
+  TriageNotEnabledError,
+  EXIT_NOT_ENABLED,
+  EXIT_UNAVAILABLE,
+} from './cli/commands/judge.js';
+export type { JudgeTriageOptions, JudgeTriageResult } from './cli/commands/judge.js';
+
+// Decision-model triage (opt-in, advisory)
+export {
+  callSystemOne,
+  assertResponse,
+  estimateCostUsd,
+  backoffMs,
+  isLoopbackEndpoint,
+  TriageApiError,
+  JEV_ENDPOINT,
+  JEV_MODEL,
+  JEV_USD_PER_INPUT_TOKEN,
+  LAYA_DEFAULT_ENDPOINT,
+  LAYA_DEFAULT_MODEL,
+  LAYA_DEFAULT_MAX_LEN,
+} from './triage/client.js';
+export type { CallOptions, CallResult } from './triage/client.js';
+export { parseClaimCard, parseVerdictBlock, parseSeverityField, normaliseJudgeVerdict } from './triage/claim-parser.js';
+export { scrubForTransmission } from './triage/scrub.js';
+export type { ScrubResult } from './triage/scrub.js';
+export {
+  DEFAULT_EVIDENCE_MAX_LINES,
+  DEFAULT_THRESHOLDS,
+  EVIDENCE_NOTE,
+  MAX_PATTERNS,
+  MAX_STATE_CHARS,
+  SEVERITY_CRITERIA,
+  VERDICT_CRITERIA,
+  buildQuestionSet,
+  buildTriageState,
+  collectEvidence,
+  fitStateToBudget,
+  loadFalsePositivePatterns,
+  normaliseSeverity,
+  renderTriageBlock,
+  route,
+  sessionDirOfClaim,
+  toPredictedVerdict,
+} from './triage/triage.js';
+export type { TriageBlockInput } from './triage/triage.js';
+export type * from './triage/types.js';

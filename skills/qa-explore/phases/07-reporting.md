@@ -3,8 +3,9 @@
 Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed before the judge runs and its data is deleted in the last step.
 
 **Verification mode** was resolved in setup: `judge` unless the run carried `--no-judge` or
-the target sets `verification.mode: off`. With `judge` follow every section below. With `off`
-this phase is the unverified flow:
+the target sets `verification.mode: off`. With `judge` follow every section below. With
+`triage-shadow` follow every section below and also step 1b. With `off` this phase is the
+unverified flow:
 
 - write each bug straight to `bugs/BUG-NNN.md` in the format under **Write Bug Drafts**, with
   no `**Verification:**` line and no `## Verification` section;
@@ -142,6 +143,28 @@ Excluded on purpose: Business Impact, Priority, Recommended Fix Priority, and an
 evidence, nothing of your reasoning. The card carries no e-mail address, cookie value or
 token — `qualiow session finalize` scans `verification/` for secrets like every other file.
 
+### 1b. Advisory triage (only when `verification.mode` is `triage-shadow`)
+
+For each card (files only — no browser is needed):
+
+```bash
+qualiow judge triage output/sessions/<session-dir>/verification/claims/CLAIM-NNN.md [--target <id>]
+```
+
+Pass `--target <id>` only when the session was started with one; without it the command reads
+`qa/target.yml` like the session did. Write every claim card in its final form before this
+step and do not edit a card afterwards. The command writes `verification/JEV-NNN.*` and/or
+`LAYA-NNN.*` — the block and the exact request sent — and prints the blocks; note only the
+file paths and the exit code now, and do not read the blocks until every verdict is in.
+Append `[<timestamp>] [TRIAGE] CLAIM-NNN exit=<code> files=<STEM>-NNN` to `session-log.md`;
+exit 2 (not enabled) or 3 (unavailable) is logged the same way and changes nothing. **Nothing
+below changes because of this step**: every claim goes to the judge as written, in the same
+order, with the same prompt and budget. Once the verdicts are recorded, read the blocks and
+append one line per provider:
+`[<timestamp>] [TRIAGE] CLAIM-NNN <provider> <predicted verdict> route=<ROUTE> P(refute)=<x>`.
+The predicted verdict is a guess at the judge's, never a verdict —
+`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`.
+
 ### 2. Close the finder browser
 
 ```bash
@@ -199,6 +222,9 @@ severity, the business impact and the priority are yours:
   `Full verdict: ../verification/VERDICT-NNN.md`. Accept an adjusted severity unless you can
   say why not; when you keep yours, write `Verified (severity kept at X; judge proposed Y)`
   and the reason.
+- **Under `triage-shadow`**, after the verdict is in: in every shipped bug whose triage file
+  exists, add `- Triage (advisory): <predicted verdict> · <ROUTE> · P(refuted)=<x> — ../verification/<STEM>-NNN.md`
+  to `## Verification`. The `**Verification:**` line stays the judge's.
 - **REFUTED / UNREPRODUCIBLE** → `bugs/refuted/BUG-NNN.md` with `**Verification:** Refuted`
   or `Unreproducible` and, instead of `## Verification`, a `## Refutation (Judge)` section
   holding the verdict block verbatim. These are excluded from `bugs_found`, the index rows and
@@ -235,7 +261,8 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 `completed_at`, `phases_completed`, `total_phases: 8`, `coverage`, `evidence`,
 `areas_not_tested`, `blocked_by`). In judge mode put the judge's tally under `coverage.verification` —
 `{ "judged", "verified", "unverified", "refuted", "unreproducible", "budget_min" }` —
-and count shipped bugs only in `bugs_found` and `severity_counts`. No other top-level keys. The `## Session Stats` table in
+and count shipped bugs only in `bugs_found` and `severity_counts`. Under `triage-shadow` add
+`coverage.verification.triage.<provider>` as `evidence-triage.md` defines it. No other top-level keys. The `## Session Stats` table in
 the report is rendered from this file.
 
 ## Assemble and Finalize
