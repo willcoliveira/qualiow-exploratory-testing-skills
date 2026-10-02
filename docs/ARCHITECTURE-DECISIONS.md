@@ -8,7 +8,7 @@ Every major design choice evaluated with trade-offs, real-world evidence from ou
 
 Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0 and 011 for
 2.2.0. This table is the current reading of each one; where the two disagree, this table wins.
-013 was written for the adversarial bug judge, after 2.2.1.
+013 was written for the adversarial bug judge, after 2.2.1, and 014 for the advisory triage.
 
 | ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
@@ -25,6 +25,7 @@ Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0
 | 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0; amended by 013** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. ADR-013 adds `qa-bug-judge` as the one bounded exception to the never-delegate list. Record below |
 | 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
 | 013 | Adversarial bug judge before a bug ships | **Done, unreleased** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
+| 014 | Advisory decision-model triage before the judge | **Opt-in, advisory** | `qualiow judge triage`, `verification.mode: triage-shadow`, providers `typesafe` (hosted) and `laya` (loopback only). Recorded beside the verdict; never replaces, gates, orders or shortens the judge. Record below |
 
 ---
 
@@ -954,6 +955,68 @@ weaker check, which defeats the reason for having it.
   its own limits stated.
 
 **Status: DONE, unreleased**
+
+---
+
+## ADR-014: Advisory Decision-Model Triage Before the Judge
+
+*Written after ADR-013. Status: **Opt-in, advisory**.*
+
+### Context
+
+The adversarial judge (ADR-013) costs strongest-model time on every candidate bug. A decision
+model is a different kind of tool: it answers narrow typed questions about text with
+probabilities — no reasoning, no generation — quickly and cheaply. The question this record
+answers is what such a model may be allowed to do in Phase 7, given that it cannot open a
+browser or re-run a step, and that the judge exists precisely because a reading of the claim
+is not a check of it.
+
+### Decision Made
+
+**The triage is advisory and never replaces, gates, orders or shortens the judge.**
+
+- One command, `qualiow judge triage <claim-file>`, asks a fixed question set about ONE claim
+  card and the text evidence it lists: five nouls, one per known false-positive pattern, a
+  severity choice and a predicted-verdict choice. It writes `verification/<STEM>-NNN.json`
+  (the exact request, the response, the reading) and `<STEM>-NNN.md` (the block).
+- Two providers on the same `/v1/systemone` protocol: `typesafe` (hosted Jev) and `laya`
+  (self-hosted). A target lists the ones it wants; `--provider` can narrow that list and can
+  never add to it.
+- Off by default. `verification.mode: triage-shadow` in a web target turns it on, and requires
+  a provider. Under that mode the judge runs exactly as under `judge`: every claim, the same
+  order, the same prompt and budget. The judge's never-read list names the triage files and the
+  reporting agent never copies them.
+- The answers are turned into a recorded reading (`refute-risk`, `unclear`,
+  `likely-confirmed`) and a predicted verdict. Both are predictions, kept to be compared with
+  the judge's verdict afterwards (`scripts/triage-eval.mjs`). No code path or skill step reads
+  them to decide anything.
+- The hosted provider is the one gated exception to "session output stays local": it sends only
+  when the target lists `typesafe` and the key is present, after the redaction list and the
+  URL, host, path and storage-state scrub, with the request saved beside the verdict. The scrub
+  is pattern-based and its gaps are documented. Laya must be loopback, checked before sending,
+  with redirects refused.
+- A failed or disabled triage changes nothing: exit 2 (not enabled, nothing sent) and exit 3
+  (unavailable) both leave Phase 7 exactly as under `judge`.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| The decision model as the verdict | It cannot re-run steps; it would confirm coherent claims, not correct ones |
+| The triage as a gate that skips the judge on confident claims | The judge exists to catch the claims that read well and are wrong, which is exactly where an evidence-only reading is weakest |
+| The triage ordering or shortening the judge's runs | Couples the judge's work to a signal that is not validated for that purpose, and changes the judge's behaviour depending on an external service |
+| A cheap-model sub-agent as the first pass | A second language-model opinion with the finder's own failure modes, at a higher cost than typed probabilities |
+| Nothing | Leaves no way to measure whether a decision model could ever earn a larger role |
+
+### Consequences
+
+- A rule-7 carve-out exists and must stay narrow: opt-in, one card at a time, text only,
+  scrubbed, logged on disk. Any change that widens it is a security change, not a feature.
+- Measuring the triage needs the judge's verdicts as labels; the evaluation script works from
+  finished sessions and keeps claim text out of its output. This record states no measured
+  result.
+
+**Status: Opt-in, advisory**
 
 ---
 

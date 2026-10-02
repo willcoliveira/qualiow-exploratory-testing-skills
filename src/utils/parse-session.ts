@@ -68,7 +68,7 @@ function normalizeSeverity(raw: string): ParsedBug['severity'] {
  * Extracts the content under a markdown heading that starts with the
  * given prefix. Searches for both ## and ### level headings.
  */
-function extractSection(content: string, headingPrefix: string): string {
+export function extractSection(content: string, headingPrefix: string): string {
   const lines = content.split('\n');
   let capturing = false;
   let capturedLevel = 0;
@@ -105,7 +105,7 @@ function extractSection(content: string, headingPrefix: string): string {
  * Extracts numbered list items from markdown text.
  * Handles lines like "1. Navigate to ..." and continuation lines.
  */
-function extractNumberedList(text: string): string[] {
+export function extractNumberedList(text: string): string[] {
   const steps: string[] = [];
   const lines = text.split('\n');
 

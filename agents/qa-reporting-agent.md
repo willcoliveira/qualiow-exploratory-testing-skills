@@ -36,6 +36,8 @@ prefix literally as the first token of every command. The npm package is
 - `phase-7-notes.md` — the source of every prose section below
 - `bugs/refuted/BUG-*.md` when that directory exists — count them; nothing in them is copied
   anywhere except through the notes' `## Refuted Findings` section
+- never `verification/JEV-*` or `verification/LAYA-*` — the advisory triage reaches the report
+  only through each bug file's `## Verification` section
 
 `wc -l` before each file. Over 300 lines: `Grep '^## '` for the headings, then `Read` with
 `offset`/`limit` around the ones you need. Never read `snapshots/` — raw accessibility trees

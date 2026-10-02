@@ -151,11 +151,48 @@ export const SourceBranchConfigSchema = z
 // before it ships. `judge` is the default, and also what an absent block means;
 // `off` restores the unverified flow (drafts go straight to `bugs/`, no
 // `verification/` directory). The per-run equivalent is `--no-judge`.
-export const VerificationConfigSchema = z
+//
+// `triage-shadow` keeps the judge exactly as `judge` does and, before it, asks a
+// decision model a fixed set of typed questions about each claim card. The
+// answers are recorded next to the verdict as a prediction; nothing reads them
+// to decide anything. A provider is required for that mode: `typesafe` (hosted;
+// the ONE sanctioned exception to "session output stays local") or `laya`
+// (self-hosted, loopback endpoint only). Keys are referenced by env var NAME.
+export const TriageProviderSchema = z.enum(['typesafe', 'laya']);
+
+export const LayaTriageConfigSchema = z
   .object({
-    mode: z.enum(['judge', 'off']).default('judge'),
+    endpoint: z.string().url().optional(), // default http://127.0.0.1:8000/v1/systemone
+    model: z.string().optional(), // default multilingual
+    max_len: z.number().int().positive().optional(), // default 8192
+    api_key_env: z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'an upper-case env var name').optional(), // only when the local server requires a key
   })
   .strict();
+
+export const VerificationConfigSchema = z
+  .object({
+    mode: z.enum(['judge', 'off', 'triage-shadow']).default('judge'),
+    // `triage_provider` is the single-provider shorthand; `triage_providers` runs
+    // several side by side, each answer recorded in its own file.
+    triage_provider: TriageProviderSchema.optional(),
+    triage_providers: z.array(TriageProviderSchema).min(1).optional(),
+    // default TYPESAFE_API_KEY; an env var NAME, never a value
+    triage_api_key_env: z.string().regex(/^[A-Z][A-Z0-9_]*$/, 'an upper-case env var name').optional(),
+    laya: LayaTriageConfigSchema.optional(),
+    evidence_max_lines: z.number().int().positive().optional(),
+  })
+  .strict()
+  .refine((v) => v.triage_provider === undefined || v.triage_providers === undefined, {
+    message: 'set verification.triage_provider or triage_providers, not both',
+    path: ['triage_providers'],
+  })
+  .refine(
+    (v) => v.mode !== 'triage-shadow' || v.triage_provider !== undefined || v.triage_providers !== undefined,
+    {
+      message: 'verification.triage_provider (or triage_providers) is required when mode is "triage-shadow"',
+      path: ['triage_provider'],
+    },
+  );
 
 // ─── Web target (Playwright / playwright-cli — /qa-explore) ───────────
 

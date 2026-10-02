@@ -1,0 +1,24 @@
+{
+  "model": "jev-mock",
+  "answers": {
+    "evidence_shows_actual": { "type": "noul", "noul": 0.86 },
+    "steps_sufficient": { "type": "noul", "noul": 0.81 },
+    "by_design": { "type": "noul", "noul": 0.08 },
+    "alternative_explanation": { "type": "noul", "noul": 0.12 },
+    "impact_supported": { "type": "noul", "noul": 0.77 },
+    "severity_fit": {
+      "type": "choice",
+      "choice": "high",
+      "probabilities": { "critical": 0.08, "high": 0.61, "medium": 0.27, "low": 0.04 },
+      "confidence": 0.48
+    },
+    "predicted_verdict": {
+      "type": "choice",
+      "choice": "confirmed",
+      "probabilities": { "confirmed": 0.84, "confirmed_adjusted": 0.09, "refuted": 0.04, "unreproducible": 0.03 },
+      "confidence": 0.79
+    }
+  },
+  "fp_default": 0.05,
+  "usage": { "input_tokens": 2140, "output_tokens": 96 }
+}

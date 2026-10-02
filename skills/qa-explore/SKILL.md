@@ -77,5 +77,6 @@ Consult these as needed throughout the session:
 - **`${CLAUDE_SKILL_DIR}/references/severity-guide.md`** — severity definitions, the "when in doubt go LOWER" rule, risk matrix, priority table
 - **`${CLAUDE_SKILL_DIR}/references/session-rules.md`** — 20 testing-discipline rules: 45-min cap, one bug one report, evidence, risk-proportional time, adapt mid-session, log WHY, AI-bias avoidance
 - **`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`** — what the `qualiow` CLI does instead of you, the never-delegate list (severity, impact, bug reports, AC verdicts, reflection), the one bounded exception (`qa-bug-judge` rules on whether a claim reproduces) and the read thresholds
+- **`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`** — opt-in, advisory decision-model triage recorded beside the judge's verdict (`verification.mode: triage-shadow`): the `qualiow judge triage` command, providers, what is sent, the `JEV-NNN` / `LAYA-NNN` files, stats
 - **`${CLAUDE_SKILL_DIR}/references/context-integration.md`** — how `--context` changes the session (context file, inline context, blind mode)
 - **`${CLAUDE_SKILL_DIR}/references/playwright-agents-integration.md`** — opt-in handoff to Playwright Test Agents (planner / generator / healer, Playwright 1.56+) when a reproducible bug should become a regression test; requires the optional `@playwright/test` peer dependency

@@ -8,6 +8,8 @@ export {
   ApiSurfaceConfigSchema,
   SourceBranchConfigSchema,
   VerificationConfigSchema,
+  TriageProviderSchema,
+  LayaTriageConfigSchema,
   WebTargetConfigSchema,
   MobileDeviceConfigSchema,
   MobileAppConfigSchema,

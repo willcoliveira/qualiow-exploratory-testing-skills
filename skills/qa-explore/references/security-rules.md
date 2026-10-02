@@ -86,3 +86,20 @@ The first two lines of every session artefact (see `output-contract.md`):
 
 Session output stays on the local disk. Never send it to an external service, paste it
 into a ticket without the user asking, or include it in anything published.
+
+**One gated exception: the hosted decision-model triage.** `qualiow judge triage` sends data
+off the machine only when the target config sets `verification.mode: triage-shadow`, lists
+`typesafe` as a provider, and the key is present under the env var the config names. Per
+candidate bug it sends one claim card (title, URL path, claimed severity, environment,
+reproduction rate, expected and actual behaviour, steps), the console and network excerpts
+written on it, the text evidence files it lists from inside the session directory (capped per
+file), and the known false-positive pattern lead-ins. It never sends screenshots, video, the
+storage state, the session log, the charter, the drafts, other claims or any verdict. Before
+anything leaves, every string passes the redaction list, then every URL is cut to its path,
+every dotted hostname becomes `[HOST]`, every absolute path under a common root its basename and every `.auth/`
+reference `[AUTH_STATE]`; the exact request is saved as `verification/JEV-NNN.json`. The
+scrubbing is pattern-based and does not remove IP addresses, single-label hostnames, URL paths,
+or free-text product, company or people names. The self-hosted `laya` provider is not an
+exception: its endpoint must be loopback, checked before anything is sent, and redirects are
+refused. Off by default —
+`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`.

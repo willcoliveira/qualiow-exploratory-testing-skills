@@ -26,7 +26,7 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
 | `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
 | `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
-| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned |
+| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned. Under `verification.mode: triage-shadow`, also `verification/JEV-NNN.md` / `LAYA-NNN.md` (the advisory triage block) and `.json` (the exact request sent) |
 | `bugs/refuted/BUG-NNN.md` | phase 7 — a candidate the judge REFUTED or found UNREPRODUCIBLE, with the verdict under `## Refutation (Judge)`. Excluded from `bugs_found`, the index rows and `## Bugs Found`; listed only in `## Refuted Findings` |
 | `bugs/BUG-NNN.md` | phase 7 |
 | `session-report.md` | the `qa-reporting-agent` sub-agent, from `phase-7-notes.md`, the bugs, `stats.json` and the phase files (quick sessions write it directly) |
@@ -86,6 +86,7 @@ The coverage map lives inside `session-report.md`. There is no separate session-
 - Judge repro result: <one line>
 - Severity: <original X → final Y — only when adjusted>
 - Full verdict: `../verification/VERDICT-NNN.md`
+- Triage (advisory): <predicted verdict> · <ROUTE> · P(refuted)=<x> — `../verification/JEV-NNN.md` (only under `triage-shadow`)
 ```
 
 The `**Verification:**` line and the `## Verification` section are present only when the
@@ -202,7 +203,10 @@ never the refuted ones). Its keys: `judged` = candidate bugs (drafts), whether o
 reached them; `verified` = CONFIRMED + CONFIRMED-ADJUSTED, including overruled refutations;
 `unverified` = UNVERIFIED plus not judged; `refuted`; `unreproducible` (the five sum to
 `judged`); `budget_min` = the minutes allotted, not spent. The report's `## Session Stats`
-renders them as one row, `| Bugs judged | <judged> (verified <n>, unverified <n>, refuted <n>, unreproducible <n>) |`.
+renders them as one row, `| Bugs judged | <judged> (verified <n>, unverified <n>, refuted <n>, unreproducible <n>) |`. Under
+`verification.mode: triage-shadow` the triage counts go under `coverage.verification.triage.<provider>`
+(`triaged`, `refute_risk`, `unclear`, `likely_confirmed`, `agreed_with_judge`, `unavailable`,
+`input_tokens`, `cost_usd`, `ms_total`).
 
 ## Index rows
 

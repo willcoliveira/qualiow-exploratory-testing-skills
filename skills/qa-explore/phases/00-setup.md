@@ -26,7 +26,9 @@ and carry read-only mode through every later phase.
 Resolve the **verification mode** for phase 7 the same way: `off` when the run carries
 `--no-judge` or the target sets `verification.mode: off`, otherwise `judge` (a target without
 a `verification` block means `judge`). Either source turns the judge off; nothing on the
-command line turns it back on for a target that set `off`.
+command line turns it back on for a target that set `off`. A target with
+`verification.mode: triage-shadow` resolves to `judge` plus the advisory triage in phase 7
+(`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`); `--no-judge` turns both off.
 
 ## Step 2: Load Context (if provided)
 
@@ -122,7 +124,7 @@ Write `output/sessions/<session-dir>/progress.json`:
 
 Append to `session-log.md`:
 ```
-[<timestamp>] [PHASE] Setup complete — session <session-dir>, sid <sid>, read_only: <true|false>, verification: <judge|off>
+[<timestamp>] [PHASE] Setup complete — session <session-dir>, sid <sid>, read_only: <true|false>, verification: <judge|off|triage-shadow>
 ```
 
 ## Step 6: Optional — Bootstrap Playwright Test Agents (opt-in)
