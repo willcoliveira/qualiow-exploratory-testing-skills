@@ -2,6 +2,22 @@
 
 Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed before the judge runs and its data is deleted in the last step.
 
+**Verification mode** was resolved in setup: `judge` unless the run carried `--no-judge` or
+the target sets `verification.mode: off`. With `judge` follow every section below. With `off`
+this phase is the unverified flow:
+
+- write each bug straight to `bugs/BUG-NNN.md` in the format under **Write Bug Drafts**, with
+  no `**Verification:**` line and no `## Verification` section;
+- skip **Verify Bugs** and **Finalize Bug Reports**; create no `verification/` directory and
+  no `bugs/refuted/`;
+- leave `## Refuted Findings` out of `phase-7-notes.md` and `coverage.verification` out of
+  `stats.json`;
+- append `[<timestamp>] [VERIFY] verification off (<--no-judge | target>) — bugs ship unverified`
+  to `session-log.md`.
+
+With `off` the reporting agent finds no `verification/` directory and assembles the report
+without the `Verification` column or the refuted appendix.
+
 ## Stop Recording
 
 ```bash
@@ -76,7 +92,7 @@ means exactly that. Nothing goes into `bugs/` yet.
 
 ## Verify Bugs (Second Opinion)
 
-Every candidate faces an adversarial audit BEFORE it ships. A separate `qa-bug-judge`
+Judge mode only. Every candidate faces an adversarial audit BEFORE it ships. A separate `qa-bug-judge`
 sub-agent — fresh context, strongest model, no knowledge of how the bug was found — tries to
 REFUTE it. Only the survivors reach `bugs/`. This runs now, after exploration is complete,
 never mid-session; it is the one bounded exception in
@@ -201,9 +217,9 @@ them, so a section you leave out is a section nobody can write for you:
 - `## Areas Not Tested` — each with its reason
 - `## Recommendations` — for the next session
 - `## Reflection` — the five answers above
-- `## Refuted Findings` — `| ID | Claimed Title | Claimed Severity | Verdict | Refutation |`, one
-  row per file in `bugs/refuted/` with the judge's reason in one line, or the sentence "All
-  candidate bugs survived verification."
+- `## Refuted Findings` (judge mode only) — `| ID | Claimed Title | Claimed Severity | Verdict | Refutation |`,
+  one row per file in `bugs/refuted/` with the judge's reason in one line, or the sentence
+  "All candidate bugs survived verification."
 
 ## Session Stats
 
@@ -211,7 +227,7 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 (`session_id`, `kind: "explore"`, `target`, `date`, `duration_min`, `bugs_found`,
 `severity_counts`, `pages_explored`, plus the optional `domain`, `started_at`,
 `completed_at`, `phases_completed`, `total_phases: 8`, `coverage`, `evidence`,
-`areas_not_tested`, `blocked_by`). Put the judge's tally under `coverage.verification` —
+`areas_not_tested`, `blocked_by`). In judge mode put the judge's tally under `coverage.verification` —
 `{ "judged", "verified", "unverified", "refuted", "unreproducible", "budget_min" }` —
 and count shipped bugs only in `bugs_found` and `severity_counts`. No other top-level keys. The `## Session Stats` table in
 the report is rendered from this file.

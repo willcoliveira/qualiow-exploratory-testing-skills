@@ -26,7 +26,7 @@ Prefix every name with `qualiow:` under a plugin install (`qualiow:qa-reporting-
 | `qa-page-mapper-agent` | a `snapshots/<page>.yml` over 300 lines + the page URL | forms with field refs, nav text → ref, interactive controls, visible error and empty-state text, hidden/disabled counts | phase 3 discovery |
 | `qa-diff-indexer-agent` | repo, base, branch, the AC list | file → symbols → line ranges → candidate ACs, plus files matching no AC and ACs matching no file | phase 2 static review |
 | `qa-gather-agent` | files, URLs or pasted text in the invocation | the context file under `output/context/`, gaps and assumptions marked | `/qa-gather` (always forks) |
-| `qa-bug-judge` | one `verification/claims/CLAIM-NNN.md` (claim + evidence + safety block, nothing of the finder's reasoning) | a fenced verdict block: `CONFIRMED`, `CONFIRMED-ADJUSTED`, `REFUTED`, `UNREPRODUCIBLE` or `UNVERIFIED`, with method, confidence, repro result and reasoning | phase 7 of explore, one spawn per candidate bug, sequential |
+| `qa-bug-judge` | one `verification/claims/CLAIM-NNN.md` (claim + evidence + safety block, nothing of the finder's reasoning) | a fenced verdict block: `CONFIRMED`, `CONFIRMED-ADJUSTED`, `REFUTED`, `UNREPRODUCIBLE` or `UNVERIFIED`, with method, confidence, repro result and reasoning | phase 7 of explore, one spawn per candidate bug, sequential; not at all when verification is `off` |
 
 If sub-agents are unavailable, do the step yourself as in 2.1.0 — the thresholds below still
 apply; read in windows instead.
@@ -40,7 +40,7 @@ These stay in this session, always, whatever the tiering:
 - **Bug reports** — the decision that something *is* a bug, and every word of `bugs/BUG-NNN.md`
 - **The charter** and the risk ranking (P0/P1/P2/P3) behind it
 - **What's MISSING** — the negative-space question no extraction pass can ask
-- **Verdicts** — `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`, `NOT-REACHABLE`, `UNVERIFIABLE`
+- **AC verdicts** — `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`, `NOT-REACHABLE`, `UNVERIFIABLE`
 - **The executive summary** and the recommendations
 - **The reflection** — what worried you, what you did not test, what to do next
 

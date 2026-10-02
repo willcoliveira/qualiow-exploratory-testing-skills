@@ -145,6 +145,18 @@ export const SourceBranchConfigSchema = z
   })
   .strict();
 
+// ─── Verification (Phase 7 of /qa-explore) ────────────────────────────
+
+// Whether Phase 7 sends every candidate bug to the adversarial `qa-bug-judge`
+// before it ships. `judge` is the default, and also what an absent block means;
+// `off` restores the unverified flow (drafts go straight to `bugs/`, no
+// `verification/` directory). The per-run equivalent is `--no-judge`.
+export const VerificationConfigSchema = z
+  .object({
+    mode: z.enum(['judge', 'off']).default('judge'),
+  })
+  .strict();
+
 // ─── Web target (Playwright / playwright-cli — /qa-explore) ───────────
 
 export const WebTargetConfigSchema = z
@@ -159,6 +171,8 @@ export const WebTargetConfigSchema = z
     browser: BrowserConfigSchema,
     scope: ScopeConfigSchema,
     safety: SafetyConfigSchema.optional(),
+    // Web only: the judge runs in /qa-explore, which mobile targets do not use.
+    verification: VerificationConfigSchema.optional(),
     // Optional blocks consumed by /qa-verify-backend. A target without them is
     // still a valid /qa-explore target.
     environment: EnvironmentConfigSchema.optional(),

@@ -89,9 +89,9 @@ The coverage map lives inside `session-report.md`. There is no separate session-
 ```
 
 The `**Verification:**` line and the `## Verification` section are present only when the
-session ran the adversarial judge (`/qa-explore` always does). A bug under `bugs/refuted/`
-carries `**Verification:** Refuted` or `Unreproducible` and, instead of `## Verification`,
-a `## Refutation (Judge)` section holding the verdict block verbatim.
+session ran the adversarial judge (`/qa-explore` does unless verification is `off`). A bug
+under `bugs/refuted/` carries `**Verification:** Refuted` or `Unreproducible` and, instead of
+`## Verification`, a `## Refutation (Judge)` section holding the verdict block verbatim.
 
 Rules: numbered from `BUG-001` per session; one bug per file; Business Impact is mandatory
 (answer at least one bullet, write "none identified" for the rest); severity per
