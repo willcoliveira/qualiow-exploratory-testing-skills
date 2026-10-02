@@ -34,6 +34,8 @@ prefix literally as the first token of every command. The npm package is
 - the phase files: `phase-3-discovery.md` … `phase-6-edge-cases.md` — backend instead reads
   `ac-matrix.md`, `expected-behaviour.md` and the file list of `evidence/`
 - `phase-7-notes.md` — the source of every prose section below
+- `bugs/refuted/BUG-*.md` when that directory exists — count them; nothing in them is copied
+  anywhere except through the notes' `## Refuted Findings` section
 
 `wc -l` before each file. Over 300 lines: `Grep '^## '` for the headings, then `Read` with
 `offset`/`limit` around the ones you need. Never read `snapshots/` — raw accessibility trees
@@ -55,9 +57,13 @@ Exactly the format in `skills/qa-explore/references/output-contract.md`. Section
 10. `## Recommendations`
 11. `## Reflection`
 12. `## Session Stats`
+13. `## Refuted Findings` — only when the session directory has a `verification/` directory;
+    copied from `phase-7-notes.md` like every other prose section
 
 Mobile appends `## Mobile Context` and `## Deferred Tests`. Backend inserts
-`## AC Matrix Summary` after the executive summary.
+`## AC Matrix Summary` after the executive summary. A session with a `verification/`
+directory gets the sixth `Verification` column in `## Bugs Found` and section 13; a session
+without one gets neither, so its report is byte-for-byte what it was before the judge existed.
 
 Sourcing rules:
 
@@ -68,7 +74,9 @@ Sourcing rules:
 - **Coverage Map, Observations, Areas Not Tested** — same rule: the notes are the source.
 - **Bugs Found** — one row per bug file: id, title from its `# BUG-NNN:` heading, severity
   from its `**Severity:**` line, and the relative path. No re-grading, no re-wording, no row
-  you cannot point at a file for.
+  you cannot point at a file for. With `verification/` present, a sixth cell copied from the
+  file's `**Verification:**` line (empty when the line is absent). Files under `bugs/refuted/`
+  never get a row here.
 - **Summary Stats and Session Stats** — the numbers in `stats.json`, transcribed. Do not
   recompute, adjust, or add a metric that is not there.
 
@@ -82,7 +90,8 @@ Exit 0: done. Exit 1: it prints a numbered violation list. Fix only
 - a format violation in `session-report.md` — wrong heading, wrong column order, absent
   section.
 
-Never touch `bugs/*.md` content, severity or business impact, the numbers in `stats.json`, or
+Never touch `bugs/*.md` or `bugs/refuted/*.md` content, severity, verification line or business
+impact, never move a file between those two directories, the numbers in `stats.json`, or
 any phase file. Re-run finalize once. If violations remain, stop and list them.
 
 ## Return

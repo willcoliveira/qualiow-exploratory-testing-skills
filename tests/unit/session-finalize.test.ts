@@ -203,3 +203,66 @@ describe('runSessionFinalize — missing session', () => {
     ).rejects.toThrow(/output\/sessions/);
   });
 });
+
+// ── Verified session (adversarial bug judge) ───────────────────────────────
+
+const VERIFIED_SESSION_NAME = '2026-09-20-1500-explore-verified-example';
+const VERIFIED_SESSION_DIR = join(
+  REPO_ROOT,
+  'tests',
+  'fixtures',
+  'verified-session',
+  VERIFIED_SESSION_NAME,
+);
+
+function makeTmpVerifiedSessionCwd(): { cwd: string; sessionDir: string } {
+  const cwd = makeTmpCwd();
+  const sessionDir = join(cwd, 'output', 'sessions', VERIFIED_SESSION_NAME);
+  cpSync(VERIFIED_SESSION_DIR, sessionDir, { recursive: true });
+  return { cwd, sessionDir };
+}
+
+describe('runSessionFinalize — verified session with verification/ and bugs/refuted/', () => {
+  it('--check passes: every verification artefact carries the header and no secret', async () => {
+    const { cwd } = makeTmpVerifiedSessionCwd();
+    const result = await runSessionFinalize('latest', { check: true }, { cwd, log: silentLog });
+    expect(result.violations).toEqual([]);
+    expect(result.ok).toBe(true);
+    expect(existsSync(indexPathOf(cwd))).toBe(false);
+  });
+
+  it('finalize counts shipped bugs only: Bugs cell 3, no row for the refuted BUG-104', async () => {
+    const { cwd } = makeTmpVerifiedSessionCwd();
+    const result = await runSessionFinalize('latest', {}, { cwd, log: silentLog });
+    expect(result.ok).toBe(true);
+
+    const indexContent = readFileSync(indexPathOf(cwd), 'utf-8');
+    const row = indexContent.split('\n').find((l) => l.includes(`${VERIFIED_SESSION_NAME}/`));
+    expect(row).toBeDefined();
+    // Columns: | Date | Kind | Target | Bugs | Duration | Status | Report |
+    const cells = row!.split('|').map((c) => c.trim());
+    expect(cells[2]).toBe('explore');
+    expect(cells[4]).toBe('3');
+
+    const allBugsContent = readFileSync(allBugsPathOf(cwd), 'utf-8');
+    expect(allBugsContent).toContain(`| BUG-101 | ${VERIFIED_SESSION_NAME} |`);
+    expect(allBugsContent).toContain(`| BUG-102 | ${VERIFIED_SESSION_NAME} |`);
+    expect(allBugsContent).toContain(`| BUG-103 | ${VERIFIED_SESSION_NAME} |`);
+    expect(allBugsContent).not.toContain('BUG-104');
+
+    const metricsLines = readFileSync(metricsPathOf(cwd), 'utf-8').trim().split('\n');
+    expect(metricsLines).toHaveLength(1);
+    expect(JSON.parse(metricsLines[0]).bugs_found).toBe(3);
+  });
+
+  it('a verification artefact without the header is a violation', async () => {
+    const { cwd, sessionDir } = makeTmpVerifiedSessionCwd();
+    const verdictPath = join(sessionDir, 'verification', 'VERDICT-101.md');
+    writeFileSync(verdictPath, readFileSync(verdictPath, 'utf-8').split('\n').slice(3).join('\n'));
+    const result = await runSessionFinalize('latest', { check: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(false);
+    expect(
+      result.violations.some((v) => v.includes('VERDICT-101.md') && v.includes('confidentiality')),
+    ).toBe(true);
+  });
+});

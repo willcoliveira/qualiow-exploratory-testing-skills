@@ -34,12 +34,16 @@ No framework and no test scripts — Claude's own QA reasoning plus a driver per
 | `/qa-knowledge-list` | Browse the knowledge base |
 | `/qa-target-setup` | Configure a target application (auth, scope, domain) |
 
-Four sub-agents ship with them in `.claude/agents/`, none of which ever returns a verdict:
+Five sub-agents ship with them in `.claude/agents/`. Four never return a verdict:
 `qa-gather-agent` (sonnet — `/qa-gather` runs forked in it), `qa-reporting-agent` (sonnet,
 effort low — assembles `session-report.md` from `phase-7-notes.md` and runs
 `qualiow session finalize`), `qa-diff-indexer-agent` (haiku, effort low — indexes a large diff
 to candidate ACs), `qa-page-mapper-agent` (haiku, effort low — maps a raw snapshot over 300
-lines).
+lines). The fifth is the one bounded exception: `qa-bug-judge` (opus, effort high) — the
+adversarial "second opinion" that Phase 7 of `/qa-explore` spawns once per candidate bug,
+fresh context, claim card only, and that returns a verdict on reproducibility and evidence.
+Whether to ship, the final severity and the business impact stay in the session; refuted
+candidates go to `bugs/refuted/` and appear only in the report's `## Refuted Findings`.
 
 Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc.
 
@@ -98,7 +102,7 @@ claude plugin install qualiow@qualiow
 - `.claude/skills/` — the 11 skills, **canonical**; `skills/` is the generated mirror shipped
   to npm and used by the plugin (`npm run sync:plugin`; CI fails on drift — never hand-edit
   the mirror)
-- `.claude/agents/` — the 4 sub-agents; mirrored to `agents/` the same way
+- `.claude/agents/` — the 5 sub-agents; mirrored to `agents/` the same way
 - `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
   repo is its own marketplace; the single plugin's `source` is `"./"`)
 - `hooks/` — `hooks.json` (two `PreToolUse` registrations, plugin default discovery path) and

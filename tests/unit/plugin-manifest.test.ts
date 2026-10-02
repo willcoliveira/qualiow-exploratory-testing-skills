@@ -24,10 +24,11 @@ describe('.claude-plugin/plugin.json', () => {
     expect(plugin.hooks).toBeUndefined();
   });
 
-  it('ships the four sub-agents under .claude/agents/', () => {
+  it('ships the five sub-agents under .claude/agents/', () => {
     const canonicalDir = join(REPO_ROOT, '.claude', 'agents');
     for (const agent of [
       'qa-gather-agent',
+      'qa-bug-judge',
       'qa-reporting-agent',
       'qa-diff-indexer-agent',
       'qa-page-mapper-agent',

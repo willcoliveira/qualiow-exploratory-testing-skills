@@ -62,7 +62,7 @@ Execute each phase in order. Read and follow the linked file. The budget sums to
 | **Journeys** | `${CLAUDE_SKILL_DIR}/phases/04-journeys.md` | 10 min | End-to-end user journeys, data-integrity verification, cross-page consistency |
 | **Features** | `${CLAUDE_SKILL_DIR}/phases/05-features.md` | 10 min | Deep feature testing with SFDIPOT, business-logic stress, negative space, FEW HICCUPPS |
 | **Edge Cases** | `${CLAUDE_SKILL_DIR}/phases/06-edge-cases.md` | 6 min | Input attacks, race conditions, state manipulation, security, accessibility, empty states |
-| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min | Stop recording, reflect, write bug reports with business impact, session report, stats, close the browser session |
+| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min + up to 15 min verification | Stop recording, reflect, draft the bugs, have every candidate judged by the `qa-bug-judge` sub-agent (second opinion), ship the verified bugs with business impact, session report with a refuted appendix, stats, close the browser session |
 
 ## References
 

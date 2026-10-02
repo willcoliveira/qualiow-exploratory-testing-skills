@@ -1,5 +1,45 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Adversarial bug verification ("second opinion") for `/qa-explore`.** A fifth sub-agent,
+  `qa-bug-judge` (opus, effort high, no Write tool), is spawned by Phase 7 once per candidate
+  bug — sequentially, highest claimed severity first — with nothing but a claim card
+  (`verification/claims/CLAIM-NNN.md`: claim, steps, evidence, safety block; never the
+  finder's reasoning, business impact or session log). It tries to REFUTE the bug by
+  independent re-reproduction in its own browser session and returns a fenced verdict
+  (`CONFIRMED`, `CONFIRMED-ADJUSTED`, `REFUTED`, `UNREPRODUCIBLE`, `UNVERIFIED`) that
+  the session copies verbatim to `verification/VERDICT-NNN.md`. Bugs are drafted under
+  `verification/drafts/`, then sorted: shipped bugs gain a `**Verification:**` line and a
+  `## Verification` section; refuted or unreproducible candidates move to `bugs/refuted/`
+  with a `## Refutation (Judge)` section and are excluded from `bugs_found`, the index rows
+  and `## Bugs Found`, appearing only in a new `## Refuted Findings` section appended after
+  `## Session Stats`. Ids are never renumbered. Budget: about 5 minutes per bug, at most 15
+  minutes, on top of the 45-minute cap; a bug the judge could not reach ships `Unverified`
+  with the reason (fail open, flagged, never silent). Refuted verdicts stage a
+  `FALSE_POSITIVE_PATTERN` line in `verification/proposed-patterns.md` for a human to
+  promote through `/qa-explore-feedback` — a session never writes to `learned-patterns.md`.
+  Counts live under `coverage.verification` in `stats.json`, so the strict schema is
+  unchanged. `qa-reporting-agent` renders the optional `Verification` column and the
+  appendix only when a `verification/` directory exists, so sessions without the judge
+  produce byte-identical reports. `output-contract.md`, both templates,
+  `delegation-rules.md` (the judge is documented as the one bounded exception to "never
+  delegate verdicts": it rules on reproducibility and evidence and proposes a severity; the
+  session keeps ship/no-ship, final severity, business impact and priority) and the plugin
+  manifest and pack checks cover the new agent. Fixture
+  `tests/fixtures/verified-session/` and a `session finalize` test prove that
+  `verification/` and `bugs/refuted/` pass the header and secret checks and that refuted
+  bugs never reach `all-bugs.md`.
+
+### Deferred (next release)
+
+- Verification in `/qa-explore-mobile` and `/qa-explore-quick --verify`, the refutation
+  review step in `/qa-explore-feedback`, verification rendering in `/qa-explore-report` and
+  the HTML/JSON/Jira formatters (`ParsedBug.verification`, `refutedBugs`), and the README
+  agent list.
+
 ## [2.2.1] - 2026-09-14
 
 ### Fixed

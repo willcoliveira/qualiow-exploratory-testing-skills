@@ -36,7 +36,7 @@ qualiow init
 | Copied | To |
 |--------|----|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the four sub-agents | `.claude/agents/` |
+| the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles (`*.yml`), templates, security policy | `data/` |
 | `_default.yml` target (with `--include-examples`: the `_example-*.yml` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver, `setup-mobile.sh`, `doctor-mobile.sh` (executable) | `qa/bin/` |
@@ -531,7 +531,7 @@ alongside them — `qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-age
 qualiow-exploratory-testing-skills/
   .claude/
     skills/                   # the 11 skills — CANONICAL source
-    agents/                   # the 4 sub-agents — CANONICAL source
+    agents/                   # the 5 sub-agents — CANONICAL source
   skills/                     # generated mirror (npm + plugin) — npm run sync:plugin
   agents/                     # generated mirror
   .claude-plugin/
@@ -573,7 +573,7 @@ In a project you ran `qualiow init` in:
 ```
 my-project/
   .claude/skills/qa-*         # the 11 skills
-  .claude/agents/             # the 4 sub-agents
+  .claude/agents/             # the 5 sub-agents
   .claude/settings.json       # hook + permission entries, with qualiow init --hooks
   data/                       # knowledge, domains, templates, security, targets
   qa/

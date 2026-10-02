@@ -10,6 +10,7 @@ file: most large reads have a cheaper route that returns the same facts.
 |---|---|---|
 | **0 — deterministic code** | the `qualiow` CLI (`${CLAUDE_SKILL_DIR}/references/paths.md` resolves the binary) | anything with a fixed contract: knowledge digests, index rows, `stats.json` validation, the redaction scan, session listing and archival |
 | **1 — cheap-model sub-agents** | `qa-reporting-agent` (sonnet), `qa-page-mapper-agent` (haiku), `qa-diff-indexer-agent` (haiku), `qa-gather-agent` (sonnet) | bounded reads that need light judgement and return a structured digest |
+| **1b — adversarial verification** | `qa-bug-judge` (opus, effort high) | one claim card in, one verdict block out: a second opinion on a candidate bug from a context that never saw how it was found |
 | **2 — this session** | the model reading these rules | exploration, interaction, bug finding, every judgement below |
 
 Tier 0 beats tier 1 whenever the answer is deterministic: a command costs no tokens and
@@ -25,6 +26,7 @@ Prefix every name with `qualiow:` under a plugin install (`qualiow:qa-reporting-
 | `qa-page-mapper-agent` | a `snapshots/<page>.yml` over 300 lines + the page URL | forms with field refs, nav text → ref, interactive controls, visible error and empty-state text, hidden/disabled counts | phase 3 discovery |
 | `qa-diff-indexer-agent` | repo, base, branch, the AC list | file → symbols → line ranges → candidate ACs, plus files matching no AC and ACs matching no file | phase 2 static review |
 | `qa-gather-agent` | files, URLs or pasted text in the invocation | the context file under `output/context/`, gaps and assumptions marked | `/qa-gather` (always forks) |
+| `qa-bug-judge` | one `verification/claims/CLAIM-NNN.md` (claim + evidence + safety block, nothing of the finder's reasoning) | a fenced verdict block: `CONFIRMED`, `CONFIRMED-ADJUSTED`, `REFUTED`, `UNREPRODUCIBLE` or `UNVERIFIED`, with method, confidence, repro result and reasoning | phase 7 of explore, one spawn per candidate bug, sequential |
 
 If sub-agents are unavailable, do the step yourself as in 2.1.0 — the thresholds below still
 apply; read in windows instead.
@@ -44,6 +46,15 @@ These stay in this session, always, whatever the tiering:
 
 A delegate that returns any of these has exceeded its brief; discard that part of its answer
 and make the call yourself.
+
+**The one bounded exception is the bug judge.** `qa-bug-judge` rules on exactly two things:
+whether the claim in a card reproduces or is carried by its evidence, and — advisory only —
+whether the claimed severity fits `severity-guide.md`. It runs on the strongest model in a
+fresh context precisely because a second opinion from the context that found the bug is not a
+second opinion. Everything else stays here: whether to ship (a REFUTED verdict may be
+overruled with the reason written into `## Verification`), the final severity (write
+`Verified (severity kept at X; judge proposed Y)` when you disagree), business impact,
+priority, and every word of the shipped report.
 
 ## What a delegate must return
 
@@ -77,6 +88,7 @@ Both are read by the hook layer — `hooks/hooks.json` in the plugin, or `qualio
 in an npm project — and belong in the `env` block of the project's `.claude/settings.json`.
 
 - `CLAUDE_CODE_SUBAGENT_MODEL` — overrides the model of every sub-agent, whatever each agent
-  file pins
+  file pins — `qa-bug-judge` included: under that override the second opinion comes from the
+  overriding model, and the `## Verification` section should say so
 - `model: inherit` in a project's own copy of an agent file — that one delegate runs on the
   session's model instead of the cheap one

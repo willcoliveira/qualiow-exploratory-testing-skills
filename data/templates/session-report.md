@@ -43,11 +43,11 @@ _Status: `tested` (fully explored with the planned heuristics) · `partial` (vis
 
 ## Bugs Found
 
-| # | ID | Title | Severity | Report |
-|---|---|---|---|---|
-| 1 | BUG-001 | [Component] fails [Condition] causing [Impact] | Critical/High/Medium/Low | bugs/BUG-001.md |
+| # | ID | Title | Severity | Report | Verification |
+|---|---|---|---|---|---|
+| 1 | BUG-001 | [Component] fails [Condition] causing [Impact] | Critical/High/Medium/Low | bugs/BUG-001.md | Verified |
 
-_If no bugs were found, state: "No bugs were found during this session."_
+_If no bugs were found, state: "No bugs were found during this session." The `Verification` column is present only when the session ran the adversarial bug judge (a `verification/` directory exists); it copies each bug file's `**Verification:**` line._
 
 ## Observations
 
@@ -87,3 +87,11 @@ _Things noticed that are not bugs but may be worth discussing: what's MISSING ag
 | Screenshots taken | [N] |
 | Console errors found | [N] |
 | Data integrity checks | [passed]/[total] |
+
+## Refuted Findings
+
+| ID | Claimed Title | Claimed Severity | Verdict | Refutation |
+|---|---|---|---|---|
+| BUG-00N | [Component] fails [Condition] causing [Impact] | High | Refuted | [the judge's one-line reason] |
+
+_Present only when the session ran the bug judge. One row per file in `bugs/refuted/`, or the sentence "All candidate bugs survived verification." These findings are excluded from every count above; they are listed so nothing is silently dropped._

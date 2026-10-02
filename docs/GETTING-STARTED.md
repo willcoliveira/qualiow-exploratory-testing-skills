@@ -30,7 +30,7 @@ That writes:
 | What | Where |
 |------|-------|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the four sub-agents | `.claude/agents/` |
+| the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
 | the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
