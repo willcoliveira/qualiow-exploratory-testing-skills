@@ -102,6 +102,12 @@ export interface SourceBranchConfig {
   components?: Record<string, string>;
 }
 
+export interface VerificationConfig {
+  /** `judge` (default): every candidate bug faces `qa-bug-judge` before it ships.
+   *  `off`: drafts ship unverified, with no `verification/` directory. */
+  mode?: 'judge' | 'off';
+}
+
 export interface TargetConfig {
   id: string;
   name: string;
@@ -111,6 +117,7 @@ export interface TargetConfig {
   browser: BrowserConfig;
   scope: ScopeConfig;
   safety?: SafetyConfig;
+  verification?: VerificationConfig;
   environment?: EnvironmentConfig;
   backend?: BackendConfig;
   api?: ApiSurfaceConfig;

@@ -7,6 +7,7 @@ export {
   BackendConfigSchema,
   ApiSurfaceConfigSchema,
   SourceBranchConfigSchema,
+  VerificationConfigSchema,
   WebTargetConfigSchema,
   MobileDeviceConfigSchema,
   MobileAppConfigSchema,

@@ -8,6 +8,7 @@ Extract from the user message:
 - **--context <file>** or inline context text (optional)
 - **--focus <area>**: a specific area or feature (optional)
 - **--session <dir>**: an existing pre-flight directory created by `qualiow explore` (optional)
+- **--no-judge**: skip the adversarial bug judge in phase 7 for this run (optional)
 - **domain**: domain type (optional; auto-detect from the app if not given)
 - **time_box**: 45 min (default and maximum)
 
@@ -21,6 +22,11 @@ and journeys.
 Apply the **production rule** from `${CLAUDE_SKILL_DIR}/references/security-rules.md` to the
 resolved hostname now. If it fires, log `[SAFETY] Production detected -- running in read-only mode`
 and carry read-only mode through every later phase.
+
+Resolve the **verification mode** for phase 7 the same way: `off` when the run carries
+`--no-judge` or the target sets `verification.mode: off`, otherwise `judge` (a target without
+a `verification` block means `judge`). Either source turns the judge off; nothing on the
+command line turns it back on for a target that set `off`.
 
 ## Step 2: Load Context (if provided)
 
@@ -116,7 +122,7 @@ Write `output/sessions/<session-dir>/progress.json`:
 
 Append to `session-log.md`:
 ```
-[<timestamp>] [PHASE] Setup complete — session <session-dir>, sid <sid>, read_only: <true|false>
+[<timestamp>] [PHASE] Setup complete — session <session-dir>, sid <sid>, read_only: <true|false>, verification: <judge|off>
 ```
 
 ## Step 6: Optional — Bootstrap Playwright Test Agents (opt-in)

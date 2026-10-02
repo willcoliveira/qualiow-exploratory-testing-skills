@@ -36,7 +36,7 @@ qualiow init
 | Copied | To |
 |--------|----|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the four sub-agents | `.claude/agents/` |
+| the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles (`*.yml`), templates, security policy | `data/` |
 | `_default.yml` target (with `--include-examples`: the `_example-*.yml` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver, `setup-mobile.sh`, `doctor-mobile.sh` (executable) | `qa/bin/` |
@@ -140,14 +140,16 @@ cheap sub-agent that returns a bounded, cited digest rather than a whole file.
 
 Everything that requires judgement stays where it is: severity, priority, business impact,
 the bug reports themselves, the charter and risk ranking, what is *missing*, the AC verdicts,
-the executive summary and the reflection. The list of what is never delegated, and the read
+the executive summary and the reflection. The one bounded exception is the bug judge
+([below](#bug-verification)): a second opinion on whether a candidate bug reproduces, from a
+context that never saw how it was found. The list of what is never delegated, and the read
 thresholds that route the rest, is
 [`skills/qa-explore/references/delegation-rules.md`](skills/qa-explore/references/delegation-rules.md).
 
 ### Sub-agents
 
-Four sub-agents ship with the pack, in `.claude/agents/` (mirrored to `agents/`). Each one
-reads or writes on the session's behalf and hands back a bounded result:
+Five sub-agents ship with the pack, in `.claude/agents/` (mirrored to `agents/`). Each one
+works on the session's behalf and hands back a bounded result:
 
 | Sub-agent | Model | Returns | Called by |
 |-----------|-------|---------|-----------|
@@ -155,10 +157,18 @@ reads or writes on the session's behalf and hands back a bounded result:
 | `qa-reporting-agent` | `sonnet`, `effort: low` | `session-report.md` assembled from the phase files and `phase-7-notes.md`, then `qualiow session finalize`; a summary of at most eight lines | the reporting phase of `/qa-explore`, `/qa-explore-mobile` and `/qa-verify-backend`, and `/qa-explore-report` |
 | `qa-diff-indexer-agent` | `haiku`, `effort: low` | a table of file → symbols or resources → line ranges → candidate AC ids, plus the files that map to no AC and the ACs that map to no file | the static-review phase of `/qa-verify-backend`, when the diff crosses the gate |
 | `qa-page-mapper-agent` | `haiku`, `effort: low` | a map of one raw snapshot: forms and their fields, navigation text → ref, interactive controls, visible error and empty-state text, hidden/disabled counts | the discovery phase of `/qa-explore`, for a snapshot too large to read |
+| `qa-bug-judge` | `opus`, `effort: high` | one fenced verdict on one claim card — `CONFIRMED`, `CONFIRMED-ADJUSTED`, `REFUTED`, `UNREPRODUCIBLE` or `UNVERIFIED` — with method, confidence, repro result and reasoning | the reporting phase of `/qa-explore`, once per candidate bug, unless verification is off |
 
-**None of them returns a verdict.** No severity, no priority, no business impact, no "this is
-a bug", no `PASS`/`FAIL`. They extract, index and assemble; the session decides. A delegate
-that volunteers a judgement has exceeded its brief and that part of its answer is discarded.
+**Four of them never return a verdict.** No severity, no priority, no business impact, no
+"this is a bug", no `PASS`/`FAIL`. They extract, index and assemble; the session decides. A
+delegate that volunteers a judgement has exceeded its brief and that part of its answer is
+discarded.
+
+`qa-bug-judge` is the one bounded exception. It rules on two things only: whether the claim in
+a card reproduces or is carried by its evidence, and, as advice, whether the claimed severity
+fits the severity guide. Whether to ship, the final severity, the business impact and every
+word of the shipped report stay with the session, which may overrule a refutation it can
+disprove. See [Bug verification](#bug-verification).
 
 Quick sessions write their own report — spinning up an agent costs more than it saves for a
 15-minute session.
@@ -209,7 +219,39 @@ run — a harmless double deny, and two node processes per tool call for nothing
 ```
 
 Setup 2 min · Auth 2 · Charter 5 · Discovery 6 · Journeys 10 · Features 10 · Edge cases 6 ·
-Reporting 4. Findings are written to disk between phases so context never overflows.
+Reporting 4, plus up to 15 minutes of bug verification. Findings are written to disk between
+phases so context never overflows.
+
+### Bug verification
+
+Before a bug from `/qa-explore` ships, the `qa-bug-judge` sub-agent tries to refute it. Phase 7
+writes each candidate as a draft plus a claim card (the claim, the steps, the evidence and a
+safety block; never the finder's reasoning or the business impact) and spawns the judge once
+per card, one at a time, highest claimed severity first. The judge re-runs the steps in its own
+browser session when the card allows it and returns `CONFIRMED`, `CONFIRMED-ADJUSTED`,
+`REFUTED`, `UNREPRODUCIBLE` or `UNVERIFIED`. Survivors go to `bugs/` with a
+`**Verification:**` line. Refuted and unreproducible candidates go to `bugs/refuted/` and
+appear only in the report's `## Refuted Findings`, so nothing is dropped silently.
+
+It is on by default, and it has a cost:
+
+- the judge pins `model: opus` with `effort: high`, one spawn per candidate bug
+  (`CLAUDE_CODE_SUBAGENT_MODEL` overrides it like every other sub-agent);
+- it adds up to 15 minutes to phase 7, about 5 per bug, on top of the 45-minute cap;
+- where that model is unavailable, or the judge fails or runs out of budget, the bug still
+  ships, marked `Unverified (<reason>)`;
+- the judge drives `playwright-cli` from a sub-agent, so a project without the allow rules
+  that `qualiow init --hooks` writes may see approval prompts during phase 7.
+
+Turn it off for one run with `--no-judge`, or for a target:
+
+```yaml
+verification:
+  mode: off        # judge (the default) | off
+```
+
+With it off, phase 7 writes `bugs/BUG-NNN.md` directly, as 2.2.1 did, and creates no
+`verification/` directory. The block is accepted on web targets only.
 
 ### Quick session (15 minutes, one page or feature)
 
@@ -260,6 +302,8 @@ output/sessions/2026-09-08-1813-explore-parabank/
   phase-5-features.md
   phase-6-edge-cases.md
   bugs/BUG-001.md          # one bug = one report
+  bugs/refuted/BUG-004.md  # a candidate the bug judge refuted (explore, judge on)
+  verification/            # claim cards and verdicts (explore, judge on)
   screenshots/BUG-001.png
   snapshots/               # raw page snapshots — working files, never part of the report
   videos/
@@ -521,9 +565,9 @@ const csv  = await generateJiraExport(session);
 | `/qa-knowledge-list` | Browse and search the knowledge base |
 | `/qa-target-setup` | Configure a target application (auth, scope, domain) |
 
-Under the plugin install these are `/qualiow:qa-explore` and so on. Four sub-agents ship
-alongside them — `qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent` and
-`qa-page-mapper-agent` — described under [Sub-agents](#sub-agents).
+Under the plugin install these are `/qualiow:qa-explore` and so on. Five sub-agents ship
+alongside them — `qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`,
+`qa-page-mapper-agent` and `qa-bug-judge` — described under [Sub-agents](#sub-agents).
 
 ## Project structure
 
@@ -531,7 +575,7 @@ alongside them — `qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-age
 qualiow-exploratory-testing-skills/
   .claude/
     skills/                   # the 11 skills — CANONICAL source
-    agents/                   # the 4 sub-agents — CANONICAL source
+    agents/                   # the 5 sub-agents — CANONICAL source
   skills/                     # generated mirror (npm + plugin) — npm run sync:plugin
   agents/                     # generated mirror
   .claude-plugin/
@@ -573,7 +617,7 @@ In a project you ran `qualiow init` in:
 ```
 my-project/
   .claude/skills/qa-*         # the 11 skills
-  .claude/agents/             # the 4 sub-agents
+  .claude/agents/             # the 5 sub-agents
   .claude/settings.json       # hook + permission entries, with qualiow init --hooks
   data/                       # knowledge, domains, templates, security, targets
   qa/

@@ -26,6 +26,8 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
 | `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
 | `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
+| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned |
+| `bugs/refuted/BUG-NNN.md` | phase 7 — a candidate the judge REFUTED or found UNREPRODUCIBLE, with the verdict under `## Refutation (Judge)`. Excluded from `bugs_found`, the index rows and `## Bugs Found`; listed only in `## Refuted Findings` |
 | `bugs/BUG-NNN.md` | phase 7 |
 | `session-report.md` | the `qa-reporting-agent` sub-agent, from `phase-7-notes.md`, the bugs, `stats.json` and the phase files (quick sessions write it directly) |
 | `stats.json` | phase 7 |
@@ -48,6 +50,7 @@ The coverage map lives inside `session-report.md`. There is no separate session-
 **URL:** <exact URL — mobile: screen name or deep link — backend: endpoint or resource>
 **Environment:** <browser + viewport — mobile: mode / platform / device / OS — backend: env kind + build>
 **Reproduction rate:** Always | Intermittent (~X%) | Once
+**Verification:** Verified | Verified (severity adjusted from <X>) | Unverified (<reason>) | Refuted | Unreproducible
 
 ## Summary
 <two sentences: what breaks and why it matters>
@@ -77,11 +80,23 @@ The coverage map lives inside `session-report.md`. There is no separate session-
 
 ## Recommended Fix Priority
 <why this priority, relative to the other findings>
+
+## Verification
+- Verdict: <CONFIRMED | CONFIRMED-ADJUSTED | UNVERIFIED> (<live-repro | evidence-only>, <confidence>)
+- Judge repro result: <one line>
+- Severity: <original X → final Y — only when adjusted>
+- Full verdict: `../verification/VERDICT-NNN.md`
 ```
+
+The `**Verification:**` line and the `## Verification` section are present only when the
+session ran the adversarial judge (`/qa-explore` does unless verification is `off`). A bug
+under `bugs/refuted/` carries `**Verification:** Refuted` or `Unreproducible` and, instead of
+`## Verification`, a `## Refutation (Judge)` section holding the verdict block verbatim.
 
 Rules: numbered from `BUG-001` per session; one bug per file; Business Impact is mandatory
 (answer at least one bullet, write "none identified" for the rest); severity per
-`severity-guide.md`, and when in doubt go one level lower.
+`severity-guide.md`, and when in doubt go one level lower. Ids are assigned to the drafts
+and never renumbered: a gap in `bugs/` means that candidate moved to `bugs/refuted/`.
 
 ## Session report — `session-report.md`
 
@@ -124,9 +139,9 @@ Rules: numbered from `BUG-001` per session; one bug per file; Business Impact is
 | <area> | P2 | not-tested | — | time ran out |
 
 ## Bugs Found
-| # | ID | Title | Severity | Report |
-|---|---|---|---|---|
-| 1 | BUG-001 | <title> | High | bugs/BUG-001.md |
+| # | ID | Title | Severity | Report | Verification |
+|---|---|---|---|---|---|
+| 1 | BUG-001 | <title> | High | bugs/BUG-001.md | Verified |
 
 ## Observations
 ## Areas Not Tested
@@ -138,6 +153,10 @@ Rules: numbered from `BUG-001` per session; one bug per file; Business Impact is
 ## Session Stats
 | Metric | Value |
 |---|---|
+
+## Refuted Findings
+| ID | Claimed Title | Claimed Severity | Verdict | Refutation |
+|---|---|---|---|---|
 ```
 
 Coverage `Status` ∈ `tested` · `partial` · `not-tested` · `code-verified-only` (believed
@@ -145,7 +164,11 @@ correct from reading source, never observed: this is UNVERIFIABLE, not a pass, a
 be skimmed as green).
 
 Mobile appends `## Mobile Context` and `## Deferred Tests`; backend inserts
-`## AC Matrix Summary` (all six verdicts counted) after the executive summary.
+`## AC Matrix Summary` (all six verdicts counted) after the executive summary. A session
+that ran the bug judge (a `verification/` directory exists) carries the sixth
+`Verification` column in `## Bugs Found` and appends `## Refuted Findings` after
+`## Session Stats` — one row per file in `bugs/refuted/`, or the sentence "All candidate
+bugs survived verification." A session without `verification/` has neither.
 
 ## `stats.json`
 
@@ -164,7 +187,7 @@ Mobile appends `## Mobile Context` and `## Deferred Tests`; backend inserts
   "completed_at": "<ISO timestamp>",
   "phases_completed": 8,
   "total_phases": 8,
-  "coverage": { "checklist_total": 22, "checklist_verified": 15, "data_integrity_checks": 6, "data_integrity_passed": 5 },
+  "coverage": { "checklist_total": 22, "checklist_verified": 15, "data_integrity_checks": 6, "data_integrity_passed": 5, "verification": { "judged": 5, "verified": 3, "unverified": 1, "refuted": 1, "unreproducible": 0, "budget_min": 15 } },
   "evidence": { "screenshots": 9, "console_errors_found": 2, "network_failures_found": 1 },
   "areas_not_tested": ["settings — time ran out"],
   "blocked_by": null
@@ -173,7 +196,13 @@ Mobile appends `## Mobile Context` and `## Deferred Tests`; backend inserts
 
 The first eight keys are required; the rest are optional. No other top-level keys (the
 schema is strict). Mobile puts its device block under `coverage.mobile`; backend puts the
-verdict counts under `coverage.verdicts`.
+verdict counts under `coverage.verdicts`; a session that ran the bug judge puts its counts
+under `coverage.verification` (`bugs_found` and `severity_counts` count shipped bugs only —
+never the refuted ones). Its keys: `judged` = candidate bugs (drafts), whether or not the judge
+reached them; `verified` = CONFIRMED + CONFIRMED-ADJUSTED, including overruled refutations;
+`unverified` = UNVERIFIED plus not judged; `refuted`; `unreproducible` (the five sum to
+`judged`); `budget_min` = the minutes allotted, not spent. The report's `## Session Stats`
+renders them as one row, `| Bugs judged | <judged> (verified <n>, unverified <n>, refuted <n>, unreproducible <n>) |`.
 
 ## Index rows
 

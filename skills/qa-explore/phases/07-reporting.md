@@ -1,6 +1,22 @@
-# Phase 7: Reflection & Reporting (4 min)
+# Phase 7: Reflection & Reporting (4 min + up to 15 min verification)
 
-Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed in the last step.
+Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed before the judge runs and its data is deleted in the last step.
+
+**Verification mode** was resolved in setup: `judge` unless the run carried `--no-judge` or
+the target sets `verification.mode: off`. With `judge` follow every section below. With `off`
+this phase is the unverified flow:
+
+- write each bug straight to `bugs/BUG-NNN.md` in the format under **Write Bug Drafts**, with
+  no `**Verification:**` line and no `## Verification` section;
+- skip **Verify Bugs** and **Finalize Bug Reports**; create no `verification/` directory and
+  no `bugs/refuted/`;
+- leave `## Refuted Findings` out of `phase-7-notes.md` and `coverage.verification` out of
+  `stats.json`;
+- append `[<timestamp>] [VERIFY] verification off (<--no-judge | target>) — bugs ship unverified`
+  to `session-log.md`.
+
+With `off` the reporting agent finds no `verification/` directory and assembles the report
+without the `Verification` column or the refuted appendix.
 
 ## Stop Recording
 
@@ -43,11 +59,13 @@ A screenshot remains sufficient for Medium / Low.
 4. **Which heuristic was most useful? Which was useless?**
 5. **What should the next session focus on?**
 
-## Write Bug Reports
+## Write Bug Drafts
 
-One file per bug, `bugs/BUG-NNN.md`, in exactly the format of
+One file per candidate bug, `verification/drafts/BUG-NNN.md`, in exactly the format of
 `${CLAUDE_SKILL_DIR}/references/output-contract.md` (the template
-`<data>/templates/bug-report.md` is the same format with guidance):
+`<data>/templates/bug-report.md` is the same format with guidance) — everything a shipped bug
+carries EXCEPT the `**Verification:**` line and the `## Verification` section, which the
+verdict adds later:
 
 - the confidentiality header as the **first two lines**, verbatim:
 
@@ -63,12 +81,134 @@ One file per bug, `bugs/BUG-NNN.md`, in exactly the format of
 - `## Summary`, `## Expected Behavior`, `## Actual Behavior`, `## Steps to Reproduce`
 - `## Business Impact` — MANDATORY; answer at least one of Revenue / Trust / Regulatory /
   Data / Scale, write "none identified" for the rest
-- `## Evidence` — `Screenshot: screenshots/BUG-NNN.png` (take it with
+- `## Evidence` — `Screenshot: screenshots/BUG-NNN.png` (take it now with
   `playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/BUG-NNN.png`),
   console errors, network failures (`playwright-cli request <n>` output, redacted)
 - `## Recommended Fix Priority`
 
-Redact per `security-rules.md` before writing.
+Redact per `security-rules.md` before writing. Number from `BUG-001`; ids are final — a draft
+the judge refutes keeps its number under `bugs/refuted/`, so a gap in `bugs/` is expected and
+means exactly that. In judge mode nothing goes into `bugs/` yet.
+
+## Verify Bugs (Second Opinion)
+
+Judge mode only. Every candidate faces an adversarial audit BEFORE it ships. A separate `qa-bug-judge`
+sub-agent — fresh context, strongest model, no knowledge of how the bug was found — tries to
+REFUTE it. Only the survivors reach `bugs/`. This runs now, after exploration is complete,
+never mid-session; it is the one bounded exception in
+`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`.
+
+Zero drafts → append `[<timestamp>] [VERIFY] no candidate bugs — verification skipped` to
+`session-log.md` and continue with the notes. No `verification/` directory exists then, so
+skip `## Refuted Findings` and `coverage.verification` exactly as in off mode.
+
+### 1. Claim cards
+
+For each draft write `verification/claims/CLAIM-NNN.md` — the confidentiality header first,
+then ONLY this:
+
+```markdown
+# CLAIM-NNN
+
+**Title:** [Component] fails [Condition] causing [Impact]
+**URL:** <exact URL>
+**Claimed severity:** Critical | High | Medium | Low
+**Environment:** Playwright CLI, Chromium, <viewport>
+**Reproduction rate:** Always | Intermittent (~X%) | Once
+
+## Expected Behavior
+<verbatim from the draft>
+
+## Actual Behavior
+<verbatim from the draft>
+
+## Steps to Reproduce
+1. <exact step> — read-only | state-changing
+
+## Evidence
+- <absolute path of screenshots/BUG-NNN.png>
+- Console / network excerpts: <verbatim, redacted, or "none">
+
+## Safety
+- Environment: production | staging | dev
+- Live re-run allowed: yes | evidence-only — <reason>
+
+## Auth
+- Storage state: <absolute path of .auth/<target>.json, or "none"> — NEVER credentials
+```
+
+Excluded on purpose: Business Impact, Priority, Recommended Fix Priority, and anything from
+`session-log.md`, the phase files or the charter. The judge must see the claim and the raw
+evidence, nothing of your reasoning. The card carries no e-mail address, cookie value or
+token — `qualiow session finalize` scans `verification/` for secrets like every other file.
+
+### 2. Close the finder browser
+
+```bash
+playwright-cli close
+```
+
+(with `-s=<sid>`; do NOT `delete-data` yet — the storage state and the screenshots are still
+evidence). The judge opens its own session; two browsers on one target and one storage state
+would race each other.
+
+### 3. Spawn the judge — one sub-agent per claim, sequentially
+
+Highest claimed severity first. Invoke the `qa-bug-judge` sub-agent (`qualiow:qa-bug-judge`
+under a plugin install) with exactly this prompt:
+
+> Verify the claim in `<absolute path>/verification/claims/CLAIM-NNN.md`. Read ONLY that file
+> and the evidence files it lists. Return your verdict block per your agent definition.
+
+- **One spawn per claim — never batch.** A verdict on one claim must not anchor the next.
+- **Sequential, not parallel** — the target and the storage state are shared resources.
+- **Budget: about 5 minutes per claim, 15 minutes in total, on top of the 45-minute cap.**
+  Verification never eats exploration time. Out of budget → the remaining drafts ship as
+  `Unverified (not judged — budget)`, and each still gets a `verification/VERDICT-NNN.md`
+  you write yourself with `VERDICT: UNVERIFIED (not judged — budget)`, so its
+  `Full verdict:` link resolves.
+
+### 4. Record the verdicts
+
+Copy the returned fenced block VERBATIM — confidentiality header first, then the block — to
+`verification/VERDICT-NNN.md`. Do not edit or summarise it. If the judge fails, times out or
+returns no parseable block, write the file yourself with
+`VERDICT: UNVERIFIED (judge unavailable: <reason>)`. **Fail open, flagged, never silent** —
+the bug still ships, marked Unverified.
+
+For every REFUTED verdict append its `FALSE_POSITIVE_PATTERN` line to
+`verification/proposed-patterns.md` (header first, one bullet per pattern, tagged with the
+bug id). NEVER write to `<data>/knowledge/learned-patterns.md` from a session — a human
+reviews `proposed-patterns.md` and promotes what holds up by hand (a review step in
+`/qa-explore-feedback` is planned, not shipped).
+
+Append the tally to `session-log.md`:
+`[<timestamp>] [VERIFY] 4 judged — 2 confirmed, 1 adjusted, 1 refuted, 0 unreproducible, 0 unverified`.
+The `stats.json` counts are defined in `output-contract.md`.
+
+## Finalize Bug Reports
+
+Sort every draft by its verdict. The verdict is the judge's; the decision to ship, the final
+severity, the business impact and the priority are yours:
+
+- **CONFIRMED / CONFIRMED-ADJUSTED / UNVERIFIED / not judged** → `bugs/BUG-NNN.md`. Add
+  `**Verification:** Verified` (or `Verified (severity adjusted from <X>)`, or
+  `Unverified (<reason>)`) directly after `**Reproduction rate:**`, and a `## Verification`
+  section after `## Recommended Fix Priority`: verdict with method and confidence, the judge's
+  repro result in one line, the severity change if any, and
+  `Full verdict: ../verification/VERDICT-NNN.md`. Accept an adjusted severity unless you can
+  say why not; when you keep yours, write `Verified (severity kept at X; judge proposed Y)`
+  and the reason.
+- **REFUTED / UNREPRODUCIBLE** → `bugs/refuted/BUG-NNN.md` with `**Verification:** Refuted`
+  or `Unreproducible` and, instead of `## Verification`, a `## Refutation (Judge)` section
+  holding the verdict block verbatim. These are excluded from `bugs_found`, the index rows and
+  `## Bugs Found`; they appear only in `## Refuted Findings`. You may overrule a refutation
+  you can disprove — ship it as `Verified (judge overruled: <reason>)` and say so in
+  `## Verification`.
+
+Leave `verification/drafts/` in place once every draft is sorted: it is a working directory,
+header-checked and secret-scanned like the rest, and nothing reads it for the report. Every
+file under `bugs/`, `bugs/refuted/` and `verification/` starts with the confidentiality header.
 
 ## Write phase-7-notes.md
 
@@ -83,6 +223,9 @@ them, so a section you leave out is a section nobody can write for you:
 - `## Areas Not Tested` — each with its reason
 - `## Recommendations` — for the next session
 - `## Reflection` — the five answers above
+- `## Refuted Findings` (judge mode only) — `| ID | Claimed Title | Claimed Severity | Verdict | Refutation |`,
+  one row per file in `bugs/refuted/` with the judge's reason in one line, or the sentence
+  "All candidate bugs survived verification."
 
 ## Session Stats
 
@@ -90,7 +233,9 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 (`session_id`, `kind: "explore"`, `target`, `date`, `duration_min`, `bugs_found`,
 `severity_counts`, `pages_explored`, plus the optional `domain`, `started_at`,
 `completed_at`, `phases_completed`, `total_phases: 8`, `coverage`, `evidence`,
-`areas_not_tested`, `blocked_by`). No other top-level keys. The `## Session Stats` table in
+`areas_not_tested`, `blocked_by`). In judge mode put the judge's tally under `coverage.verification` —
+`{ "judged", "verified", "unverified", "refuted", "unreproducible", "budget_min" }` —
+and count shipped bugs only in `bugs_found` and `severity_counts`. No other top-level keys. The `## Session Stats` table in
 the report is rendered from this file.
 
 ## Assemble and Finalize
@@ -100,7 +245,8 @@ the `qa-reporting-agent` sub-agent (`qualiow:qa-reporting-agent` under a plugin 
 the session directory and `kind: explore`. It reads `charter.md`, `stats.json`, `bugs/*.md`,
 the phase files in windows and `phase-7-notes.md`, writes `session-report.md` in the format
 of `${CLAUDE_SKILL_DIR}/references/output-contract.md` — copying your Executive Summary,
-Recommendations and Reflection verbatim — and then runs `qualiow session finalize`, which
+Recommendations, Reflection and Refuted Findings verbatim and adding the `Verification`
+column to `## Bugs Found` from each bug file — and then runs `qualiow session finalize`, which
 validates `stats.json` against the strict schema, checks the confidentiality header on every
 artefact, scans the directory against the redaction list, appends the session row to
 `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records the
@@ -122,12 +268,14 @@ from the notes in the contract's format and run `qualiow session finalize output
 
 ## Close the Browser Session
 
-Last, once every screenshot, trace and video is on disk:
+Last, once every screenshot, trace and video is on disk and every verdict is recorded — the
+finder session was closed before the judge ran; `close` again is harmless if it still is:
 
 ```bash
 playwright-cli close
 playwright-cli delete-data
 ```
 
-(both with `-s=<sid>`; also close and `delete-data` any extra session such as `-s=<sid>-race`).
+(both with `-s=<sid>`; also close and `delete-data` any extra session such as `-s=<sid>-race`,
+and any `-s=judge-<HHmm>-<NNN>` session a judge left open when it ran out of turns).
 Append to `session-log.md`: `[<timestamp>] [PHASE] Reporting complete — <N> bugs, session closed`.

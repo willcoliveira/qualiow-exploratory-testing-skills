@@ -34,12 +34,20 @@ No framework and no test scripts — Claude's own QA reasoning plus a driver per
 | `/qa-knowledge-list` | Browse the knowledge base |
 | `/qa-target-setup` | Configure a target application (auth, scope, domain) |
 
-Four sub-agents ship with them in `.claude/agents/`, none of which ever returns a verdict:
+Five sub-agents ship with them in `.claude/agents/`. Four never return a verdict:
 `qa-gather-agent` (sonnet — `/qa-gather` runs forked in it), `qa-reporting-agent` (sonnet,
 effort low — assembles `session-report.md` from `phase-7-notes.md` and runs
 `qualiow session finalize`), `qa-diff-indexer-agent` (haiku, effort low — indexes a large diff
 to candidate ACs), `qa-page-mapper-agent` (haiku, effort low — maps a raw snapshot over 300
-lines).
+lines). The fifth is the one bounded exception: `qa-bug-judge` (opus, effort high) — the
+adversarial "second opinion" that Phase 7 of `/qa-explore` spawns once per candidate bug,
+fresh context, claim card only, and that returns a verdict on reproducibility and evidence.
+Whether to ship, the final severity and the business impact stay in the session; refuted
+candidates go to `bugs/refuted/` and appear only in the report's `## Refuted Findings`. The
+judge is on by default and costs opus time (up to 15 minutes on top of the 45-minute cap; a bug
+it cannot reach ships `Unverified`). `/qa-explore <url> --no-judge`, or
+`verification: { mode: off }` in a web target, turns it off: phase 7 then writes `bugs/`
+directly and creates no `verification/` directory.
 
 Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc.
 
@@ -66,7 +74,8 @@ The fixed-contract work belongs to the CLI, not to the model:
   300) moves the read ceiling.
 
 What is never delegated (severity, business impact, bug reports, charter and risk ranking,
-verdicts, executive summary, reflection): `.claude/skills/qa-explore/references/delegation-rules.md`.
+AC verdicts, executive summary, reflection), and the one bounded exception (`qa-bug-judge`
+rules on whether a candidate bug reproduces): `.claude/skills/qa-explore/references/delegation-rules.md`.
 Resolution order for the command itself: `.claude/skills/qa-explore/references/paths.md`.
 Under a plugin install the CLI runs through `bin/qualiow`.
 
@@ -83,6 +92,9 @@ claude plugin install qualiow@qualiow
 # Explore with a saved target config
 /qa-explore --target company-staging
 
+# Skip the phase-7 bug judge for one run
+/qa-explore https://testers.ai/testing/ --no-judge
+
 # Quick check on a specific page
 /qa-explore-quick https://app.example.com/checkout
 
@@ -98,7 +110,7 @@ claude plugin install qualiow@qualiow
 - `.claude/skills/` — the 11 skills, **canonical**; `skills/` is the generated mirror shipped
   to npm and used by the plugin (`npm run sync:plugin`; CI fails on drift — never hand-edit
   the mirror)
-- `.claude/agents/` — the 4 sub-agents; mirrored to `agents/` the same way
+- `.claude/agents/` — the 5 sub-agents; mirrored to `agents/` the same way
 - `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
   repo is its own marketplace; the single plugin's `source` is `"./"`)
 - `hooks/` — `hooks.json` (two `PreToolUse` registrations, plugin default discovery path) and
@@ -143,7 +155,9 @@ claude plugin install qualiow@qualiow
 Every session kind lands in `output/sessions/<YYYY-MM-DD-HHmm>-<kind>-<slug>/` with
 `kind ∈ {explore, quick, mobile, backend}` — e.g. `2026-09-08-1813-explore-parabank`. Each
 one writes `session-report.md`, `bugs/BUG-NNN.md`, `stats.json`, phase artefacts
-(`phase-3-discovery.md` … `phase-6-edge-cases.md`) and working files under `snapshots/`.
+(`phase-3-discovery.md` … `phase-6-edge-cases.md`) and working files under `snapshots/`. An
+explore session that ran the bug judge also has `verification/` (claim cards, verdicts,
+proposed false-positive patterns) and, when something was refuted, `bugs/refuted/`.
 
 The row in `output/sessions/INDEX.md`
 (`| Date | Kind | Target | Bugs | Duration | Status | Report |`), the entries in

@@ -30,7 +30,7 @@ That writes:
 | What | Where |
 |------|-------|
 | the 11 skills | `.claude/skills/qa-*/` |
-| the four sub-agents | `.claude/agents/` |
+| the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
 | the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
 | the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
@@ -138,7 +138,8 @@ Claude will:
 4. Load the heuristics that apply to this domain with `qualiow kb digest --for explore
    --domain <domain>`, rather than reading the manifest and the entry files whole
 5. Explore across eight phases, saving findings to disk between each
-6. File one bug report per finding in `bugs/`
+6. Draft one bug report per finding, then have the `qa-bug-judge` sub-agent try to refute each
+   one from a fresh context; survivors go to `bugs/`, refuted candidates to `bugs/refuted/`
 7. Write `phase-7-notes.md` — the executive summary, coverage map, recommendations and
    reflection — then hand the assembly of `session-report.md` and the
    `qualiow session finalize <session-dir>` call to the `qa-reporting-agent` sub-agent
@@ -154,7 +155,7 @@ The eight phases and their share of the 45-minute cap:
 | 4 | Journeys | 10 | End-to-end user journeys with data-integrity checks |
 | 5 | Features | 10 | Deep testing of the highest-risk features |
 | 6 | Edge cases | 6 | Boundaries, negative input, security, "what is missing?" |
-| 7 | Reporting | 4 | Reflection, coverage map, session report, cleanup |
+| 7 | Reporting | 4 (+ up to 15) | Reflection, bug verification, coverage map, session report, cleanup |
 
 Three points in that run are not done by the session itself. At setup the knowledge base
 arrives as a `qualiow kb digest` call rather than as the manifest and the entry files. In
@@ -165,6 +166,25 @@ the tree, and keeps driving the page itself. At the end, the session writes its 
 into `phase-7-notes.md` and the `qa-reporting-agent` sub-agent assembles `session-report.md`
 around them and runs `finalize`; the bug reports, `stats.json` and every word of the summary
 and reflection are still the session's own.
+
+Before that, each candidate bug faces the `qa-bug-judge` sub-agent, which sees only a claim
+card (claim, steps, evidence, safety block) and tries to refute it, re-running the steps in its
+own browser session when the card allows. It pins `model: opus` and adds up to 15 minutes to
+phase 7; a bug it cannot reach (model unavailable, timeout, budget spent) still ships, marked
+`Unverified`. To skip it for one run:
+
+```bash
+/qa-explore https://testers.ai/testing/ --no-judge
+```
+
+or set it off for a target in its YAML:
+
+```yaml
+verification:
+  mode: off        # judge (the default) | off
+```
+
+With the judge off, phase 7 writes `bugs/` directly and no `verification/` directory appears.
 
 ### Option B: quick check on one page
 
@@ -210,6 +230,8 @@ output/sessions/2026-09-08-1813-explore-parabank/
   bugs/
     BUG-001.md            # one bug = one report
     BUG-002.md
+    refuted/              # candidates the bug judge refuted (judge on)
+  verification/           # claim cards and verdicts (judge on)
   screenshots/
     BUG-001.png
   snapshots/              # raw page snapshots — working files, never part of the report

@@ -7,7 +7,7 @@ description: >
   and writes bug reports that executives act on.
   Use when user says: "explore", "test this site", "find bugs", "QA check", "exploratory session",
   or provides a URL to test.
-argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>]"
+argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>] [--no-judge]"
 allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx:*), Bash(wc:*), Bash(diff:*), Read, Write, Glob, Grep
 ---
 
@@ -41,6 +41,9 @@ You are a **Principal QA Engineer** with 20+ years of experience. You don't just
 # With a saved target config, or reusing a `qualiow explore` pre-flight directory
 /qa-explore --target company-staging --context output/context/SI-2305-context.md
 /qa-explore https://example.com --session output/sessions/2026-09-08-1420-explore-example-com
+
+# Skip the phase-7 bug judge for this run (a target can set verification.mode: off instead)
+/qa-explore https://example.com --no-judge
 ```
 
 ## Before You Start
@@ -51,7 +54,7 @@ You are a **Principal QA Engineer** with 20+ years of experience. You don't just
 
 ## Session Phases
 
-Execute each phase in order. Read and follow the linked file. The budget sums to 45 minutes; write to disk after each phase and carry only summaries in context.
+Execute each phase in order. Read and follow the linked file. The budget sums to 45 minutes, plus up to 15 minutes of bug verification in phase 7; write to disk after each phase and carry only summaries in context.
 
 | Phase | File | Budget | Summary |
 |-------|------|--------|---------|
@@ -62,7 +65,7 @@ Execute each phase in order. Read and follow the linked file. The budget sums to
 | **Journeys** | `${CLAUDE_SKILL_DIR}/phases/04-journeys.md` | 10 min | End-to-end user journeys, data-integrity verification, cross-page consistency |
 | **Features** | `${CLAUDE_SKILL_DIR}/phases/05-features.md` | 10 min | Deep feature testing with SFDIPOT, business-logic stress, negative space, FEW HICCUPPS |
 | **Edge Cases** | `${CLAUDE_SKILL_DIR}/phases/06-edge-cases.md` | 6 min | Input attacks, race conditions, state manipulation, security, accessibility, empty states |
-| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min | Stop recording, reflect, write bug reports with business impact, session report, stats, close the browser session |
+| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min + up to 15 min verification | Stop recording, reflect, draft the bugs, have every candidate judged by the `qa-bug-judge` sub-agent (second opinion; off with `--no-judge` or `verification.mode: off`), ship the verified bugs with business impact, session report with a refuted appendix, stats, close the browser session |
 
 ## References
 
@@ -73,6 +76,6 @@ Consult these as needed throughout the session:
 - **`${CLAUDE_SKILL_DIR}/references/security-rules.md`** — prompt-injection resistance, production rule, redaction list, session isolation, output classification
 - **`${CLAUDE_SKILL_DIR}/references/severity-guide.md`** — severity definitions, the "when in doubt go LOWER" rule, risk matrix, priority table
 - **`${CLAUDE_SKILL_DIR}/references/session-rules.md`** — 20 testing-discipline rules: 45-min cap, one bug one report, evidence, risk-proportional time, adapt mid-session, log WHY, AI-bias avoidance
-- **`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`** — what the `qualiow` CLI does instead of you, the never-delegate list (severity, impact, bug reports, verdicts, reflection) and the read thresholds
+- **`${CLAUDE_SKILL_DIR}/references/delegation-rules.md`** — what the `qualiow` CLI does instead of you, the never-delegate list (severity, impact, bug reports, AC verdicts, reflection), the one bounded exception (`qa-bug-judge` rules on whether a claim reproduces) and the read thresholds
 - **`${CLAUDE_SKILL_DIR}/references/context-integration.md`** — how `--context` changes the session (context file, inline context, blind mode)
 - **`${CLAUDE_SKILL_DIR}/references/playwright-agents-integration.md`** — opt-in handoff to Playwright Test Agents (planner / generator / healer, Playwright 1.56+) when a reproducible bug should become a regression test; requires the optional `@playwright/test` peer dependency

@@ -8,6 +8,7 @@ Every major design choice evaluated with trade-offs, real-world evidence from ou
 
 Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0 and 011 for
 2.2.0. This table is the current reading of each one; where the two disagree, this table wins.
+013 was written for the adversarial bug judge, after 2.2.1.
 
 | ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
@@ -21,8 +22,9 @@ Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0
 | 008 | Domain configs as markdown → YAML | **Done in 2.0.0** | The `.md` domain files are removed; `data/domains/*.yml` is the only format, `DomainConfigSchema` matches the shipped files, and `qualiow validate --all` covers them |
 | 009 | Single monolithic agent per session | **Partially done in 2.2.0** | Reporting, gather, page-mapper and diff-indexer are sub-agents; the session orchestrator remains blocked on `KNOWN-ISSUES.md` ISSUE-001 |
 | 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
-| 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. Record below |
+| 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0; amended by 013** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. ADR-013 adds `qa-bug-judge` as the one bounded exception to the never-delegate list. Record below |
 | 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
+| 013 | Adversarial bug judge before a bug ships | **Done, unreleased** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
 
 ---
 
@@ -573,6 +575,8 @@ This requires Playwright MCP with `--caps vision` or the agent reading screensho
 ## ADR-011: Model Routing — deterministic CLI first, cheap sub-agents second, the session model for reasoning
 
 *Written 2026-09-13 for 2.2.0, not during the POC.*
+*Amended by ADR-013: the never-delegate list's verdicts are the AC verdicts, and `qa-bug-judge`
+is the one bounded exception.*
 
 ### Context
 
@@ -852,6 +856,104 @@ session, so "the CLI is not there" stops being cosmetic.
   `plugin.json`, and `scripts/check-pack.mjs` asserts `bin/qualiow` is in the tarball.
 
 **Status: DONE in 2.1.0**
+
+---
+
+## ADR-013: Adversarial Bug Judge Before a Bug Ships
+
+*Written after 2.2.1. Amends ADR-011.*
+
+### Context
+
+A `/qa-explore` session finds a bug, writes the report and ships it in the same context. The
+model that wrote the reproduction steps also decides they reproduce, and it carries everything
+that led it there: the hypothesis it was chasing, the screenshot it took at the moment it
+believed it, the narrative in `session-log.md`. A false positive that survives that review
+costs more than its own triage time, because the reader starts discounting the rest of the
+report. Asking the same session to double-check is not a second opinion; it is the first
+opinion read twice.
+
+ADR-011 put "verdicts" on the never-delegate list. That list was written for the AC verdicts
+of `/qa-verify-backend` (`PASS` … `UNVERIFIABLE`) and for the decision that something is a bug.
+A ruling on whether a written claim reproduces is a different question, and the only useful
+place to ask it is a context that never saw how the claim was made.
+
+### Decision Made
+
+**Every candidate bug faces an adversarial judge before it ships, in a fresh context, from a
+claim card alone.**
+
+- **A fifth sub-agent, `qa-bug-judge`**: `model: opus`, `effort: high`, `maxTurns: 40`, and no
+  Write tool. It reads one `verification/claims/CLAIM-NNN.md` (title, URL, claimed severity,
+  expected and actual behaviour, steps, evidence paths, a safety block and a storage-state
+  path) and the evidence files the card lists, nothing else: never the session log, the
+  charter, the phase files, the drafts or another claim.
+- **It tries to refute, against a calibrated standard.** `REFUTED` needs positive
+  counter-evidence (the steps ran and behaved correctly, the claim contradicts its own
+  evidence, or the expected behaviour is wrong by a cited source). "Could not reproduce" is
+  `UNREPRODUCIBLE`, not a refutation. It re-runs steps in its own `-s=judge-…` browser
+  session only where the card allows a live re-run; production with a state-changing step is
+  always evidence-only.
+- **Phase 7 drafts, judges, then sorts.** Drafts live in `verification/drafts/` until their
+  verdict arrives. Confirmed, adjusted, unverified and not-judged bugs go to `bugs/` with a
+  `**Verification:**` line and a `## Verification` section. Refuted and unreproducible ones go
+  to `bugs/refuted/` and appear only in `## Refuted Findings`. Ids are never renumbered.
+- **One spawn per claim, sequential, highest claimed severity first**, about 5 minutes each
+  and 15 minutes in total on top of the 45-minute cap.
+- **Fail open, flagged, never silent.** A judge that fails, times out or is out of budget
+  leaves the bug shipping as `Unverified (<reason>)`.
+- **The session keeps every other judgement**: whether to ship (it may overrule a refutation
+  it can disprove, and says so), the final severity (the judge's is advisory), business impact,
+  priority and every word of the report.
+- **On by default, with an off switch.** `verification: { mode: off }` in a web target, or
+  `--no-judge` on one run, restores the 2.2.1 flow: phase 7 writes `bugs/` directly and no
+  `verification/` directory exists. The block is web-only for now.
+- **The contract stays strict.** Judge counts live under `coverage.verification` in
+  `stats.json`, so the schema does not change; `bugs_found` and the index rows count shipped
+  bugs only. The reporting agent renders the `Verification` column and the refuted appendix
+  only when `verification/` exists, so a session without it produces the same report as before.
+
+**Amendment to ADR-011.** The never-delegate list now reads *AC verdicts*. `qa-bug-judge` is
+the one bounded exception: it rules on reproducibility and evidence, and proposes a severity.
+It sits on the strongest model rather than a cheap one because a weaker second opinion is a
+weaker check, which defeats the reason for having it.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| Ask the finding session to re-check its own bugs | Same context, same anchors. It confirms what it already believes |
+| A cheap-model judge, like the tier-1 agents | Refuting a claim means re-running steps in a browser and weighing evidence against a written standard. A cheaper model is a weaker check on the strongest model's work |
+| Judge each bug as soon as it is found | Interrupts exploration, eats the time box, and lets one verdict steer the rest of the session |
+| One judge for all claims | Verdicts anchor each other; the second claim is judged in the light of the first |
+| Parallel judges | They share the target and the storage state and would race each other |
+| A hard gate that drops anything unconfirmed | A judge outage would silently remove real bugs. Unverified-and-flagged is visible; missing is not |
+| Opt-in rather than on by default | The point is that every shipped bug has faced a second opinion. The cost is documented and one flag removes it |
+
+### Consequences
+
+- **It costs model time.** One opus spawn per candidate and up to 15 more minutes per session.
+  Where opus is unavailable to the user, bugs ship `Unverified`; `CLAUDE_CODE_SUBAGENT_MODEL`
+  overrides the judge's model like any other sub-agent's; the verdict block records no model,
+  so a report cannot tell which one judged.
+- **It is the first shipped sub-agent that drives `playwright-cli`**, so it is exposed to
+  `KNOWN-ISSUES.md` ISSUE-001 in a small way: without the allow rules, phase 7 may prompt. The
+  agent declares no `permissionMode`, like the rest.
+- **`qualiow session finalize` covers the new files.** `verification/` and `bugs/refuted/` are
+  header-checked and secret-scanned like everything else, and refuted bugs never reach
+  `all-bugs.md` (`tests/unit/session-finalize.test.ts`, fixture `tests/fixtures/verified-session/`).
+- **False-positive patterns are staged, not learned.** A refutation's
+  `FALSE_POSITIVE_PATTERN` goes to `verification/proposed-patterns.md`; a session never writes
+  `learned-patterns.md`; a human promotes patterns by hand until `/qa-explore-feedback` gains
+  a review step.
+- **Deferred:** verification in `/qa-explore-mobile` and `/qa-explore-quick`, a refutation
+  review step in `/qa-explore-feedback`, and verification rendering in `/qa-explore-report`
+  and the HTML, JSON and Jira formatters.
+- **No effect is claimed here.** This record states the design; how often the judge refutes a
+  real bug, or lets a false one through, is a measurement that belongs to whoever runs it, with
+  its own limits stated.
+
+**Status: DONE, unreleased**
 
 ---
 
