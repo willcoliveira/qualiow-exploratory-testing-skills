@@ -56,17 +56,26 @@ turning it into a real orchestrator is the follow-up that would close this issue
 prescribed run needs are one command away instead of a hand-edit, and a plugin install carries
 the hooks already.
 
-The four sub-agents this release ships (`qa-gather-agent`, `qa-reporting-agent`,
-`qa-diff-indexer-agent`, `qa-page-mapper-agent`) deliberately declare **no** `permissionMode`:
-a plugin-distributed agent rejects the field, and these ship through the marketplace.
+The sub-agents this repository ships (`qa-gather-agent`, `qa-reporting-agent`,
+`qa-diff-indexer-agent`, `qa-page-mapper-agent` in 2.2.0, and `qa-bug-judge` since)
+deliberately declare **no** `permissionMode`: a plugin-distributed agent rejects the field, and
+these ship through the marketplace.
 `tests/unit/agents-lint.test.ts` enforces that, so no agent in this repository can acquire one
 by accident. Permission behaviour therefore comes from the consuming project's settings alone,
 which is exactly the configuration the experiment is meant to measure.
 
-None of that closes the issue: these four are bounded delegates for reads and report assembly,
-not a session runner driving `playwright-cli` unattended. The measurement described above —
-run a full `/qa-explore` through a sub-agent and count the approval prompts — has still not
-been done, and the orchestrator follow-up is unchanged.
+None of that closes the issue: the 2.2.0 four are bounded delegates for reads and report
+assembly, not a session runner driving `playwright-cli` unattended. The measurement described
+above — run a full `/qa-explore` through a sub-agent and count the approval prompts — has still
+not been done, and the orchestrator follow-up is unchanged.
+
+`qa-bug-judge` is the first shipped sub-agent that does drive `playwright-cli`: a short,
+bounded re-run of one claim's steps in its own `-s=judge-…` session during phase 7. It is
+exposed to this issue in a small way. A project without the `permissions.allow` entries that
+`qualiow init --hooks` writes may see approval prompts during verification; a judge that cannot
+run its browser falls back to an evidence-only verdict or `UNVERIFIED`, and the bug still ships,
+flagged. Turning verification off (`--no-judge`, or `verification.mode: off`) removes the
+exposure entirely.
 
 ---
 

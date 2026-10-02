@@ -31,14 +31,32 @@
   manifest and pack checks cover the new agent. Fixture
   `tests/fixtures/verified-session/` and a `session finalize` test prove that
   `verification/` and `bugs/refuted/` pass the header and secret checks and that refuted
-  bugs never reach `all-bugs.md`.
+  bugs never reach `all-bugs.md`; `tests/unit/verification-schema.test.ts` covers the
+  `verification` block and checks that `qualiow report` on that fixture lists the three
+  shipped bugs and not the refuted one.
+
+### Changed
+
+- **`/qa-explore` judges every candidate bug by default, and the judge can be turned off.**
+  Phase 7 now runs the adversarial judge unless the run carries `--no-judge` or the target sets
+  the new optional block `verification: { mode: off }` (`judge` | `off`, default `judge`;
+  strict; web targets only — `VerificationConfigSchema`, `VerificationConfig`). With it off,
+  phase 7 writes `bugs/BUG-NNN.md` directly as in 2.2.1 and creates no `verification/`
+  directory. Existing targets validate unchanged, and no new dependency or environment variable
+  is required. The cost of leaving it on is documented in the README's "Bug verification"
+  section: the judge pins opus, adds up to 15 minutes, and marks bugs `Unverified` where that
+  model is unavailable. Setup logs the resolved mode next to `read_only`.
+- **The delegation docs name the exception.** The never-delegate list's "Verdicts" bullet is now
+  "AC verdicts"; `README.md` (Token routing, Sub-agents, Skills), `CLAUDE.md`, the
+  `qa-explore` skill and `docs/KNOWN-ISSUES.md` describe five sub-agents, four of which never
+  return a verdict and one, `qa-bug-judge`, that rules on reproducibility only. New ADR-013 in
+  `docs/ARCHITECTURE-DECISIONS.md` records the judge and amends ADR-011.
 
 ### Deferred (next release)
 
 - Verification in `/qa-explore-mobile` and `/qa-explore-quick --verify`, the refutation
-  review step in `/qa-explore-feedback`, verification rendering in `/qa-explore-report` and
-  the HTML/JSON/Jira formatters (`ParsedBug.verification`, `refutedBugs`), and the README
-  agent list.
+  review step in `/qa-explore-feedback`, and verification rendering in `/qa-explore-report`
+  and the HTML/JSON/Jira formatters (`ParsedBug.verification`, `refutedBugs`).
 
 ## [2.2.1] - 2026-09-14
 
