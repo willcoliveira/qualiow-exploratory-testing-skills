@@ -13,6 +13,8 @@
 #   bin/wk-ios --stop                # stop the background iwdp proxy this script started
 #
 # ENV: WK_IOS_PORT (default 9221) — iwdp device-list port; pages are served on WK_IOS_PORT+1.
+#      WK_PAGE_FILTER — a substring of the page URL; picks the newest inspectable page whose
+#      URL contains it. Safari keeps old tabs inspectable, so without it a stale tab can win.
 #
 # REQUIRES: brew install ios-webkit-debug-proxy ; python3 ; Node >= 22.4 ; a booted iOS
 # Simulator with Safari on a page (bin/mcli set-app com.apple.mobilesafari; bin/mcli open-url <url>).
@@ -51,17 +53,30 @@ fi
 
 # 3) Resolve the frontmost page's WebSocket URL: the LAST page that is not about:blank
 #    (iwdp lists pages in creation order; the newest non-blank one is what the user sees).
+#    With WK_PAGE_FILTER set, only pages whose URL contains it are candidates, and none
+#    matching is an error rather than a silent fallback to another tab.
 #    Retry briefly: right after iwdp starts, :$PORT answers before the page list is populated.
 WS=""
 for _ in $(seq 1 20); do
-  WS="$(curl -s "http://localhost:$PAGE_PORT/json" 2>/dev/null | python3 -c 'import sys,json
+  WS="$(curl -s "http://localhost:$PAGE_PORT/json" 2>/dev/null | WK_PAGE_FILTER="${WK_PAGE_FILTER:-}" python3 -c 'import sys,json,os
 d=json.load(sys.stdin)
-p=[x for x in d if x.get("url") and x["url"]!="about:blank"] or d
+f=os.environ.get("WK_PAGE_FILTER","")
+if f:
+    p=[x for x in d if f in x.get("url","")]
+else:
+    p=[x for x in d if x.get("url") and x["url"]!="about:blank"] or d
 print(p[-1]["webSocketDebuggerUrl"] if p else "")' 2>/dev/null || true)"
   [[ -n "$WS" ]] && break
   sleep 0.25
 done
-[[ -n "$WS" ]] || { echo "no inspectable Safari page found on :$PAGE_PORT (open a URL in the sim Safari first)" >&2; exit 1; }
+if [[ -z "$WS" ]]; then
+  if [[ -n "${WK_PAGE_FILTER:-}" ]]; then
+    echo "no inspectable Safari page whose URL contains '$WK_PAGE_FILTER' on :$PAGE_PORT (unset WK_PAGE_FILTER to use the newest page)" >&2
+  else
+    echo "no inspectable Safari page found on :$PAGE_PORT (open a URL in the sim Safari first)" >&2
+  fi
+  exit 1
+fi
 
 if [[ "${1:-}" == "--url" ]]; then echo "$WS"; exit 0; fi
 [[ $# -ge 1 ]] || { echo "usage: wk-ios \"<js-expression>\" | --url | --stop" >&2; exit 2; }
