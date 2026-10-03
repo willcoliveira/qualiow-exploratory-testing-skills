@@ -181,6 +181,14 @@ Requires `ios-webkit-debug-proxy`, `python3`, Node ≥ 22.4 (`wkeval.mjs` uses t
 `WebSocket`), and a booted Simulator with Safari on a page. `WK_IOS_PORT` (default 9221) sets
 the iwdp device-list port; pages are served on `WK_IOS_PORT + 1`.
 
+Safari keeps old tabs inspectable, so the newest page is not always the one under test. Set
+`WK_PAGE_FILTER` to a substring of the page URL to pick the newest page whose URL contains it;
+when no page matches, `wk-ios` stops with an error rather than evaluating in another tab:
+
+```bash
+WK_PAGE_FILTER=/account bin/wk-ios 'document.title'
+```
+
 ## Why a Google **Play** (or `google_apis`) Android image
 
 A stock **AOSP** system image ships **no `com.android.chrome`** — only a basic AOSP

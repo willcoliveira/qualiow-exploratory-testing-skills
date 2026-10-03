@@ -111,6 +111,10 @@ qa/bin/wk-ios --url    # print the page's WebSocket debugger URL
 qa/bin/wk-ios --stop   # stop the background proxy when the session ends
 ```
 
+Safari keeps old tabs inspectable. When a result looks like it came from the wrong page, pin the
+tab by prefixing the call with `WK_PAGE_FILTER=<part of the URL under test>`, for example
+`WK_PAGE_FILTER=/account qa/bin/wk-ios 'document.title'`; no match is an error, not a fallback.
+
 Use it whenever the a11y snapshot is not enough: exact-DOM verification (counts, attribute
 values, hidden state), reading values the a11y tree collapses, or checking a suspected
 rendering/JS failure. It is the same power as `playwright-cli eval`, but on the REAL iOS

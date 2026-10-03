@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`wk-ios` can evaluate in a stale Safari tab.** Safari keeps old tabs inspectable, so the
+  newest non-blank page is not always the page under test. A new optional `WK_PAGE_FILTER`
+  (a substring of the page URL) picks the newest page whose URL contains it, and no match is an
+  error that names the filter instead of a silent fallback to another tab. Unset, the selection
+  is unchanged. Documented in `docs/MOBILE-SETUP.md` and the `qa-explore-mobile` skill.
+
 ## [2.3.0] - 2026-10-03
 
 A second opinion before a bug ships. `/qa-explore` now sends every candidate bug to an
