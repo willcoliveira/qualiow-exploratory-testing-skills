@@ -1,28 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.0] - 2026-10-03
+
+A second opinion before a bug ships. `/qa-explore` now sends every candidate bug to an
+adversarial judge, a fresh opus sub-agent that sees only a claim card and tries to refute it
+by re-running the steps; refuted candidates are kept in their own appendix instead of being
+dropped. The judge is on by default and can be turned off per run or per target. An opt-in,
+advisory decision-model triage can record a cheap second reading beside each verdict; it never
+replaces, gates, orders or shortens the judge.
+
+**Upgrading**
+
+- npm projects: run `npx qualiow init --force` to pick up the new phase 7, the judge agent and
+  the templates. A plain `init` adds the judge agent but keeps the 2.2.1 skill files, so the
+  judge would never run.
+- Plugin installs update as a whole through the marketplace.
+- Existing targets validate unchanged. To keep the 2.2.1 behaviour, set
+  `verification: { mode: off }` in a web target or pass `--no-judge` on a run.
+- Cost of leaving the judge on: one opus spawn per candidate bug and up to 15 more minutes per
+  session; a bug the judge cannot reach still ships, marked `Unverified`.
+- The triage is off unless a target sets `verification.mode: triage-shadow` and lists a
+  provider. No new required dependency or environment variable.
 
 ### Added
 
-- **Opt-in, advisory decision-model triage for `/qa-explore` (`verification.mode: triage-shadow`).**
-  A new command, `qualiow judge triage <claim-file>`, asks a decision model a fixed set of
-  typed questions about one claim card and the text evidence it lists, and writes the answers
-  beside the judge's verdict as `verification/JEV-NNN.md` / `.json` (hosted provider
-  `typesafe`) or `LAYA-NNN.*` (self-hosted provider `laya`). It records a predicted verdict, a
-  reading (`refute-risk`, `unclear`, `likely-confirmed`), a severity fit and exactly what was and
-  was not sent. Shadow only: the judge still sees every claim with the same order, prompt and
-  budget, never reads the triage files, and nothing ships or is skipped on the triage. Off by
-  default; the target must set the mode and list a provider (schema: `TriageProviderSchema`,
-  `LayaTriageConfigSchema`, new fields on `VerificationConfigSchema`; web targets only). The
-  hosted provider is the one gated exception to "session output stays local", written into
-  `security-rules.md`, `SECURITY-POLICY.md` and `CLAUDE.md` rule 7: it sends only with the key
-  present, after redaction plus URL, host, path and storage-state scrubbing, with the request
-  saved on disk; the scrubbing gaps are documented. `laya` must be loopback (strict
-  `localhost` / `::1` / `127.x.x.x` match) and redirects are refused for every provider.
-  `--provider` can only narrow the target's own list. Exit 2 = not enabled (nothing sent), 3 =
-  unavailable; both leave Phase 7 unchanged. `scripts/triage-eval.mjs` (repository tooling)
-  scores the recorded predictions against the judge's verdicts. Reference:
-  `skills/qa-explore/references/evidence-triage.md`; ADR-014.
 - **Adversarial bug verification ("second opinion") for `/qa-explore`.** A fifth sub-agent,
   `qa-bug-judge` (opus, effort high, no Write tool), is spawned by Phase 7 once per candidate
   bug — sequentially, highest claimed severity first — with nothing but a claim card
@@ -53,6 +54,25 @@
   bugs never reach `all-bugs.md`; `tests/unit/verification-schema.test.ts` covers the
   `verification` block and checks that `qualiow report` on that fixture lists the three
   shipped bugs and not the refuted one.
+- **Opt-in, advisory decision-model triage for `/qa-explore` (`verification.mode: triage-shadow`).**
+  A new command, `qualiow judge triage <claim-file>`, asks a decision model a fixed set of
+  typed questions about one claim card and the text evidence it lists, and writes the answers
+  beside the judge's verdict as `verification/JEV-NNN.md` / `.json` (hosted provider
+  `typesafe`) or `LAYA-NNN.*` (self-hosted provider `laya`). It records a predicted verdict, a
+  reading (`refute-risk`, `unclear`, `likely-confirmed`), a severity fit and exactly what was and
+  was not sent. Shadow only: the judge still sees every claim with the same order, prompt and
+  budget, never reads the triage files, and nothing ships or is skipped on the triage. Off by
+  default; the target must set the mode and list a provider (schema: `TriageProviderSchema`,
+  `LayaTriageConfigSchema`, new fields on `VerificationConfigSchema`; web targets only). The
+  hosted provider is the one gated exception to "session output stays local", written into
+  `security-rules.md`, `SECURITY-POLICY.md` and `CLAUDE.md` rule 7: it sends only with the key
+  present, after redaction plus URL, host, path and storage-state scrubbing, with the request
+  saved on disk; the scrubbing gaps are documented. `laya` must be loopback (strict
+  `localhost` / `::1` / `127.x.x.x` match) and redirects are refused for every provider.
+  `--provider` can only narrow the target's own list. Exit 2 = not enabled (nothing sent), 3 =
+  unavailable; both leave Phase 7 unchanged. `scripts/triage-eval.mjs` (repository tooling)
+  scores the recorded predictions against the judge's verdicts. Reference:
+  `skills/qa-explore/references/evidence-triage.md`; ADR-014.
 
 ### Changed
 

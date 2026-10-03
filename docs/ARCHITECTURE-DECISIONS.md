@@ -24,8 +24,8 @@ Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0
 | 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
 | 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0; amended by 013** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. ADR-013 adds `qa-bug-judge` as the one bounded exception to the never-delegate list. Record below |
 | 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
-| 013 | Adversarial bug judge before a bug ships | **Done, unreleased** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
-| 014 | Advisory decision-model triage before the judge | **Opt-in, advisory** | `qualiow judge triage`, `verification.mode: triage-shadow`, providers `typesafe` (hosted) and `laya` (loopback only). Recorded beside the verdict; never replaces, gates, orders or shortens the judge. Record below |
+| 013 | Adversarial bug judge before a bug ships | **Done in 2.3.0** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
+| 014 | Advisory decision-model triage before the judge | **Done in 2.3.0 (opt-in, advisory)** | `qualiow judge triage`, `verification.mode: triage-shadow`, providers `typesafe` (hosted) and `laya` (loopback only). Recorded beside the verdict; never replaces, gates, orders or shortens the judge. Record below |
 
 ---
 
@@ -954,7 +954,7 @@ weaker check, which defeats the reason for having it.
   real bug, or lets a false one through, is a measurement that belongs to whoever runs it, with
   its own limits stated.
 
-**Status: DONE, unreleased**
+**Status: DONE in 2.3.0**
 
 ---
 
@@ -1016,7 +1016,7 @@ is not a check of it.
   finished sessions and keeps claim text out of its output. This record states no measured
   result.
 
-**Status: Opt-in, advisory**
+**Status: DONE in 2.3.0 (opt-in, advisory)**
 
 ---
 
