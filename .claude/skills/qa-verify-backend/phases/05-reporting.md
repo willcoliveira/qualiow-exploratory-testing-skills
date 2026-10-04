@@ -168,7 +168,8 @@ install) with the session directory and `kind: backend`. It assembles `session-r
 `phase-7-notes.md`, `ac-matrix.md`, the bugs and `stats.json`, copying your summary,
 recommendations and reflection verbatim, and then runs `qualiow session finalize`.
 
-That scans every artefact with the same redaction list `src/utils/redact.ts` implements — the
+That scans every text file in the session, whatever its extension (`.txt`, `.har`, `.csv`
+included; only the top-level `snapshots/` is exempt), with the same redaction list `src/utils/redact.ts` implements — the
 list in `security-rules.md`: tokens, keys, cookies, real user emails, consumer PII, account
 ids not already in the target — and the raw probe output under `evidence/` is scanned like
 everything else. It also checks the confidentiality header on every markdown file and

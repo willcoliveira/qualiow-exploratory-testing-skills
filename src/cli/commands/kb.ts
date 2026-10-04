@@ -192,6 +192,11 @@ function readWholeEntry(
   id: string,
 ): string {
   const meta = byId.get(id);
+  // An id outside the manifest becomes a file name under custom/ — keep it one plain name so
+  // `--entry ../../x` cannot read a .yml file elsewhere on disk.
+  if (!meta && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+    throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
+  }
   const path = meta
     ? join(knowledgeDir, meta.file)
     : join(knowledgeDir, 'custom', `${id}.yml`);

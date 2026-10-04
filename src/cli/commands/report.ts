@@ -1,6 +1,14 @@
 import { Command } from 'commander';
-import { resolve, join, basename, relative } from 'node:path';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve, join, basename, relative, dirname, isAbsolute, sep } from 'node:path';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs';
 import chalk from 'chalk';
 import { generateHtmlReport } from '../../formatters/html-report.js';
 import { generateJsonReport } from '../../formatters/json-report.js';
@@ -22,7 +30,7 @@ export function reportCommand(): Command {
     .description('Generate a report (md summary, html, json or jira csv) from a session')
     .option('-s, --session <id>', 'Session directory name, a unique substring, or "latest"', 'latest')
     .option('-f, --format <format>', 'Output format: md, html, json, jira', 'md')
-    .option('-o, --output <file>', 'Write to this file instead of the session directory')
+    .option('-o, --output <file>', 'Write to this file under output/ instead of the session directory')
     .option('--stdout', 'Print to stdout instead of writing a file', false)
     .action(async (options: ReportOptions) => {
       try {
@@ -82,7 +90,7 @@ export async function runReport(
   }
 
   const outputPath = options.output
-    ? resolve(cwd, options.output)
+    ? resolveReportOutputPath(cwd, options.output)
     : join(sessionDir, DEFAULT_FILENAMES[format]);
   writeFileSync(outputPath, content);
   log(chalk.cyan(`\nSession: ${sessionName}`));
@@ -103,6 +111,56 @@ export async function runReport(
   log('');
 
   return { outputPath, content };
+}
+
+function isInside(root: string, path: string): boolean {
+  return path === root || path.startsWith(root + sep);
+}
+
+/**
+ * Where `-o <file>` may write: somewhere under `<cwd>/output/`, never elsewhere.
+ * `qualiow` runs pre-approved, so an unconfined path would let any prompt that
+ * reaches the model overwrite any file the user can write. A relative path is
+ * taken from `output/` (a leading `output/` is accepted as well, so
+ * `-o report.html` and `-o output/report.html` land in the same place); an
+ * absolute path must already be inside it, and `..` is refused outright. The check is repeated on real paths,
+ * so a symlinked directory under output/ cannot lead out of it, and an existing
+ * symlink is never written through.
+ */
+export function resolveReportOutputPath(cwd: string, requested: string): string {
+  const outputRoot = resolve(cwd, 'output');
+  const fromCwd = resolve(cwd, requested);
+  const candidate = isAbsolute(requested) || isInside(outputRoot, fromCwd)
+    ? fromCwd
+    : resolve(outputRoot, requested);
+  const refuse = (why: string): never => {
+    throw new Error(`Refusing to write the report to "${requested}": ${why}. Use a path under output/.`);
+  };
+
+  if (requested.split(/[\\/]/).includes('..')) refuse('it contains a ".." segment');
+  if (!isInside(outputRoot, candidate) || candidate === outputRoot) {
+    refuse('it is outside output/');
+  }
+
+  // The nearest directory that exists must really be inside output/ before any
+  // missing parent is created under it.
+  const realRoot = realpathSync(outputRoot);
+  let ancestor = dirname(candidate);
+  while (!existsSync(ancestor)) ancestor = dirname(ancestor);
+  if (!isInside(realRoot, realpathSync(ancestor))) refuse('a directory on the way is a link out of output/');
+  mkdirSync(dirname(candidate), { recursive: true });
+  if (!isInside(realRoot, realpathSync(dirname(candidate)))) refuse('a directory on the way is a link out of output/');
+
+  let existing: ReturnType<typeof lstatSync> | undefined;
+  try {
+    existing = lstatSync(candidate);
+  } catch {
+    existing = undefined;
+  }
+  if (existing?.isSymbolicLink()) refuse('it is a symbolic link');
+  if (existing && !existing.isFile()) refuse('it is not a regular file');
+
+  return candidate;
 }
 
 /**

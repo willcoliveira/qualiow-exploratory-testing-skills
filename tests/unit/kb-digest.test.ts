@@ -219,6 +219,10 @@ describe('runKbDigest — --entry', () => {
       /Unknown entry "heuristic-does-not-exist"/,
     );
   });
+
+  it('refuses an id that is a path', () => {
+    expect(() => runKbDigest({ entry: '../../targets/testers-ai' }, REPO_ROOT)).toThrow(/Unknown entry/);
+  });
 });
 
 // ─── custom entries ──────────────────────────────────────────────────

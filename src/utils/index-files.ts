@@ -71,6 +71,15 @@ export function missingColumns(
 }
 
 /**
+ * One value made safe for a single table cell: line breaks collapse to a space and
+ * every pipe is escaped, so a bug title or target name can neither end the row nor
+ * add cells that forge another one.
+ */
+export function escapeTableCell(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').trim();
+}
+
+/**
  * Renders one row in a table's OWN column order, taking each cell from `values`
  * keyed by lower-cased column name. A column with no value is left empty, so an
  * index written by an earlier version keeps its width instead of gaining cells
@@ -80,6 +89,6 @@ export function buildTableRow(
   headers: readonly string[],
   values: Record<string, string>,
 ): string {
-  const cells = keysOf(headers).map((key) => values[key] ?? '');
+  const cells = keysOf(headers).map((key) => escapeTableCell(values[key] ?? ''));
   return `| ${cells.join(' | ')} |`;
 }
