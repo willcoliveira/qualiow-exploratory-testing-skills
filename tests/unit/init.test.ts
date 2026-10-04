@@ -198,7 +198,7 @@ describe('runInit — --hooks', () => {
     const opts = { includeExamples: false, force: false, dryRun: false, hooks: true };
     await runInit(opts, ctx);
 
-    for (const f of ['read-guard.mjs', 'write-guard.mjs', 'secret-patterns.mjs']) {
+    for (const f of ['read-guard.mjs', 'write-guard.mjs', 'bash-guard.mjs', 'secret-patterns.mjs']) {
       expect(existsSync(join(cwd, 'qa', 'hooks', f))).toBe(true);
     }
     expect(existsSync(join(cwd, 'qa', 'hooks', 'secret-patterns.d.mts'))).toBe(false);
@@ -209,9 +209,14 @@ describe('runInit — --hooks', () => {
       hooks: { PreToolUse: { matcher: string; hooks: { command: string }[] }[] };
       permissions: { allow: string[] };
     };
-    expect(parsed.hooks.PreToolUse.map((e) => e.matcher)).toEqual(['Read', 'Write|Edit|MultiEdit']);
+    expect(parsed.hooks.PreToolUse.map((e) => e.matcher)).toEqual([
+      'Read',
+      'Write|Edit|MultiEdit|NotebookEdit',
+      'Bash',
+    ]);
     expect(parsed.hooks.PreToolUse[0].hooks[0].command).toContain('qa/hooks/read-guard.mjs');
     expect(parsed.hooks.PreToolUse[1].hooks[0].command).toContain('qa/hooks/write-guard.mjs');
+    expect(parsed.hooks.PreToolUse[2].hooks[0].command).toContain('qa/hooks/bash-guard.mjs');
     expect(parsed.permissions.allow).toEqual(expect.arrayContaining(QUALIOW_ALLOW));
     expect(first.endsWith('\n')).toBe(true);
 
@@ -246,7 +251,7 @@ describe('runInit — --hooks', () => {
       permissions: { allow: string[] };
     };
     expect(parsed.env).toEqual({ QUALIOW_READ_MAX_LINES: '500' });
-    expect(parsed.hooks.PreToolUse).toHaveLength(3);
+    expect(parsed.hooks.PreToolUse).toHaveLength(4);
     expect(parsed.hooks.PreToolUse[0]).toEqual(userHook);
     expect(parsed.permissions.allow).toEqual(['Bash(ls:*)', 'Bash(qualiow:*)', 'Bash(playwright-cli:*)', 'Bash(npx playwright-cli:*)']);
   });
@@ -261,5 +266,107 @@ describe('runInit — --hooks', () => {
     await runInit({ includeExamples: false, force: false, dryRun: true, hooks: true }, { cwd: dry, pkgRoot: REPO_ROOT, log: silentLog });
     expect(existsSync(join(dry, 'qa', 'hooks'))).toBe(false);
     expect(existsSync(join(dry, '.claude', 'settings.json'))).toBe(false);
+  });
+});
+
+describe('runInit — --hooks never replaces a settings.json it cannot parse', () => {
+  const opts = { includeExamples: false, force: false, dryRun: false, hooks: true };
+
+  it.each([
+    ['a JSONC comment', '{\n  // keep me\n  "permissions": { "deny": ["Read(./.env)"] }\n}\n'],
+    ['a trailing comma', '{ "permissions": { "deny": ["Read(./.env)"], } }\n'],
+    ['a bare array', '["not", "an", "object"]\n'],
+  ])('refuses %s, writes nothing and names the entries to merge by hand', async (_label, original) => {
+    const cwd = makeTmpCwd();
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    writeFileSync(settingsPath, original);
+
+    const err = await runInit(opts, { cwd, pkgRoot: REPO_ROOT, log: silentLog }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(err!.message).toContain('left untouched');
+    expect(err!.message).toContain('qa/hooks/read-guard.mjs');
+    expect(err!.message).toContain('Bash(qualiow:*)');
+    expect(readFileSync(settingsPath, 'utf-8')).toBe(original);
+    // Refused before anything else was copied.
+    expect(existsSync(join(cwd, 'qa', 'hooks'))).toBe(false);
+    expect(existsSync(join(cwd, '.claude', 'skills'))).toBe(false);
+  });
+
+  it('treats an empty settings.json as {}', async () => {
+    const cwd = makeTmpCwd();
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    writeFileSync(settingsPath, '\n');
+    await runInit(opts, { cwd, pkgRoot: REPO_ROOT, log: silentLog });
+    const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8')) as { permissions: { allow: string[] } };
+    expect(parsed.permissions.allow).toContain('Bash(qualiow:*)');
+  });
+
+  it('ignores an unparseable settings.json when --hooks is not given', async () => {
+    const cwd = makeTmpCwd();
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    writeFileSync(settingsPath, '{ // jsonc\n}\n');
+    await runInit({ ...opts, hooks: false }, { cwd, pkgRoot: REPO_ROOT, log: silentLog });
+    expect(readFileSync(settingsPath, 'utf-8')).toBe('{ // jsonc\n}\n');
+  });
+});
+
+describe('runInit — --hooks upgrades an earlier install', () => {
+  it('rewrites the old write-guard matcher in place, adds bash-guard, and is a no-op on the next run', async () => {
+    const cwd = makeTmpCwd();
+    const settingsPath = join(cwd, '.claude', 'settings.json');
+    mkdirSync(join(cwd, '.claude'), { recursive: true });
+    const readHook = {
+      matcher: 'Read',
+      hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs"' }],
+    };
+    const oldWrite = {
+      matcher: 'Write|Edit|MultiEdit',
+      hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs"', timeout: 10 }],
+    };
+    // A user entry that happens to run our script beside their own: never touched.
+    const userMixed = {
+      matcher: 'Write',
+      hooks: [
+        { type: 'command', command: 'echo mine' },
+        { type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs"' },
+      ],
+    };
+    const userHook = { matcher: 'Edit', hooks: [{ type: 'command', command: 'echo user-hook' }] };
+    writeFileSync(
+      settingsPath,
+      JSON.stringify(
+        {
+          hooks: { PreToolUse: [readHook, oldWrite, userMixed, userHook] },
+          permissions: { allow: ['Bash(playwright-cli:*)', 'Bash(npx playwright-cli:*)', 'Bash(qualiow:*)'] },
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+    const opts = { includeExamples: false, force: false, dryRun: false, hooks: true };
+    const ctx = { cwd, pkgRoot: REPO_ROOT, log: silentLog };
+    await runInit(opts, ctx);
+
+    const first = readFileSync(settingsPath, 'utf-8');
+    const parsed = JSON.parse(first) as { hooks: { PreToolUse: Record<string, unknown>[] } };
+    expect(parsed.hooks.PreToolUse).toEqual([
+      readHook,
+      { ...oldWrite, matcher: 'Write|Edit|MultiEdit|NotebookEdit' },
+      userMixed,
+      userHook,
+      {
+        matcher: 'Bash',
+        hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/bash-guard.mjs"' }],
+      },
+    ]);
+
+    await runInit(opts, ctx);
+    expect(readFileSync(settingsPath, 'utf-8')).toBe(first);
   });
 });

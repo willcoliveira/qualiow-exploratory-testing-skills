@@ -24,6 +24,7 @@ const MUST_INCLUDE = [
   'hooks/hooks.json',
   'hooks/scripts/read-guard.mjs',
   'hooks/scripts/write-guard.mjs',
+  'hooks/scripts/bash-guard.mjs',
   'hooks/scripts/secret-patterns.mjs',
   'bin/mcli',
   'bin/mobile-cli.mjs',

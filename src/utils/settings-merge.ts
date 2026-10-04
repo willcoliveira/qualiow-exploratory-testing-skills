@@ -6,7 +6,9 @@
  * entry. Idempotent by exact string: a hook whose `command` is already
  * registered anywhere under `hooks.PreToolUse`, or an allow rule already
  * present, is left alone rather than duplicated — so running `--hooks`
- * twice yields a byte-identical file.
+ * twice yields a byte-identical file. The one edit made to an existing entry
+ * is the upgrade path: a qualiow hook registered by an earlier version under a
+ * narrower matcher has that matcher rewritten to the current one.
  */
 
 export interface QualiowHookEntry {
@@ -17,9 +19,10 @@ export interface QualiowHookEntry {
 export const QUALIOW_HOOK_ENTRIES: QualiowHookEntry[] = [
   { matcher: 'Read', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs"' },
   {
-    matcher: 'Write|Edit|MultiEdit',
+    matcher: 'Write|Edit|MultiEdit|NotebookEdit',
     command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs"',
   },
+  { matcher: 'Bash', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/bash-guard.mjs"' },
 ];
 
 export const QUALIOW_PERMISSION_ALLOW: string[] = [
@@ -69,6 +72,20 @@ export function mergeQualiowHookSettings(existing: unknown): {
     ? [...(hooksSection.PreToolUse as unknown[])]
     : [];
   const haveCommands = existingHookCommands(settings);
+
+  // Upgrade: an entry holding only a qualiow hook keeps its place but takes the
+  // current matcher. An entry the user built — other hooks beside ours — is left
+  // exactly as it is.
+  for (let i = 0; i < preToolUse.length; i++) {
+    const entry = preToolUse[i];
+    if (!isRecord(entry) || !Array.isArray(entry.hooks) || entry.hooks.length !== 1) continue;
+    const only = entry.hooks[0];
+    if (!isRecord(only) || typeof only.command !== 'string') continue;
+    const ours = QUALIOW_HOOK_ENTRIES.find((e) => e.command === only.command);
+    if (!ours || entry.matcher === ours.matcher) continue;
+    preToolUse[i] = { ...entry, matcher: ours.matcher };
+    changed = true;
+  }
 
   for (const { matcher, command } of QUALIOW_HOOK_ENTRIES) {
     if (haveCommands.has(command)) continue;

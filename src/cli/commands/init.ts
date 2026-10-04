@@ -125,6 +125,34 @@ function copyTree(
 
 // ─── Main ────────────────────────────────────────────────────────────
 
+/**
+ * The parsed `.claude/settings.json`, or an error that says how to wire the hooks
+ * by hand. A file that is not a JSON object — JSONC comments, a trailing comma, a
+ * bare array — is never rewritten: replacing it would drop the user's own deny
+ * rules and hooks. An empty file has nothing to keep and counts as `{}`.
+ */
+function readExistingSettings(settingsPath: string): Record<string, unknown> {
+  const text = readFileSync(settingsPath, 'utf-8');
+  if (text.trim() === '') return {};
+  let parsed: unknown;
+  let reason = 'it is not a JSON object';
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    reason = `it is not valid JSON (${err instanceof Error ? err.message : String(err)})`;
+  }
+  if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+    return parsed as Record<string, unknown>;
+  }
+  const entries = JSON.stringify(mergeQualiowHookSettings({}).settings, null, 2);
+  throw new Error(
+    `${settingsPath} was left untouched: ${reason}.\n` +
+      'Fix the file and re-run `qualiow init --hooks`, or merge these entries into it by hand ' +
+      '(append to existing "hooks.PreToolUse" and "permissions.allow" arrays):\n' +
+      entries,
+  );
+}
+
 export async function runInit(
   options: InitOptions,
   ctx: { cwd: string; pkgRoot?: string; log?: (line: string) => void },
@@ -138,6 +166,12 @@ export async function runInit(
   const createdFiles: string[] = [];
 
   if (options.dryRun) log(chalk.cyan.bold('Dry run — nothing will be written\n'));
+
+  // Read before anything is written: a settings.json that cannot be merged stops
+  // init here, with nothing copied, rather than being replaced further down.
+  const settingsPath = join(cwd, '.claude', 'settings.json');
+  const settingsExisted = options.hooks ? existsSync(settingsPath) : false;
+  const existingSettings = settingsExisted ? readExistingSettings(settingsPath) : undefined;
 
   if (resolve(pkgRoot) === resolve(cwd)) {
     log(chalk.yellow('  ○ Running inside the package itself — skills and data are already in place'));
@@ -231,16 +265,6 @@ export async function runInit(
       }),
     );
 
-    const settingsPath = join(cwd, '.claude', 'settings.json');
-    const settingsExisted = existsSync(settingsPath);
-    let existingSettings: unknown;
-    if (settingsExisted) {
-      try {
-        existingSettings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
-      } catch {
-        existingSettings = undefined;
-      }
-    }
     const { settings, changed } = mergeQualiowHookSettings(existingSettings);
     hooksSettingsChanged = changed || !settingsExisted;
     if (!options.dryRun) {
