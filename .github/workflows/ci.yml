@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only token: the workflow only builds, tests and packs.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: lint · build · test · validate (${{ matrix.os }})
@@ -14,9 +18,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -92,7 +96,7 @@ jobs:
       - name: Plugin manifest
         run: |
           node -e "const p=require('./.claude-plugin/plugin.json'),k=require('./package.json'); if(p.name!=='qualiow'||p.version!==k.version){console.error('plugin.json mismatch');process.exit(1)}"
-          npm install -g @anthropic-ai/claude-code || echo "::warning::could not install @anthropic-ai/claude-code — skipping claude plugin validate"
+          npm install -g @anthropic-ai/claude-code@2.1.289 || echo "::warning::could not install @anthropic-ai/claude-code — skipping claude plugin validate"
           if command -v claude >/dev/null; then
             claude plugin validate .
             claude plugin validate .claude-plugin/marketplace.json
