@@ -106,9 +106,9 @@ describe('hooks/hooks.json', () => {
     hooks: { PreToolUse: { matcher: string; hooks: { type: string; command: string }[] }[] };
   };
 
-  it('registers a Read guard and a Write|Edit|MultiEdit guard', () => {
+  it('registers a Read guard, a Write|Edit|MultiEdit|NotebookEdit guard and a Bash guard', () => {
     const matchers = manifest.hooks.PreToolUse.map((e) => e.matcher);
-    expect(matchers).toEqual(['Read', 'Write|Edit|MultiEdit']);
+    expect(matchers).toEqual(['Read', 'Write|Edit|MultiEdit|NotebookEdit', 'Bash']);
   });
 
   it('every command points at a script that exists under hooks/scripts/', () => {

@@ -24,6 +24,10 @@ function targetSend(method, params = {}) {
   });
 }
 
+// Page values are untrusted: drop C0/C1 controls (ESC, BEL, CR, ...) so a page cannot
+// drive the terminal; \n and \t survive for multi-line values such as innerText.
+const clean = (s) => String(s).replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
+
 const timeout = setTimeout(() => { console.error('TIMEOUT'); process.exit(3); }, 20000);
 
 ws.addEventListener('message', async (ev) => {
@@ -36,8 +40,9 @@ ws.addEventListener('message', async (ev) => {
       const res = await targetSend('Runtime.evaluate', { expression: wrapped, returnByValue: true, awaitPromise: true });
       clearTimeout(timeout);
       const r = res && res.result && res.result.result ? res.result.result : (res && res.result);
-      if (r && 'value' in r) console.log(typeof r.value === 'object' ? JSON.stringify(r.value) : String(r.value));
-      else console.log(JSON.stringify(r));
+      // JSON.stringify escapes C0 but not C1 (e.g. U+009B, an 8-bit CSI), so clean that too.
+      if (r && 'value' in r) console.log(clean(typeof r.value === 'object' ? JSON.stringify(r.value) : r.value));
+      else console.log(clean(JSON.stringify(r)));
       try { ws.close(); } catch { /* ignore */ }
       process.exit(0);
     } catch (e) { console.error('EVAL_FAIL', e.message || e); process.exit(5); }

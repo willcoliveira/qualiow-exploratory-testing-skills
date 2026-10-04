@@ -6,7 +6,7 @@ description: >
   candidate AC ids, plus the files no AC claims and the ACs no file serves. Use it when
   `git diff --stat` reports 25 or more files or 1,500 or more changed lines, so the session
   reads only the code that maps to an AC. It returns a map, never a verdict.
-tools: Read, Grep, Bash(git:*), Bash(wc:*)
+tools: Read, Grep, Bash(git diff:*), Bash(git show:*), Bash(wc:*)
 model: haiku
 effort: low
 maxTurns: 25

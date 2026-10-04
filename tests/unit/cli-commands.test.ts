@@ -427,6 +427,12 @@ describe('runList knowledge — --entry', () => {
       captureList('knowledge', REPO_ROOT, { entry: 'heuristic-nope' }),
     ).rejects.toThrow(/Unknown entry "heuristic-nope"/);
   });
+
+  it('refuses an id that is a path, so it cannot read a .yml outside the knowledge base', async () => {
+    for (const entry of ['../../targets/testers-ai', '/etc/hosts', 'custom/../x']) {
+      await expect(captureList('knowledge', REPO_ROOT, { entry })).rejects.toThrow(/Unknown entry/);
+    }
+  });
 });
 
 describe('runList knowledge — --changelog', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scrubForTransmission } from '../../src/triage/scrub.js';
+import { LONG_RUN, MAX_SCRUB_CHARS, capForScrub, scrubForTransmission } from '../../src/triage/scrub.js';
 import { containsSecrets, redact } from '../../src/utils/redact.js';
 
 describe('scrubForTransmission — URLs, hosts and paths', () => {
@@ -91,5 +91,73 @@ describe('scrubForTransmission — composes redact()', () => {
     expect(containsSecrets('POST /api/login took 1743183294821 ns')).toBe(false);
     expect(containsSecrets('the host stage.app.internal returned 403')).toBe(false);
     expect(redact('https://stage.app.internal/x').text).toBe('https://stage.app.internal/x');
+  });
+});
+
+describe('scrubForTransmission — every scheme, escaped URLs, scheme-less queries', () => {
+  it.each([
+    ['redis://default:hunter2@cache.corp.io:6379/0?db=1', '[URL /0]'],
+    ['postgres://admin:pw@db.corp.io:5432/orders?sslmode=require', '[URL /orders]'],
+    ['mongodb+srv://svc:pw@cluster0.corp.io/app?retryWrites=true', '[URL /app]'],
+    ['amqp://guest:guest@mq.corp.io/vhost', '[URL /vhost]'],
+    ['ftp://u:p@files.corp.io/exports/a.csv', '[URL /exports/a.csv]'],
+    ['jdbc:mysql://db.corp.io/x', 'jdbc:[URL /x]'],
+  ])('reduces %s to its path, userinfo and query dropped', (input, expected) => {
+    const r = scrubForTransmission(`dsn ${input} end`);
+    expect(r.text).toBe(`dsn ${expected} end`);
+    expect(r.text).not.toMatch(/hunter2|admin|guest|svc:|corp\.io|sslmode|retryWrites/);
+    expect(r.redactions).toContain('URL');
+  });
+
+  it('handles a JSON-escaped URL inside a response body', () => {
+    const r = scrubForTransmission('{"next":"https:\\/\\/api.corp.io\\/v1\\/orders?token=abc123&page=2","ok":true}');
+    expect(r.text).toBe('{"next":"[URL /v1/orders]","ok":true}');
+  });
+
+  it('drops the query of a scheme-less host/path?query and keeps the path', () => {
+    expect(scrubForTransmission('go to app.corp.io/orders?session=abc now').text).toBe('go to [HOST]/orders now');
+    expect(scrubForTransmission('docs at example.com/help?t=secret-ish').text).toBe('docs at example.com/help');
+    expect(scrubForTransmission('ping stage.corp.io?k=v').text).toBe('ping [HOST]');
+  });
+});
+
+describe('scrubForTransmission — bounded work on hostile input', () => {
+  const budgetMs = 200;
+  it.each([
+    ['a × 200k', 'a'.repeat(2e5)],
+    ['a- × 100k', 'a-'.repeat(1e5)],
+    ['a. × 100k', 'a.'.repeat(1e5)],
+    ['160-char runs', ('a'.repeat(LONG_RUN) + ' ').repeat(1250)],
+    ['160-char dotted runs', ('a.'.repeat(LONG_RUN / 2) + ' ').repeat(1250)],
+    ['repeated scheme', 'http://'.repeat(3e4)],
+    ['near-e-mails', ('a'.repeat(150) + '@ ').repeat(1300)],
+  ])('scrubs %s in under 200 ms', (_label, input) => {
+    const t = performance.now();
+    scrubForTransmission(input);
+    expect(performance.now() - t).toBeLessThan(budgetMs);
+  });
+
+  it('replaces an unbroken run longer than LONG_RUN whole', () => {
+    const jwtish = `${'A'.repeat(100)}.${'b'.repeat(100)}.${'c'.repeat(100)}`;
+    const r = scrubForTransmission(`token ${jwtish} end`);
+    expect(r.text).toBe('token [LONG_TOKEN] end');
+    expect(r.redactions).toContain('Long token');
+  });
+
+  it('never looks past MAX_SCRUB_CHARS', () => {
+    const r = scrubForTransmission('word '.repeat(MAX_SCRUB_CHARS / 4));
+    expect(r.text.length).toBeLessThan(MAX_SCRUB_CHARS + 100);
+    expect(r.text).toMatch(/\[truncated \d+ chars\]$/);
+  });
+});
+
+describe('capForScrub', () => {
+  it('leaves a short string alone', () => {
+    expect(capForScrub('short', 10)).toBe('short');
+  });
+
+  it('drops the token the cut lands in, so half a secret is not sent', () => {
+    const out = capForScrub('keep this ghp_abcdefghijklmnopqrstuvwxyz0123', 20);
+    expect(out).toBe('keep this … [truncated 34 chars]');
   });
 });

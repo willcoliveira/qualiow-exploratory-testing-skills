@@ -1,18 +1,46 @@
 /**
  * Secret detection for the write-guard hook.
  *
- * Mirrors the categories and patterns in `src/utils/redact.ts` as closely as
- * possible, so a hook denial matches what `qualiow session finalize --redact`
- * would flag on the same text. Kept as a standalone, dependency-free ES
- * module (Node built-ins only, no TS import) because a git-sourced plugin
- * install has neither `dist/` nor `node_modules` to pull the real util from.
+ * Carries the same rules as `src/utils/redact.ts`, regex for regex and in the
+ * same order (`tests/unit/redact-hardening.test.ts` compares the sources), so a
+ * hook denial matches what `qualiow session finalize --redact` would flag on
+ * the same text. Kept as a standalone, dependency-free ES module (Node
+ * built-ins only, no TS import) because a git-sourced plugin install has
+ * neither `dist/` nor `node_modules` to pull the real util from.
+ *
+ * Every pattern must stay linear on adversarial input: the hook has a timeout,
+ * and a hook that times out fails open.
  *
  * `findSecretCategories` never returns the matched text itself — only
  * category names — so the hook that calls it can safely put the result in a
  * denial reason without leaking the secret it found.
  */
 
-const EMAIL_ALLOW = /(?:@|\.)(?:example\.(?:com|org|net)|localhost)$/i;
+// Documentation domains only, matched exactly: `x@corp.example.com` is flagged.
+const EMAIL_ALLOW = /@(?:example\.(?:com|org|net)|localhost)$/i;
+
+// A value that is nothing but a redaction placeholder (optionally quoted, optionally
+// after an auth scheme) is already clean; anything more than that is not.
+const REDACTED_VALUE =
+  /^\s*\\?["']?(?:(?:bearer|basic|token|digest)\s+)?\[[A-Z0-9_]*REDACTED\]\\?["']?\s*$/i;
+const JSON_LITERAL = /^(?:null|true|false)$/i;
+
+const QUOTED = String.raw`\\"[^"\\\n]{1,4096}\\"|"(?:[^"\\\n]|\\.){1,4096}"|'(?:[^'\\\n]|\\.){1,4096}'`;
+const LOOSE = String.raw`["']?[^\s,}"']+`;
+const TOKENISH = String.raw`["']?[^\s,;}"'|]{8,}`;
+const LINE_REST = String.raw`[^\s|](?:[^\r\n|]*[^\s|])?`;
+
+function kv(keys, value, sepOps = ':=') {
+  return new RegExp(
+    String.raw`(${keys})((?:\\?["']|\*\*)?[ \t]*[${sepOps}][ \t]*(?:\*\*[ \t]*)?)(${QUOTED}|${value})`,
+    'gi',
+  );
+}
+
+const PEM_HEAD = String.raw`-----BEGIN (?:[A-Z0-9]{1,20} ){0,3}PRIVATE KEY(?: BLOCK)?-----`;
+const PEM_TAIL = String.raw`-----END (?:[A-Z0-9]{1,20} ){0,3}PRIVATE KEY(?: BLOCK)?-----`;
+const NL = String.raw`(?:\r?\n|\\n)`;
+const PEM_BODY = String.raw`(?:${NL}[ \t]*(?:(?:Proc-Type|DEK-Info|Version|Comment|Hash|Charset): [^\r\n]{0,256}|[A-Za-z0-9+/=]+(?:\.{2,}|…)?[ \t]*(?=${NL}|$|["'])|(?=${NL}|$)))*`;
 
 function luhnValid(digits) {
   let sum = 0;
@@ -31,29 +59,46 @@ function luhnValid(digits) {
   return sum % 10 === 0;
 }
 
+// Key/value rules: the third group is the value; one that is already a placeholder is clean.
+const keyValueFilter = (_match, _key, _sep, value) =>
+  !REDACTED_VALUE.test(value) && !JSON_LITERAL.test(value);
+
 /**
  * category: name surfaced in denial reasons (never the matched text).
- * re: detection pattern (mirrors redact.ts; capture groups dropped since
- *     only presence, not replacement, is needed here).
- * filter(match): optional extra check a raw regex match can't express
- *     (Luhn validity, the example.com/localhost allow-list).
+ * re: detection pattern (identical to the redact.ts rule of the same name).
+ * filter(match, ...groups): optional extra check a raw regex match can't
+ *     express (Luhn validity, the example.com allow-list, a value that is
+ *     already a redaction placeholder).
  */
 export const SECRET_PATTERNS = [
   {
     category: 'Private key',
-    re: /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g,
+    re: new RegExp(
+      String.raw`${PEM_HEAD}(?:(?:(?!-----BEGIN )[\s\S]){0,16384}?${PEM_TAIL}|${PEM_BODY})`,
+      'g',
+    ),
   },
   {
     category: 'JWT',
-    re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\b/g,
+    re: /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.(?:[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}|eyJ[A-Za-z0-9_-]{6,}(?:\.[A-Za-z0-9_-]*)?)/g,
   },
   {
     category: 'Authorization header',
-    re: /authorization\s*[:=]\s*\S[^\n\r]*/gi,
+    re: kv('authorization', LINE_REST),
+    filter: keyValueFilter,
   },
   {
     category: 'Cookie header',
-    re: /^(?:set-cookie|cookie)\s*:\s*.+$/gim,
+    re: kv('set-cookie|cookie', String.raw`[^\s|=]{1,256}=(?:[^\r\n|]*[^\s|])?`, ':=|'),
+    filter: keyValueFilter,
+  },
+  {
+    category: 'Bearer token',
+    re: /\b(bearer|basic)([ \t]+)(?:(?=[A-Za-z._~+/-]*[0-9=])[A-Za-z0-9._~+/=-]{8,}|[A-Za-z0-9._~+/=-]{24,})/gi,
+  },
+  {
+    category: 'AWS secret access key',
+    re: /(\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\[AWS_KEY_REDACTED\])([\s,;:|"'=]{1,8})[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])/g,
   },
   {
     category: 'AWS access key id',
@@ -61,44 +106,76 @@ export const SECRET_PATTERNS = [
   },
   {
     category: 'AWS secret access key',
-    re: /aws_secret_access_key\s*[:=]\s*\S+/gi,
+    re: kv(String.raw`aws_secret_access_key|secret_?access_?key`, String.raw`["']?[^\s,;}"']+`),
+    filter: keyValueFilter,
+  },
+  {
+    category: 'AWS session token',
+    re: kv(
+      String.raw`aws_session_token|session_?token|x-amz-security-token|security_?token`,
+      String.raw`["']?[^\s,;}"']+`,
+    ),
+    filter: keyValueFilter,
   },
   {
     category: 'OpenAI-style key',
-    re: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g,
+    re: /(?<![A-Za-z0-9_-])sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,
+  },
+  {
+    category: 'Stripe key',
+    re: /(?<![A-Za-z0-9_])(?:(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}|whsec_[A-Za-z0-9+/=]{16,})/g,
   },
   {
     category: 'GitHub token',
     re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
   },
   {
+    category: 'GitLab token',
+    re: /(?<![A-Za-z0-9_-])glpat-[A-Za-z0-9_-]{20,}/g,
+  },
+  {
+    category: 'npm token',
+    re: /\bnpm_[A-Za-z0-9]{36}\b/g,
+  },
+  {
+    category: 'Google API key',
+    re: /\bAIza[0-9A-Za-z_-]{35}/g,
+  },
+  {
+    category: 'Google OAuth token',
+    re: /\bya29\.[0-9A-Za-z_-]{20,}/g,
+  },
+  {
     category: 'Slack token',
-    re: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/g,
+    re: /(?<![A-Za-z0-9-])xox[abposre](?:\.xox[a-z])?-[A-Za-z0-9-]{10,}/g,
+  },
+  {
+    category: 'Slack webhook',
+    re: /(?:(?:https?:\/\/)?hooks\.slack\.com)?\/services\/T[A-Z0-9]{6,}\/B[A-Z0-9]{6,}\/[A-Za-z0-9]{16,}/g,
   },
   {
     category: 'API key',
-    re: /(?:x-api-key|api[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/gi,
+    re: kv(String.raw`x-api-key|api[_-]?key`, TOKENISH),
+    filter: keyValueFilter,
   },
   {
     category: 'Password',
-    re: /(?:password|passwd|pwd)\s*[:=]\s*["']?[^\s,}"']+["']?/gi,
+    re: kv('password|passwd|pwd', LOOSE),
+    filter: keyValueFilter,
   },
   {
     category: 'Token',
-    re: /(?:access[_-]?token|refresh[_-]?token|token)\s*[:=]\s*["']?[A-Za-z0-9._-]{8,}["']?/gi,
+    re: kv(String.raw`access[_-]?token|refresh[_-]?token|token`, TOKENISH),
+    filter: keyValueFilter,
   },
   {
     category: 'Secret',
-    re: /[a-z_]*secret\s*[:=]\s*["']?[^\s,}"']+["']?/gi,
+    re: kv(String.raw`secret(?:[_-]?(?:key|token|value))?`, LOOSE),
+    filter: keyValueFilter,
   },
   {
     category: 'SSN',
     re: /\b\d{3}-\d{2}-\d{4}\b/g,
-  },
-  {
-    category: 'Email',
-    re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-    filter: (match) => !EMAIL_ALLOW.test(match),
   },
   {
     category: 'Credit card number',
@@ -110,26 +187,41 @@ export const SECRET_PATTERNS = [
       return luhnValid(digits);
     },
   },
+  {
+    category: 'Email',
+    re: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,8}[A-Za-z]{2,24}\b/g,
+    filter: (match) => !EMAIL_ALLOW.test(match),
+  },
 ];
+
+/** Number of secret-shaped matches per category in `text`; never the matched text. */
+export function countSecrets(text) {
+  const counts = new Map();
+  for (const { category, re, filter } of SECRET_PATTERNS) {
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      if (match[0].length === 0) re.lastIndex += 1;
+      if (filter && !filter(...match)) continue;
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+  }
+  return counts;
+}
 
 /** Returns the category names of every secret-shaped pattern found in `text`. */
 export function findSecretCategories(text) {
   const found = new Set();
   for (const { category, re, filter } of SECRET_PATTERNS) {
+    if (found.has(category)) continue;
     re.lastIndex = 0;
     let match;
     while ((match = re.exec(text)) !== null) {
-      // A value that is already a redaction placeholder is clean: redact.ts leaves it
-      // untouched, so containsSecrets() is false for it and this must agree.
-      if (/REDACTED\]/.test(match[0])) {
-        if (match[0].length === 0) re.lastIndex += 1;
-        continue;
-      }
-      if (!filter || filter(match[0])) {
+      if (match[0].length === 0) re.lastIndex += 1;
+      if (!filter || filter(...match)) {
         found.add(category);
         break;
       }
-      if (match[0].length === 0) re.lastIndex += 1;
     }
   }
   return [...found];

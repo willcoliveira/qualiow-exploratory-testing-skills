@@ -1,5 +1,5 @@
 {
-  "description": "qualiow routing guards: whole-file reads of qualiow data over the line threshold, and secrets in session output",
+  "description": "qualiow routing guards: whole-file reads of qualiow data over the line threshold, secrets in session output, and code-execution routes in Bash (playwright-cli run-code, arbitrary npx)",
   "hooks": {
     "PreToolUse": [
       {
@@ -13,11 +13,21 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/write-guard.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bash-guard.mjs\"",
             "timeout": 10
           }
         ]

@@ -43,7 +43,12 @@ esac
 
 export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$ROOT}"
 
-VER="$(node -p "try{require('$ROOT/.claude-plugin/plugin.json').version}catch{''}" 2>/dev/null || true)"
-[ -z "$VER" ] && VER="latest"
+# Pin to the exact version the plugin ships, and never fall back to `latest`: an unreadable
+# or odd version string means a broken install, not a reason to run whatever npm has newest.
+VER="$(QUALIOW_ROOT="$ROOT" node -p "try{require(process.env.QUALIOW_ROOT+'/.claude-plugin/plugin.json').version}catch{''}" 2>/dev/null || true)"
+if ! printf '%s' "$VER" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+  echo "qualiow: cannot read a version from $ROOT/.claude-plugin/plugin.json — reinstall the plugin." >&2
+  exit 1
+fi
 
 exec npx -y -p "qualiow-exploratory-testing@$VER" qualiow "$@"

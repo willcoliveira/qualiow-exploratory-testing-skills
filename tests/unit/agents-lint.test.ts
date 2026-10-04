@@ -112,8 +112,10 @@ describe.each(agentFiles)('agent: %s', (file) => {
   });
 
   it('every Bash(<prefix>:*) entry in tools is a plain command prefix', () => {
+    // A prefix may span several words (`git show:*`, `npx playwright-cli:*`) — grants are
+    // deliberately narrow, see qa-explore/references/security-rules.md.
     const bad = extractBashEntries(frontmatter?.tools).filter(
-      (entry) => !/^[a-z0-9][a-z0-9._/-]*:\*$/.test(entry),
+      (entry) => !/^[a-z0-9][a-z0-9._/-]*( [a-z0-9-][a-z0-9._/=-]*)*:\*$/.test(entry),
     );
     expect(bad, `${file}: malformed Bash tool entries: ${bad.join(', ')}`).toEqual([]);
   });

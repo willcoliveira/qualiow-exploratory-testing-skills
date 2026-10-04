@@ -187,3 +187,28 @@ describe('runSessionPrune', () => {
     );
   });
 });
+
+describe('runSessionPrune — --older-than validation', () => {
+  it.each(['-1', 'abc', '', '  ', 'NaN', 'Infinity', '0x10', '1e3'])('rejects %j', (value) => {
+    const cwd = makeTmpCwd();
+    mkdirSync(join(cwd, 'output', 'sessions'), { recursive: true });
+    expect(() => runSessionPrune({ olderThan: value, yes: true }, { cwd, log: silentLog })).toThrow(
+      /non-negative number of days/,
+    );
+  });
+
+  it.each([-1, Number.NaN])('rejects the number %s', (value) => {
+    const cwd = makeTmpCwd();
+    mkdirSync(join(cwd, 'output', 'sessions'), { recursive: true });
+    expect(() => runSessionPrune({ olderThan: value, yes: true }, { cwd, log: silentLog })).toThrow(
+      /non-negative number of days/,
+    );
+  });
+
+  it('accepts 0 and a decimal', () => {
+    const cwd = makeTmpCwd();
+    mkdirSync(join(cwd, 'output', 'sessions'), { recursive: true });
+    expect(runSessionPrune({ olderThan: '0' }, { cwd, log: silentLog }).dryRun).toBe(true);
+    expect(runSessionPrune({ olderThan: '1.5' }, { cwd, log: silentLog }).dryRun).toBe(true);
+  });
+});

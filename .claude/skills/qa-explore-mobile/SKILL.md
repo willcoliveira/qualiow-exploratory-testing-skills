@@ -11,7 +11,7 @@ description: >
   "explore the app on iOS/Android", "find bugs on mobile", "QA the mobile build", or provides
   a mobile-sim target (native or web).
 argument-hint: "--target <id> [--context <file>] [--rebuild]"
-allowed-tools: Bash(qa/bin/mcli:*), Bash(bin/mcli:*), Bash(mcli:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/mcli:*), Bash(qa/bin/wadb:*), Bash(bin/wadb:*), Bash(wadb:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wadb:*), Bash(qa/bin/wk-ios:*), Bash(bin/wk-ios:*), Bash(wk-ios:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wk-ios:*), Bash(qa/bin/doctor-mobile.sh:*), Bash(bin/doctor-mobile.sh:*), Bash(qualiow-doctor-mobile:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/doctor-mobile.sh:*), Bash(xcrun:*), Bash(adb:*), Bash(maestro:*), Bash(node:*), Bash(sleep:*), Bash(python3:*), Bash(git:*), Bash(qualiow:*), Bash(npx:*), Read, Write, Glob, Grep
+allowed-tools: Bash(qa/bin/mcli:*), Bash(bin/mcli:*), Bash(mcli:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/mcli:*), Bash(qa/bin/wadb:*), Bash(bin/wadb:*), Bash(wadb:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wadb:*), Bash(qa/bin/wk-ios:*), Bash(bin/wk-ios:*), Bash(wk-ios:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/wk-ios:*), Bash(qa/bin/doctor-mobile.sh:*), Bash(bin/doctor-mobile.sh:*), Bash(qualiow-doctor-mobile:*), Bash(${CLAUDE_SKILL_DIR}/../../bin/doctor-mobile.sh:*), Bash(xcrun:*), Bash(adb:*), Bash(maestro:*), Bash(sleep:*), Bash(python3:*), Bash(git -C:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Read, Write, Glob, Grep
 ---
 
 # Mobile Exploratory Testing Session
@@ -84,7 +84,7 @@ Command surface (mirrors playwright-cli where it makes sense):
 | `open-url <url>` / `deep-link <url>` | `simctl openurl` / `am start -a VIEW -d`. WEB mode: your "address bar" to load `base_url`. NATIVE mode: fire the app's deep links. |
 | `snapshot [--full]` | Parses Maestro's a11y hierarchy, assigns refs `e1…eN` to on-screen elements, prints a tree. In WEB mode the browser chrome (URL bar, tabs, toolbar, keyboard) is auto-filtered. `--full` includes non-interactive nodes. Refs expire after 60 s (`click` refuses a stale ref; re-snapshot). KNOWN QUIRK (Android Chrome): after keyboard show/dismiss the a11y export can go stale (the WebView shows as one empty "Web View" group). Recover with `screenshot` + a coordinate tap (`qa/bin/wadb shell input tap <x> <y>`), or `open-url` the page again. |
 | `click <ref>` | Tap by ref: Android `adb input tap x y`; iOS a Maestro `tapOn: point` flow. |
-| `tap-id <testID>` | Tap by accessibility/test id directly (no snapshot needed). |
+| `tap-id <testID>` | Tap by accessibility/test id directly (no snapshot needed). A testID containing `${` is refused (Maestro would run it as JavaScript) — use a snapshot ref. Text typed by `fill` / `fill-id` is escaped, so `${...}` payloads arrive literally. |
 | `fill <ref> <text>` | Tap, then type through a Maestro `inputText` flow on both platforms (avoids per-character re-renders). Appends to existing text; `clear` first if the field is pre-filled. Typing opens the on-screen keyboard, which SHIFTS the layout, so refs cached before the keyboard are stale afterwards: always re-`snapshot` after the last `fill` before tapping a submit control (and `press BACK` on Android first to dismiss the keyboard; with the keyboard closed BACK becomes page-back, so only use it while the keyboard is up). |
 | `fill-id <testID> <text>` | Tap by id + type in one Maestro flow (fastest combination). |
 | `clear <ref>` | Tap, then erase the field's existing text (Maestro `eraseText`, **up to 200 characters** — snapshot to confirm on longer values). |
@@ -108,8 +108,18 @@ Inspector (through `ios-webkit-debug-proxy`, installed by `qa/bin/setup-mobile.s
 qa/bin/wk-ios 'document.title'                                  # eval any JS in the sim's Safari page
 qa/bin/wk-ios 'document.querySelectorAll(".cart_item").length'  # exact-DOM assertions
 qa/bin/wk-ios --url    # print the page's WebSocket debugger URL
-qa/bin/wk-ios --stop   # stop the background proxy when the session ends
+qa/bin/wk-ios --stop   # stop the background proxy when the session ends — ALWAYS run it
 ```
+
+The proxy listens on every network interface with no authentication (iwdp has no bind option)
+and stays up between calls, so `qa/bin/wk-ios --stop` at the end of the session is mandatory,
+not tidy-up.
+
+Safari keeps old tabs inspectable. When a result looks like it came from the wrong page, pin the
+tab by prefixing the call with `WK_PAGE_FILTER=<host>[/path]`, for example
+`WK_PAGE_FILTER=staging.example.com/account qa/bin/wk-ios 'document.title'`. It matches the
+parsed URL: a host (or subdomain), `host/path-prefix`, a full `https://host/path` URL, or a bare
+`/path` prefix on any host. No match is an error, not a fallback.
 
 Use it whenever the a11y snapshot is not enough: exact-DOM verification (counts, attribute
 values, hidden state), reading values the a11y tree collapses, or checking a suspected

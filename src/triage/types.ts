@@ -132,9 +132,25 @@ export interface EvidenceFile {
   lines: number;
   text: string;
   truncated_from?: number;
+  /** The file was larger than the read window: `truncated_from` is a lower bound. */
+  partial?: boolean;
 }
 
-export type EvidenceSkipReason = 'image' | 'missing' | 'type' | 'outside-session' | 'excluded' | 'budget';
+/**
+ * `outside-session` also covers a symlink whose target leaves the session;
+ * `auth-state` is anything under `.auth/` (by name or by real path) or a file
+ * shaped like a Playwright storage state; `not-file` is a directory, FIFO,
+ * device or anything else that is not a regular file.
+ */
+export type EvidenceSkipReason =
+  | 'image'
+  | 'missing'
+  | 'type'
+  | 'outside-session'
+  | 'excluded'
+  | 'auth-state'
+  | 'not-file'
+  | 'budget';
 
 export interface EvidenceSkipped {
   file: string;
@@ -205,7 +221,8 @@ export interface TriageResult {
   mode: TriageMode;
   model: string;
   createdAt: string;
-  request: { state: TriageState; questions: Record<string, TriageQuestion> };
+  /** The exact request body sent (state, model, questions, and `max_len` for Laya). */
+  request: SystemOneRequest & { state: TriageState };
   response: SystemOneResponse | null;
   usage: TriageUsage | null;
   costUsd: number | null;

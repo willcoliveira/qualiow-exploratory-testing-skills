@@ -7,7 +7,7 @@ description: >
   Use when user says: "gather requirements", "prepare context", "analyze this ticket",
   "what should I test", or provides requirements documents before an explore session.
 argument-hint: "<file | url | text> [--domain <id>] [--output <file>]"
-allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git:*), Bash(wc:*)
+allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
 context: fork
 agent: qa-gather-agent
 ---

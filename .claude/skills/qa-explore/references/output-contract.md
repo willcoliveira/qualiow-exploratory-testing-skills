@@ -24,7 +24,7 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `phase-3-discovery.md` … `phase-6-edge-cases.md` | phases 3–6 (file number = phase number) |
 | `screenshots/BUG-NNN.png`, other `screenshots/*.png` | as taken |
 | `videos/*.webm` (web) / `videos/*.mp4` (mobile) | recording |
-| `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped, and excluded from the secrets scan |
+| `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped; the session's top-level `snapshots/` is the only directory excluded from the secrets scan |
 | `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
 | `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned. Under `verification.mode: triage-shadow`, also `verification/JEV-NNN.md` / `LAYA-NNN.md` (the advisory triage block) and `.json` (the exact request sent) |
 | `bugs/refuted/BUG-NNN.md` | phase 7 — a candidate the judge REFUTED or found UNREPRODUCIBLE, with the verdict under `## Refutation (Judge)`. Excluded from `bugs_found`, the index rows and `## Bugs Found`; listed only in `## Refuted Findings` |

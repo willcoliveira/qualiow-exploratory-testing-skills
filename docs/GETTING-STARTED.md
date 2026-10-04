@@ -52,18 +52,22 @@ npx playwright-cli install --skills    # optional: the official Playwright skill
 qualiow init --hooks
 ```
 
-Optional, and only for npm projects — a plugin install already ships the same two hooks and
+Optional, and only for npm projects — a plugin install already ships the same three hooks and
 has them on by default, so do not enable both in one project. `--hooks` copies the guard
-scripts to `qa/hooks/` and merges into `.claude/settings.json` two `PreToolUse` entries and
-three `permissions.allow` rules. The merge is by exact string: running it again changes
-nothing, and hooks you already had are kept.
+scripts to `qa/hooks/` and merges into `.claude/settings.json` three `PreToolUse` entries and
+three `permissions.allow` rules. Running it again changes nothing, and hooks you already had
+are kept; an older qualiow-only write-guard entry gets the new matcher. If `settings.json`
+does not parse (a comment, a trailing comma), init stops without writing anything and prints
+the entries to merge by hand.
 
 What the guards do: `read-guard.mjs` denies a whole-file `Read` of a qualiow file over
 `QUALIOW_READ_MAX_LINES` lines (default 300) — the knowledge manifest, a knowledge release
 file, a session phase file or a raw snapshot — and names the cheaper route in the refusal; a
 `Read` with `offset` or `limit` passes. `write-guard.mjs` refuses a `Write` or `Edit` under
-`output/` whose content matches the redaction list, so a secret never reaches disk. Neither
-one looks at anything else in your project. `QUALIOW_HOOKS=off` disables both.
+`output/` whose content matches the redaction list, so a secret never reaches disk.
+`bash-guard.mjs` sees every `Bash` command but only acts on a few: it asks before
+`playwright-cli run-code` and before `git` options that can run a shell, and denies `npx -c`
+or `npx -y` of an unknown package. `QUALIOW_HOOKS=off` disables all three.
 
 To write it by hand instead, this is the whole of it:
 
@@ -78,9 +82,15 @@ To write it by hand instead, this is the whole of it:
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs\"" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/bash-guard.mjs\"" }
         ]
       }
     ]
@@ -406,11 +416,11 @@ decide which entries a skill always gets without touching the skill itself.
 
 ```bash
 qualiow init --dry-run              # preview what init would write
-qualiow init --hooks                # add the read/write guards to .claude/settings.json
+qualiow init --hooks                # add the read/write/bash guards to .claude/settings.json
 qualiow validate --all              # targets + qa/target.yml + domains + knowledge base
 qualiow list sessions               # also: knowledge | targets | domains
 qualiow list knowledge --stats      # also: --domain --tag --type --entry <id> --changelog
-qualiow report -s latest -f html -o report.html
+qualiow report -s latest -f html -o report.html   # writes output/report.html
 qualiow kb check
 qualiow kb digest --for explore     # the knowledge a session loads
 qualiow session finalize latest     # validate a finished session and index it

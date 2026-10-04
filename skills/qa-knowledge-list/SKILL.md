@@ -6,7 +6,7 @@ description: >
   Use when user says: "list knowledge", "show heuristics", "what's in the knowledge base",
   "knowledge stats", "show changelog".
 argument-hint: "[--domain <id>] [--tag <tag>] [--type <type>] [--entry <id>] [--changelog] [--stats]"
-allowed-tools: Read, Grep, Bash(qualiow:*), Bash(npx:*)
+allowed-tools: Read, Grep, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*)
 ---
 
 # Browse QA Knowledge Base

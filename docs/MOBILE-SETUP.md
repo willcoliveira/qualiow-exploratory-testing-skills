@@ -181,6 +181,37 @@ Requires `ios-webkit-debug-proxy`, `python3`, Node ≥ 22.4 (`wkeval.mjs` uses t
 `WebSocket`), and a booted Simulator with Safari on a page. `WK_IOS_PORT` (default 9221) sets
 the iwdp device-list port; pages are served on `WK_IOS_PORT + 1`.
 
+> **⚠️ The proxy listens on every network interface, without authentication.**
+> `ios-webkit-debug-proxy` (1.9.x) has no bind-address option, so ports `WK_IOS_PORT` to
+> `WK_IOS_PORT + 101` are reachable from your LAN while it runs, and anyone who can reach them
+> can evaluate JavaScript in the Simulator's pages — including their logged-in sessions. The
+> proxy stays up between calls so each eval is fast; `wk-ios` prints a warning when it starts
+> it. **Run `bin/wk-ios --stop` as soon as the session ends**, keep the macOS firewall on
+> (System Settings → Network → Firewall), and avoid using the bridge on untrusted networks.
+
+Safari keeps old tabs inspectable, so the newest page is not always the one under test. Set
+`WK_PAGE_FILTER` to pin it. The filter is matched against the parsed page URL — never as a raw
+substring, so a page cannot win by carrying the filter in its query string or fragment — and the
+newest matching page is used:
+
+| `WK_PAGE_FILTER` | Matches |
+|---|---|
+| `/account` | any page whose path starts with `/account` (any host) |
+| `staging.example.com` | that host or any subdomain of it; `host:port` matches that exact host and port |
+| `staging.example.com/account` | exactly that host, path starting with `/account` |
+| `https://staging.example.com/account` | same scheme and host[:port], path starting with `/account` |
+
+When no page matches, `wk-ios` stops with an error rather than evaluating in another tab. Prefer
+a host-qualified form: a bare `/path` does not pin the host.
+
+```bash
+WK_PAGE_FILTER=staging.example.com/account bin/wk-ios 'document.title'
+```
+
+The proxy's pid and log files live in a private per-user directory,
+`${TMPDIR:-/tmp}/wk-ios-<uid>/` (mode 700). Page values printed by `wk-ios`, and app labels
+printed by `mcli snapshot` and `mcli logs`, have terminal control characters stripped.
+
 ## Why a Google **Play** (or `google_apis`) Android image
 
 A stock **AOSP** system image ships **no `com.android.chrome`** — only a basic AOSP

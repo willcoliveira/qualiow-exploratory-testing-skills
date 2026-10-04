@@ -10,7 +10,9 @@
  *   then `.env`);
  * - `laya` (self-hosted) must point at a loopback endpoint.
  * `--provider` only narrows the target's own list; it can never add a provider
- * the target did not name. What leaves the machine is written verbatim to
+ * the target did not name. The card must resolve (symlinks included) to
+ * `<cwd>/output/sessions/<dir>/verification/claims/CLAIM-NNN.md` in a real
+ * session directory. What leaves the machine is written verbatim to
  * `verification/<STEM>-NNN.json`; the human block goes to `<STEM>-NNN.md`.
  *
  * Exit codes: 0 triaged (or --dry-run) · 1 usage / unparseable card ·
@@ -20,7 +22,7 @@
 
 import { Command } from 'commander';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import chalk from 'chalk';
 import { parse as parseYaml } from 'yaml';
 import { TargetConfigSchema } from '../../schemas/target.schema.js';
@@ -47,9 +49,12 @@ import {
   collectEvidence,
   fitStateToBudget,
   loadFalsePositivePatterns,
+  MAX_SESSION_TEXT_BYTES,
+  describeSent,
+  readCapped,
   renderTriageBlock,
+  resolveClaimLocation,
   route,
-  sessionDirOfClaim,
 } from '../../triage/triage.js';
 import type {
   EvidenceFile,
@@ -364,15 +369,11 @@ export async function runJudgeTriage(
     throw new Error('--evidence-max-lines must be a positive integer');
   }
 
-  const claimFile = resolve(cwd, claimFileArg);
-  if (!existsSync(claimFile)) throw new Error(`Claim card not found: ${claimFile}`);
-  // The session directory, and with it the never-send list, is located by position.
-  if (basename(dirname(claimFile)) !== 'claims' || basename(dirname(dirname(claimFile))) !== 'verification') {
-    throw new Error(
-      `Claim card ${basename(claimFile)} must live in <session-dir>/verification/claims/ — the evidence rules depend on that layout`,
-    );
-  }
-  const claim = parseClaimCard(readFileSync(claimFile, 'utf-8'));
+  // The session directory, and with it the never-send list, is the real
+  // `<cwd>/output/sessions/<dir>` the card sits in — checked before anything
+  // is read, gated or sent.
+  const { claimFile, sessionDir, sessionName } = resolveClaimLocation(cwd, claimFileArg);
+  const claim = parseClaimCard(readCapped(claimFile, MAX_SESSION_TEXT_BYTES)?.text ?? '');
   if (!claim.complete) {
     throw new Error(
       `Claim card ${basename(claimFile)} is incomplete — it needs a "# CLAIM-NNN" heading, a **Title:** line, ` +
@@ -382,12 +383,14 @@ export async function runJudgeTriage(
 
   const live = !options.dryRun && !options.mock;
   const gate = resolveGate(cwd, options, live);
-  const sessionDir = sessionDirOfClaim(claimFile);
-  const outDir = options.out ? resolve(cwd, options.out) : dirname(dirname(claimFile));
+  // Same directory as the real one, spelled under cwd as the session knows it.
+  const outDir = options.out
+    ? resolve(cwd, options.out)
+    : join(resolve(cwd, 'output', 'sessions'), sessionName, 'verification');
   const nnn = claim.id.replace(/^CLAIM-/, '');
 
   const patterns = loadFalsePositivePatterns(cwd, sessionDir);
-  const evidence = collectEvidence(claim, claimFile, gate.evidenceMaxLines);
+  const evidence = collectEvidence(claim, claimFile, gate.evidenceMaxLines, sessionDir);
   const built = buildTriageState(claim, evidence);
   const { state } = built;
   const budget = fitStateToBudget(state, evidence);
@@ -405,7 +408,7 @@ export async function runJudgeTriage(
       ...gate.skipped.map((sk) => `skipped: ${sk.provider} — ${sk.reason}`),
       `state: ${stateChars.toLocaleString('en-US')} chars (~${Math.ceil(stateChars / 4).toLocaleString('en-US')} tokens est.)`,
       `questions (${Object.keys(questions).length}): ${Object.keys(questions).join(', ')}`,
-      `evidence sent: ${budget.sent.map((e) => `${e.file} (${e.truncated_from ? `${e.lines} of ${e.truncated_from}` : e.lines} lines)`).join('; ') || 'none'}`,
+      `evidence sent: ${budget.sent.map(describeSent).join('; ') || 'none'}`,
       `evidence not sent: ${budget.notSent.map((e) => `${e.file} (${e.reason})`).join('; ') || 'none'}`,
       `redactions: ${redactions.join(', ') || 'none'}`,
     ];
@@ -532,7 +535,7 @@ interface ProviderInput {
 
 async function triageWithProvider(pg: ProviderGate, input: ProviderInput): Promise<ProviderRun> {
   const { ctx, cwd, claim, nnn, outDir, state, questions, patternIds, budget, redactions } = input;
-  const request: SystemOneRequest =
+  const request: SystemOneRequest & { state: TriageState } =
     pg.provider === 'laya'
       ? { state, model: pg.model, questions, max_len: pg.maxLen }
       : { state, model: pg.model, questions };
@@ -605,7 +608,8 @@ async function triageWithProvider(pg: ProviderGate, input: ProviderInput): Promi
     mode: MODE,
     model: response?.model ?? pg.model,
     createdAt: new Date(ctx.now ? ctx.now() : Date.now()).toISOString(),
-    request: { state, questions },
+    // The body `callSystemOne()` serialises, field for field.
+    request,
     response,
     usage,
     costUsd,

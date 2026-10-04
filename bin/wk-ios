@@ -12,7 +12,20 @@
 #   bin/wk-ios --url                 # just print the page WebSocket URL
 #   bin/wk-ios --stop                # stop the background iwdp proxy this script started
 #
+# EXPOSURE: ios-webkit-debug-proxy (1.9.x) has no bind-address option — it listens on ALL
+# interfaces, unauthenticated, and anyone who can reach WK_IOS_PORT..+101 from the network
+# can evaluate JS in the Simulator's pages (and their logged-in sessions). The proxy stays
+# up between calls so evals stay fast: run `wk-ios --stop` as soon as the session ends, and
+# keep the macOS firewall on or use a trusted network.
+#
 # ENV: WK_IOS_PORT (default 9221) — iwdp device-list port; pages are served on WK_IOS_PORT+1.
+#      WK_PAGE_FILTER — pins the page under test (Safari keeps old tabs inspectable, so without
+#      it a stale tab can win). Matched against the PARSED page URL, never as a raw substring:
+#        /account                       path prefix (any host)
+#        staging.example.com            that host or a subdomain of it (host:port also works)
+#        staging.example.com/account    exactly that host, path prefix
+#        https://staging.example.com/a  same scheme and host[:port], path prefix
+#      The newest matching page wins; no match is an error.
 #
 # REQUIRES: brew install ios-webkit-debug-proxy ; python3 ; Node >= 22.4 ; a booted iOS
 # Simulator with Safari on a page (bin/mcli set-app com.apple.mobilesafari; bin/mcli open-url <url>).
@@ -21,8 +34,16 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PORT="${WK_IOS_PORT:-9221}"
 PAGE_PORT=$((PORT + 1))
-IWDP_LOG="${TMPDIR:-/tmp}/wk-ios-iwdp-$PORT.log"
-IWDP_PIDFILE="${TMPDIR:-/tmp}/wk-ios-iwdp-$PORT.pid"
+# Pid/log files live in a private per-user dir, so another local user cannot pre-plant a
+# symlink at a predictable /tmp name and have our `>` follow it.
+RUN_DIR="${TMPDIR:-/tmp}/wk-ios-$(id -u)"
+mkdir -p -m 700 "$RUN_DIR" 2>/dev/null || true
+if [[ -L "$RUN_DIR" || ! -d "$RUN_DIR" || ! -O "$RUN_DIR" ]]; then
+  echo "unsafe run dir $RUN_DIR (not a directory owned by you) — remove it or set TMPDIR" >&2; exit 1
+fi
+chmod 700 "$RUN_DIR"
+IWDP_LOG="$RUN_DIR/iwdp-$PORT.log"
+IWDP_PIDFILE="$RUN_DIR/iwdp-$PORT.pid"
 
 # Stop only the proxy we started (recorded in our pidfile) — never other users' iwdp.
 stop_proxy() {
@@ -46,25 +67,58 @@ SOCK="$(lsof -U 2>/dev/null | grep -oE '/private/var/tmp/[^ ]+webinspectord_sim.
 if ! curl -s "http://localhost:$PORT/json" >/dev/null 2>&1; then
   ios_webkit_debug_proxy -c "null:$PORT,:$PAGE_PORT-$((PAGE_PORT + 100))" -F -s "unix:$SOCK" > "$IWDP_LOG" 2>&1 &
   echo $! > "$IWDP_PIDFILE"
+  echo "wk-ios: started ios-webkit-debug-proxy on ALL interfaces, ports $PORT-$((PAGE_PORT + 100)), no auth — run 'wk-ios --stop' when done" >&2
   for _ in $(seq 1 20); do curl -s "http://localhost:$PORT/json" >/dev/null 2>&1 && break; sleep 0.25; done
 fi
 
 # 3) Resolve the frontmost page's WebSocket URL: the LAST page that is not about:blank
 #    (iwdp lists pages in creation order; the newest non-blank one is what the user sees).
+#    With WK_PAGE_FILTER set, only pages whose parsed URL matches it are candidates (see the
+#    header), and none matching is an error rather than a silent fallback to another tab.
 #    Retry briefly: right after iwdp starts, :$PORT answers before the page list is populated.
 WS=""
 for _ in $(seq 1 20); do
-  WS="$(curl -s "http://localhost:$PAGE_PORT/json" 2>/dev/null | python3 -c 'import sys,json
+  WS="$(curl -s "http://localhost:$PAGE_PORT/json" 2>/dev/null | WK_PAGE_FILTER="${WK_PAGE_FILTER:-}" python3 -c 'import sys,json,os
+from urllib.parse import urlsplit
 d=json.load(sys.stdin)
-p=[x for x in d if x.get("url") and x["url"]!="about:blank"] or d
+f=os.environ.get("WK_PAGE_FILTER","")
+def hit(url):
+    try:
+        u=urlsplit(url); host=(u.hostname or ""); port=u.port
+    except ValueError:
+        return False
+    netloc=host+(":%d"%port if port else "")
+    path=u.path or "/"
+    if f.startswith("/"):
+        return path.startswith(f)
+    if "://" in f:
+        w=urlsplit(f)
+        return u.scheme==w.scheme and netloc==(w.hostname or "")+(":%d"%w.port if w.port else "") and path.startswith(w.path or "/")
+    fh,_,fp=f.partition("/")
+    fh=fh.lower()
+    if fp or ":" in fh:
+        ok=(netloc==fh) if ":" in fh else (host==fh)
+        return ok and path.startswith("/"+fp)
+    return host==fh or host.endswith("."+fh)
+if f:
+    p=[x for x in d if hit(x.get("url",""))]
+else:
+    p=[x for x in d if x.get("url") and x["url"]!="about:blank"] or d
 print(p[-1]["webSocketDebuggerUrl"] if p else "")' 2>/dev/null || true)"
   [[ -n "$WS" ]] && break
   sleep 0.25
 done
-[[ -n "$WS" ]] || { echo "no inspectable Safari page found on :$PAGE_PORT (open a URL in the sim Safari first)" >&2; exit 1; }
+if [[ -z "$WS" ]]; then
+  if [[ -n "${WK_PAGE_FILTER:-}" ]]; then
+    echo "no inspectable Safari page matching WK_PAGE_FILTER='$WK_PAGE_FILTER' on :$PAGE_PORT (a /path prefix, a host, host/path or a full URL; unset it to use the newest page)" >&2
+  else
+    echo "no inspectable Safari page found on :$PAGE_PORT (open a URL in the sim Safari first)" >&2
+  fi
+  exit 1
+fi
 
 if [[ "${1:-}" == "--url" ]]; then echo "$WS"; exit 0; fi
-[[ $# -ge 1 ]] || { echo "usage: wk-ios \"<js-expression>\" | --url | --stop" >&2; exit 2; }
+[[ $# -ge 1 ]] || { echo "usage: wk-ios \"<js-expression>\" | --url | --stop   (the proxy listens on all interfaces until --stop)" >&2; exit 2; }
 
 # 4) Evaluate via the Target-wrapped WebKit protocol bridge.
 WK_WS="$WS" node "$HERE/wkeval.mjs" "$1"

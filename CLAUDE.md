@@ -74,7 +74,7 @@ The fixed-contract work belongs to the CLI, not to the model:
 - `list knowledge [--domain] [--tag] [--type] [--entry <id>] [--changelog] [--stats]` — what
   `/qa-knowledge-list` wraps; `session list|archive|delete|prune` is what `/qa-explore-cleanup`
   wraps.
-- `init --hooks` — copy the guard scripts to `qa/hooks/` and merge the two `PreToolUse`
+- `init --hooks` — copy the guard scripts to `qa/hooks/` and merge the three `PreToolUse`
   entries plus `permissions.allow` for `Bash(playwright-cli:*)`, `Bash(npx playwright-cli:*)`
   and `Bash(qualiow:*)` into `.claude/settings.json`. Idempotent; for npm projects only — a
   plugin install ships the same hooks on by default, and enabling both in one project only
@@ -121,8 +121,8 @@ claude plugin install qualiow@qualiow
 - `.claude/agents/` — the 5 sub-agents; mirrored to `agents/` the same way
 - `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
   repo is its own marketplace; the single plugin's `source` is `"./"`)
-- `hooks/` — `hooks.json` (two `PreToolUse` registrations, plugin default discovery path) and
-  `scripts/` (`read-guard.mjs`, `write-guard.mjs`, `secret-patterns.mjs`; node builtins only)
+- `hooks/` — `hooks.json` (three `PreToolUse` registrations, plugin default discovery path) and
+  `scripts/` (`read-guard.mjs`, `write-guard.mjs`, `bash-guard.mjs`, `secret-patterns.mjs`; node builtins only)
 - `bin/` — `qualiow` (CLI launcher shim: local build if present, else `npx` the published
   package pinned to `plugin.json`), `mcli` + `mobile-cli.mjs` (mobile driver), `wadb`,
   `wk-ios` + `wkeval.mjs` (iOS WebKit DOM bridge), `setup-mobile.sh`, `doctor-mobile.sh`

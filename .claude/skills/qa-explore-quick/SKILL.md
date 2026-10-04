@@ -5,7 +5,7 @@ description: >
   No full site mapping — goes directly to the target, applies heuristics, reports findings.
   Use when user says: "quick check", "test this page", "quick explore", or wants a fast review.
 argument-hint: "<url> [--focus <area>]"
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Read, Write, Glob, Grep
 ---
 
 # Quick Exploratory Testing Session

@@ -10,10 +10,14 @@ import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import {
   appendFileSync,
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -40,7 +44,7 @@ import {
   headersMatchColumns,
   missingColumns,
 } from '../../utils/index-files.js';
-import { parseMarkdownTable } from '../../utils/markdown-table.js';
+import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../utils/markdown-table.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import type { SessionMetrics } from '../../types/index.js';
 
@@ -214,27 +218,38 @@ export async function runSessionFinalize(
   }
 
   // 2. every *.md under the session dir must start with the confidentiality header.
-  const allFiles = listFilesRecursive(sessionDir);
-  for (const file of allFiles) {
-    if (!file.toLowerCase().endsWith('.md')) continue;
+  const walk = walkSession(sessionDir);
+  for (const v of walk.violations) violations.push(v);
+  for (const { path: file, rel } of walk.files) {
+    if (!rel.toLowerCase().endsWith('.md')) continue;
     const content = readFileSync(file, 'utf-8');
     if (!hasConfidentialityHeader(content)) {
-      violations.push(`${relative(sessionDir, file)} is missing the confidentiality header`);
+      violations.push(`${rel} is missing the confidentiality header`);
     }
   }
 
-  // 3. no secrets in .md/.json/.log/.yml/.yaml, except under snapshots/.
-  const scannedExtRe = /\.(md|json|log|ya?ml)$/i;
-  for (const file of allFiles) {
-    if (!scannedExtRe.test(file)) continue;
-    const rel = relative(sessionDir, file);
-    if (rel.split(sep).includes('snapshots')) continue;
-    const content = readFileSync(file, 'utf-8');
+  // 3. no secrets in any text file, whatever its extension, except under the
+  // session's own top-level snapshots/ (raw page trees, never shipped). Text is told
+  // from binary by content, so renaming a file does not take it out of the scan.
+  for (const { path: file, rel } of walk.files) {
+    if (rel.split(sep)[0] === 'snapshots') continue;
+    const size = statSync(file).size;
+    const encoding = sniffTextEncoding(file);
+    if (encoding === null) continue;
+    if (size > MAX_SCAN_BYTES) {
+      violations.push(
+        `${rel} is a ${formatBytes(size)} text file, over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — ` +
+          'not scanned; remove it, split it, or move it under snapshots/',
+      );
+      continue;
+    }
+    const raw = readFileSync(file);
+    const content = decodeText(raw, encoding);
     if (!containsSecrets(content)) continue;
 
     const { text, redactions } = redact(content);
     if (options.redact) {
-      writeFileSync(file, text);
+      writeFileSync(file, encodeText(text, encoding, raw));
       redactedFiles.push({ file: rel, categories: redactions });
       log(chalk.yellow(`  ⚠ Redacted ${rel}: ${redactions.join(', ')}`));
     } else {
@@ -264,7 +279,7 @@ export async function runSessionFinalize(
 
   const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
   let indexRowAdded = false;
-  if (!tableRowsText(indexPath).some((t) => t.includes(`${dirName}/`))) {
+  if (tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`)).length === 0) {
     appendIndexRow({
       date: finalStats.date,
       kind,
@@ -280,7 +295,6 @@ export async function runSessionFinalize(
   const parsedSession = await parseSession(sessionDir);
   const bugs = [...parsedSession.bugs].sort((a, b) => a.id.localeCompare(b.id));
   const existingBugRows = readAllBugsRows(allBugsPath);
-  const existingBugRowsText = tableRowsText(allBugsPath);
   const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
   const bugRowsAdded: string[] = [];
   for (const bug of bugs) {
@@ -288,7 +302,7 @@ export async function runSessionFinalize(
     // Either identification is enough: the id/session pair under the current columns,
     // the report path under a layout that names them differently.
     if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
-    if (existingBugRowsText.some((t) => t.includes(reportPath))) continue;
+    if (tableRowsReferencing(allBugsPath, (ref) => ref === reportPath).length) continue;
     const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
     const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
     appendBugRow({
@@ -403,13 +417,43 @@ function tableRowLines(lines: string[]): { index: number; text: string }[] {
 }
 
 /**
- * Every data row of the table in `path`, for reference checks. Read line by line
- * rather than through the parser, so a row below a blank line still counts as
- * present — otherwise finalize would append a second copy of it.
+ * The path a row points at, from its Report cell. That cell is located from the
+ * file's own header, and the row's last cell is read too, since Report is the last
+ * column in every layout and a hand-written row with a stray pipe shifts it. A
+ * markdown link counts as the path it links to.
  */
-function tableRowsText(path: string): string[] {
+function rowReferences(line: string, reportIdx: number): string[] {
+  const cells = splitTableRow(line);
+  const picked = new Set<string>();
+  if (reportIdx >= 0 && reportIdx < cells.length) picked.add(cells[reportIdx]);
+  if (cells.length) picked.add(cells[cells.length - 1]);
+  return [...picked].map((cell) => {
+    const link = cell.match(/^\[[^\]]*\]\(([^)]*)\)$/);
+    return unescapeTableCell(link ? link[1] : cell).trim();
+  });
+}
+
+/** A predicate over table lines: true for a data row whose Report cell matches. */
+function referenceMatcher(path: string, matches: (ref: string) => boolean): (line: string) => boolean {
+  const headers = readTableHeaders(path) ?? [];
+  const reportIdx = headers.findIndex((h) => h.trim().toLowerCase() === 'report');
+  return (line) =>
+    isTableLine(line) && !isSeparatorLine(line) && rowReferences(line, reportIdx).some(matches);
+}
+
+/**
+ * The data rows of the table in `path` whose Report cell matches, compared as a
+ * whole cell — a title or target that merely contains another session's path does
+ * not count. Read line by line rather than through the parser, so a row below a
+ * blank line still counts as present — otherwise finalize would append a second
+ * copy of it.
+ */
+function tableRowsReferencing(path: string, matches: (ref: string) => boolean): string[] {
   if (!existsSync(path)) return [];
-  return tableRowLines(readFileSync(path, 'utf-8').split('\n')).map((r) => r.text);
+  const isMatch = referenceMatcher(path, matches);
+  return tableRowLines(readFileSync(path, 'utf-8').split('\n'))
+    .map((r) => r.text)
+    .filter(isMatch);
 }
 
 /**
@@ -641,6 +685,114 @@ function listFilesRecursive(dir: string): string[] {
   return out;
 }
 
+// ─── session walk ───────────────────────────────────────────────────
+//
+// Finalize scans what a session will ship, so nothing in the session directory may
+// be left out of it by where it sits or how it got there. A symbolic link is read
+// through when it lands on a regular file inside the session, and refused when it
+// leads anywhere else: the target is not session output, and following it would
+// either scan someone else's file or miss the content the link stands in for.
+
+/** Text files larger than this are refused rather than scanned in part. */
+const MAX_SCAN_BYTES = 32 * 1024 * 1024;
+
+/** How much of a file is inspected for a NUL byte to tell binary from text. */
+const BINARY_SNIFF_BYTES = 8 * 1024;
+
+interface SessionFile {
+  /** Path read from disk — a link's resolved target. */
+  path: string;
+  /** Path relative to the session, as the session names it (the link, not the target). */
+  rel: string;
+}
+
+function walkSession(sessionDir: string): { files: SessionFile[]; violations: string[] } {
+  const root = realpathSync(sessionDir);
+  const files: SessionFile[] = [];
+  const violations: string[] = [];
+
+  const visit = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      const rel = relative(sessionDir, full);
+      if (entry.isDirectory()) {
+        visit(full);
+      } else if (entry.isFile()) {
+        files.push({ path: full, rel });
+      } else if (entry.isSymbolicLink()) {
+        let target: string;
+        try {
+          target = realpathSync(full);
+        } catch {
+          violations.push(`${rel} is a symbolic link to a missing target — remove it`);
+          continue;
+        }
+        if (target !== root && !target.startsWith(root + sep)) {
+          violations.push(`${rel} is a symbolic link pointing outside the session directory — replace it with a copy`);
+          continue;
+        }
+        // A link to a directory inside the session adds nothing: its files are
+        // already walked under their own names.
+        if (statSync(target).isFile()) files.push({ path: target, rel });
+      }
+    }
+  };
+  visit(sessionDir);
+  return { files, violations };
+}
+
+type TextEncoding = 'utf8' | 'utf16le' | 'utf16be';
+
+/**
+ * How to read `file` as text, or null for binary. A NUL byte in the first few KB means binary
+ * — except UTF-16, which is text full of NULs: a byte-order mark, or NULs in nearly every
+ * other byte, reads it as UTF-16 so a secret cannot hide from the scan by re-encoding.
+ */
+function sniffTextEncoding(file: string): TextEncoding | null {
+  const fd = openSync(file, 'r');
+  let buf: Buffer;
+  try {
+    const sniff = Buffer.alloc(BINARY_SNIFF_BYTES);
+    buf = sniff.subarray(0, readSync(fd, sniff, 0, BINARY_SNIFF_BYTES, 0));
+  } finally {
+    closeSync(fd);
+  }
+  if (buf[0] === 0xff && buf[1] === 0xfe) return 'utf16le';
+  if (buf[0] === 0xfe && buf[1] === 0xff) return 'utf16be';
+  if (!buf.includes(0)) return 'utf8';
+  const pairs = Math.floor(buf.length / 2);
+  if (pairs < 2) return null;
+  let evenNul = 0;
+  let oddNul = 0;
+  for (let i = 0; i + 1 < buf.length; i += 2) {
+    if (buf[i] === 0) evenNul++;
+    if (buf[i + 1] === 0) oddNul++;
+  }
+  if (oddNul >= pairs * 0.9 && evenNul <= pairs * 0.1) return 'utf16le';
+  if (evenNul >= pairs * 0.9 && oddNul <= pairs * 0.1) return 'utf16be';
+  return null;
+}
+
+function swapBytes16(buf: Buffer): Buffer {
+  const out = Buffer.from(buf.subarray(0, buf.length - (buf.length % 2)));
+  return out.swap16();
+}
+
+function decodeText(raw: Buffer, encoding: TextEncoding): string {
+  if (encoding === 'utf8') return raw.toString('utf-8');
+  const le = encoding === 'utf16le' ? raw : swapBytes16(raw);
+  return le.toString('utf16le').replace(/^\uFEFF/, '');
+}
+
+/** Write redacted text back in the encoding it came in, keeping a byte-order mark it had. */
+function encodeText(text: string, encoding: TextEncoding, original: Buffer): Buffer {
+  if (encoding === 'utf8') return Buffer.from(text, 'utf-8');
+  const hadBom =
+    (original[0] === 0xff && original[1] === 0xfe) || (original[0] === 0xfe && original[1] === 0xff);
+  const le = Buffer.from((hadBom ? '\uFEFF' : '') + text, 'utf16le');
+  return encoding === 'utf16le' ? le : le.swap16();
+}
+
 // ─── archive ────────────────────────────────────────────────────────
 
 export interface SessionArchiveResult {
@@ -687,13 +839,12 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
   const headers = readTableHeaders(indexPath) ?? [...INDEX_COLUMNS];
   const statusIdx = headers.findIndex((h) => h.trim().toLowerCase() === 'status');
   if (statusIdx === -1) return;
+  const isRow = referenceMatcher(indexPath, (ref) => ref.startsWith(`${dirName}/`));
   const lines = readFileSync(indexPath, 'utf-8').split('\n');
   const updated = lines.map((line) => {
-    if (!line.trim().startsWith('|')) return line;
-    if (!line.includes(`${dirName}/`)) return line;
-    const cells = line.split('|');
-    if (cells.length < 3) return line;
-    const inner = cells.slice(1, -1).map((c) => c.trim());
+    if (!isRow(line)) return line;
+    // Cells kept escaped, so a pipe inside one is written back as it was.
+    const inner = splitTableRow(line);
     if (inner.length <= statusIdx) return line;
     inner[statusIdx] = status;
     return `| ${inner.join(' | ')} |`;
@@ -733,8 +884,8 @@ export function runSessionDelete(
   const allBugsPath = resolve(cwd, 'output', 'bugs', 'all-bugs.md');
   // Counted by reference rather than by column name, so the numbers hold on an
   // index whose header predates the current column set.
-  const indexRows = tableRowsText(indexPath).filter((t) => t.includes(`${dirName}/`));
-  const bugRows = tableRowsText(allBugsPath).filter((t) => t.includes(`${dirName}/bugs/`));
+  const indexRows = tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`));
+  const bugRows = tableRowsReferencing(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`));
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — would delete ${dirName}`));
@@ -770,10 +921,10 @@ export function runSessionDelete(
 function performDelete(cwd: string, sessionDir: string): void {
   const dirName = basename(sessionDir);
   rmSync(sessionDir, { recursive: true, force: true });
-  removeTableRows(join(cwd, 'output', 'sessions', 'INDEX.md'), (line) =>
-    line.includes(`${dirName}/session-report.md`),
-  );
-  removeTableRows(join(cwd, 'output', 'bugs', 'all-bugs.md'), (line) => line.includes(`${dirName}/bugs/`));
+  const indexPath = join(cwd, 'output', 'sessions', 'INDEX.md');
+  const allBugsPath = join(cwd, 'output', 'bugs', 'all-bugs.md');
+  removeTableRows(indexPath, referenceMatcher(indexPath, (ref) => ref === `${dirName}/session-report.md`));
+  removeTableRows(allBugsPath, referenceMatcher(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`)));
 }
 
 function removeTableRows(filePath: string, matches: (line: string) => boolean): void {
@@ -818,7 +969,13 @@ export function runSessionPrune(
   const log = ctx.log ?? defaultLog;
   const now = ctx.now ?? new Date();
 
-  const days = typeof options.olderThan === 'string' ? Number(options.olderThan) : options.olderThan;
+  // A plain decimal only: Number() reads '' and '  ' as 0 and '0x10' as 16.
+  const days =
+    typeof options.olderThan === 'string'
+      ? /^\d+(\.\d+)?$/.test(options.olderThan.trim())
+        ? Number(options.olderThan)
+        : NaN
+      : options.olderThan;
   if (!Number.isFinite(days) || days < 0) {
     throw new Error(`--older-than must be a non-negative number of days (got "${options.olderThan}")`);
   }

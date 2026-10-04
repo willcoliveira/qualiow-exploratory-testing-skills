@@ -3,7 +3,8 @@
  *
  * Splits pipe-delimited rows and drops only the leading/trailing empty cells
  * produced by the outer pipes — internal empty cells are preserved, so column
- * indices stay aligned even when a cell is blank.
+ * indices stay aligned even when a cell is blank. An escaped pipe (`\|`) is cell
+ * content, not a delimiter, as in GFM.
  */
 
 export interface ParsedTable {
@@ -11,12 +12,39 @@ export interface ParsedTable {
   rows: Record<string, string>[];
 }
 
-function splitRow(line: string): string[] {
-  const cells = line.split('|').map((c) => c.trim());
+/**
+ * The cells of one table line, trimmed and still escaped (`\|` kept as written),
+ * so a row rebuilt from them with `| a | b |` is the same row.
+ */
+export function splitTableRow(line: string): string[] {
+  const cells: string[] = [];
+  let cell = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '\\' && line[i + 1] === '|') {
+      cell += '\\|';
+      i++;
+    } else if (ch === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else {
+      cell += ch;
+    }
+  }
+  cells.push(cell.trim());
   // Drop the empty cell before the first pipe and after the last pipe only.
   if (cells.length && cells[0] === '') cells.shift();
   if (cells.length && cells[cells.length - 1] === '') cells.pop();
   return cells;
+}
+
+/** A cell's text with its escaped pipes restored. */
+export function unescapeTableCell(cell: string): string {
+  return cell.replace(/\\\|/g, '|');
+}
+
+function splitRow(line: string): string[] {
+  return splitTableRow(line).map(unescapeTableCell);
 }
 
 function isSeparator(line: string): boolean {
