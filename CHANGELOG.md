@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.3.1] - 2026-10-04
 
 Security hardening from a review of the 2.3.0 changes. Nothing here changes what a session
 finds; it narrows what a session can do and what leaves the machine.
