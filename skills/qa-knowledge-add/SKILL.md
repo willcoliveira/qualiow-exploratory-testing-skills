@@ -6,7 +6,7 @@ description: >
   Use when user says: "add knowledge", "add heuristic", "learn this", "save this technique",
   "add to knowledge base", or provides QA documentation to ingest.
 argument-hint: "[<text> | <url> | <file>]"
-allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(node:*), Bash(npx qualiow:*), Bash(npx:*), Bash(qualiow:*)
+allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*)
 ---
 
 # Add QA Knowledge

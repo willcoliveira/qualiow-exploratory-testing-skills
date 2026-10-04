@@ -8,7 +8,7 @@ description: >
   Use when user says: "explore", "test this site", "find bugs", "QA check", "exploratory session",
   or provides a URL to test.
 argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>] [--no-judge]"
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx:*), Bash(wc:*), Bash(diff:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(wc:*), Bash(diff:*), Read, Write, Glob, Grep
 ---
 
 # Exploratory Testing Session

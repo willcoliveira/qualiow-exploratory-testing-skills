@@ -7,7 +7,7 @@ description: >
   re-reproduction in its own browser session and by evidence review, and returns one fenced
   verdict block (CONFIRMED, CONFIRMED-ADJUSTED, REFUTED, UNREPRODUCIBLE or UNVERIFIED). It
   never writes a bug report, never decides what ships, never assigns business impact.
-tools: Read, Glob, Grep, Bash(playwright-cli:*), Bash(npx:*), Bash(bin/mcli:*), Bash(qa/bin/mcli:*)
+tools: Read, Glob, Grep, Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(bin/mcli:*), Bash(qa/bin/mcli:*)
 model: opus
 effort: high
 maxTurns: 40

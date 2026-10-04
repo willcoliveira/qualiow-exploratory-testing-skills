@@ -4,7 +4,7 @@ description: >
   Manage exploratory testing sessions — list, archive, or delete old sessions.
   Use when user says: "cleanup sessions", "delete old sessions", "archive", "list sessions".
 argument-hint: "[list | archive <session-dir> | delete <session-dir> | delete-older-than <days>]"
-allowed-tools: Read, Grep, Bash(qualiow:*), Bash(npx:*)
+allowed-tools: Read, Grep, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*)
 ---
 
 # Session Cleanup & Management

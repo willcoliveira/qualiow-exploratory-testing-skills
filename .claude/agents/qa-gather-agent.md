@@ -5,7 +5,7 @@ description: >
   text, diffs) and writes a structured context file for exploratory testing sessions.
   The /qa-gather skill runs inside this agent; invoke it directly for long or multi-source
   gathers that should run in the background.
-tools: Read, Write, Glob, Grep, WebFetch, Bash(git:*), Bash(wc:*)
+tools: Read, Write, Glob, Grep, WebFetch, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
 model: sonnet
 maxTurns: 40
 ---

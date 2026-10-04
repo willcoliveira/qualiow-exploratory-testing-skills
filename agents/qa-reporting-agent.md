@@ -6,7 +6,7 @@ description: >
   `qualiow session finalize` to append the index rows. Use it once a session has written its
   bugs, its stats and its phase-7 notes. It copies the judgement already recorded in the
   notes — it never grades a bug and never writes a summary of its own.
-tools: Read, Write, Glob, Grep, Bash(qualiow:*), Bash(npx:*), Bash(wc:*)
+tools: Read, Write, Glob, Grep, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(wc:*)
 model: sonnet
 effort: low
 maxTurns: 30

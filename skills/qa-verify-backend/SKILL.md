@@ -11,7 +11,7 @@ description: >
   "test the API", "check the endpoint", or gives a backend/API/infra ticket whose ACs
   cannot be seen in a browser.
 argument-hint: "[--target <id>] [--context <file>] [--static-only] [--api-only] [--no-e2e] [--parity <target-id>]"
-allowed-tools: Read, Write, Glob, Grep, Bash(git:*), Bash(aws:*), Bash(jq:*), Bash(grep:*), Bash(curl:*), Bash(node:*), Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx:*), Bash(terraform validate:*), Bash(terraform fmt:*)
+allowed-tools: Read, Write, Glob, Grep, Bash(git -C:*), Bash(git show:*), Bash(git diff:*), Bash(git merge-base:*), Bash(git rev-parse:*), Bash(aws:*), Bash(jq:*), Bash(grep:*), Bash(curl:*), Bash(node --env-file=qa/.env:*), Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(terraform validate:*), Bash(terraform fmt:*)
 ---
 
 # Backend & Infrastructure AC Verification
