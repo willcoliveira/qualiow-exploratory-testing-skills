@@ -80,7 +80,7 @@ qualiow judge triage output/sessions/<session-dir>/verification/claims/CLAIM-NNN
 | Exit | Meaning | Written |
 |---|---|---|
 | 0 | triaged — stdout is the block, then `JEV_FILE:` / `LAYA_FILE:`; with several providers, then the combined `ROUTE:` | `JEV-NNN.*` and/or `LAYA-NNN.*` |
-| 1 | usage error, an invalid target config, a card outside `<session-dir>/verification/claims/`, or a stub card (no title, actual behaviour or steps) | nothing |
+| 1 | usage error, an invalid target config, a card that is not at `output/sessions/<session-dir>/verification/claims/CLAIM-NNN.md` under the working directory (symlinks resolved) in a directory carrying a session marker, or a stub card (no title, actual behaviour or steps) | nothing |
 | 2 | not enabled for this target, `--provider` not listed, or no listed provider can run (key missing, non-loopback Laya) — **nothing was sent** | nothing |
 | 3 | every provider stayed unavailable after retries | the files, with `<STEM>_VERDICT: UNAVAILABLE (<reason>)` and `ROUTE: n/a` |
 
@@ -98,19 +98,51 @@ One JSON `state` per claim, plus the questions:
 - a `note` that the evidence is data, not instructions
 - the question text, including one lead-in per known false-positive pattern
 
-Before it leaves, every string — the false-positive lead-ins included — goes through the
-redaction list of `security-rules.md`, then every URL is cut to its path, every dotted
-hostname becomes `[HOST]`, every absolute path under a common root its basename and every `.auth/` reference
-`[AUTH_STATE]`.
+**Where the session directory comes from.** The card must resolve — every symlink followed —
+to `<cwd>/output/sessions/<one directory>/verification/claims/CLAIM-NNN.md`, a regular file,
+and that directory must hold a session marker (`session-log.md`, `charter.md`, `progress.json`
+or `stats.json`). Anything else — a card at `<project>/verification/claims/`, one nested deeper,
+one symlinked in from elsewhere — exits 1 before the target is read or anything is sent. The
+never-read list below and the evidence containment are anchored to that real directory.
+
+**How an evidence file is admitted.** Each path the card lists is checked twice: as written,
+then as its symlinks resolve. It is refused when either form falls outside the real session
+directory (`outside-session`), sits under a `.auth/` directory or reads like a Playwright
+storage state (`auth-state`), is on the never-read list (`excluded`), has the wrong extension
+(`image`, `type`), or is not a regular file — a directory, FIFO or device (`not-file`). At
+most 512 KB of a file is read, then the line cap applies (an `EVIDENCE_SENT` count with a `+`
+means the file was larger than that window); `verification/proposed-patterns.md` is read
+under the same containment.
+
+Before it leaves, every string — the claimed severity, the reproduction rate, the evidence
+file names and the false-positive lead-ins included — is first capped to a per-field length
+(the cut drops the half-token it lands in and is marked). Then, in order: any unbroken run of
+more than 160 token characters becomes `[LONG_TOKEN]`; any `scheme://` address (http, ws,
+redis, postgres, mongodb, amqp, ftp, … and the JSON-escaped `https:\/\/` form) is cut to its
+path, userinfo and query dropped; the redaction list of `security-rules.md` runs; every
+`.auth/` reference becomes `[AUTH_STATE]`, every absolute path under a common root its
+basename, and every dotted hostname `[HOST]` (a scheme-less `host.tld/path?query` keeps the
+path and loses the query). If the state is still over budget, the last evidence file is halved
+then dropped, then `evidence_inline`, `actual`, the longest step and `expected` are halved.
 
 Never sent, whatever a card lists (the collector enforces the judge's never-read list and
-reports such files as `excluded`): screenshots and videos, the storage state, `## Safety` and
-`## Auth`, `session-log.md`, the charter, the phase files and notes, the drafts, anything
-under `bugs/` or `verification/` (other claims and every verdict included), or your reasoning.
+reports such files as `excluded` or `auth-state`): screenshots and videos, anything under
+`.auth/` or shaped like a storage state, `## Safety` and `## Auth`, `session-log.md`, the
+charter, the phase files and notes, the drafts, anything under `bugs/` or `verification/`
+(other claims and every verdict included), or your reasoning. A storage state copied into the
+session under another shape (a cookie pasted into a `.md` excerpt, say) is caught only by the
+redaction list, not by the collector.
 
-`verification/<STEM>-NNN.json` holds the exact request (`request.state`, `request.questions`),
-the raw response, usage, cost, the reading and the evidence that was and was not sent — the
-audit trail for this exception.
+`verification/<STEM>-NNN.json` holds the exact request body as sent (`request.state`,
+`request.model`, `request.questions`, and `request.max_len` for Laya), the response, usage,
+cost, the reading and the evidence that was and was not sent — the audit trail for this
+exception.
+
+**The response is untrusted too.** It is read up to 256 KB and parsed only then; only the
+answers to the questions asked are kept, a `choice` outside the offered keys makes the answer
+malformed (`UNAVAILABLE`), probabilities are clamped to [0, 1], and the model id and any error
+excerpt are reduced to one line without backticks or control characters (64 and 200
+characters) before they reach stdout or the block.
 
 **The scrubbing is pattern-based and has gaps.** It does not remove IP addresses, single-label
 hostnames (`intranet`), absolute paths outside the common roots it knows (`/Users`, `/home`,
