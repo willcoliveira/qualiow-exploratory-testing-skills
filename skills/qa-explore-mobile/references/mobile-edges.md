@@ -76,7 +76,9 @@ height (`100vh` jumps), momentum/overscroll bounce, and whether the page respect
 # NATIVE — the app's own scheme/intent
 qa/bin/mcli deep-link "<app-scheme>://<a real path>"
 qa/bin/mcli deep-link "<app-scheme>://<path>?id=&n=NaN"
-qa/bin/wadb shell am start -W -a android.intent.action.VIEW -d "<app-scheme>://<path>" -f 0x10000000
+# Raw adb: the DEVICE shell re-parses the line, so single-quote the URL INSIDE the double
+# quotes or every `&`/`;` truncates it (mcli deep-link/open-url already quote for you).
+qa/bin/wadb shell am start -W -a android.intent.action.VIEW -d "'<app-scheme>://<path>'" -f 0x10000000
 
 # WEB — the target URL
 qa/bin/mcli open-url "<base_url>/<a real deep view>"
