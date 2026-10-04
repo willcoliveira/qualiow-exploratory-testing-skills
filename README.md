@@ -48,7 +48,7 @@ It also creates `output/{sessions,bugs,context}`, `.auth/` and `qa/`, and append
 `.playwright-cli/`, `*.trace.zip`, `*.webm`).
 
 Re-running `init` is a no-op — existing files are kept unless you pass `--force`, and
-`--dry-run` prints the plan without writing anything. Add `--hooks` to install the two guard
+`--dry-run` prints the plan without writing anything. Add `--hooks` to install the three guard
 hooks into the project as well — see [Hooks](#hooks).
 
 ```bash
@@ -110,7 +110,7 @@ from the shell.
 | `qualiow explore [url]` | `-t <target>` `-c <context>` `--time-box 45m` `--dry-run` | **Pre-flight only.** Validates the inputs, creates the session directory skeleton, and prints the `/qa-explore … --session <dir>` command to paste into Claude Code. It does not drive a browser |
 | `qualiow validate` | `--targets` `--domains` `--knowledge` `--kb` `--all` | Validate configs against their schemas; exits 1 on any failure. `--all` also checks a project-local `qa/target.yml` and cross-checks the knowledge base against its manifest |
 | `qualiow list <type>` | `sessions` \| `knowledge` \| `targets` \| `domains`; for `knowledge` also `--domain` `--tag` `--type` `--entry <id>` `--changelog` `--stats` | List what is installed or recorded. `list knowledge --entry <id>` prints that entry's YAML; `--changelog` and `--stats` read the knowledge changelog and the manifest counts |
-| `qualiow report` | `-s <id>\|latest` `-f md\|html\|json\|jira` `-o <file>` `--stdout` | Export an existing session. `md` writes `session-summary.md`; html/json/jira carry the confidentiality header and pass through redaction |
+| `qualiow report` | `-s <id>\|latest` `-f md\|html\|json\|jira` `-o <file>` `--stdout` | Export an existing session. `-o` is confined to `output/` (relative paths resolve inside it; `..` is refused). `md` writes `session-summary.md`; html/json/jira carry the confidentiality header and pass through redaction |
 | `qualiow kb <sync\|check>` | — | Regenerate or validate `data/knowledge/manifest.yml` from the release files |
 | `qualiow kb digest` | `--for explore\|backend\|mobile` `--domain <id>` `--tag <t...>` `--entry <id>` `--data <dir>` `--max-lines <n>` | Print a compact digest of the knowledge entries a session needs, instead of the manifest and the entries read whole. `--entry <id>` prints one entry in full |
 | `qualiow session finalize <dir\|latest>` | `--check` `--redact` | Close a session: validate it against the output contract, then append the INDEX row, the bug rows and the metrics line. `--check` writes nothing; `--redact` rewrites files that still carry a secret |
@@ -205,8 +205,9 @@ reference: [`skills/qa-explore/references/evidence-triage.md`](skills/qa-explore
 
 ### Hooks
 
-Two `PreToolUse` hooks enforce what the delegation rules ask for, and they are scoped to
-qualiow-owned paths so they never interfere with ordinary coding in the same project:
+Three `PreToolUse` hooks enforce what the delegation and security rules ask for. The read and
+write guards are scoped to qualiow-owned paths; the bash guard sees every `Bash` command but
+only acts on the few patterns below, so ordinary coding in the same project is unaffected:
 
 - **`read-guard.mjs`** (matcher `Read`) fires only for `data/knowledge/manifest.yml`,
   `data/knowledge/releases/**`, `output/sessions/*/phase-*.md` and
@@ -215,12 +216,18 @@ qualiow-owned paths so they never interfere with ordinary coding in the same pro
   reason — `qualiow kb digest`, `qualiow list knowledge --entry <id>`, a `Grep` plus a `Read`
   with `offset`/`limit`, or `qa-page-mapper-agent`. A `Read` that already carries `offset` or
   `limit` passes untouched.
-- **`write-guard.mjs`** (matcher `Write|Edit|MultiEdit`) fires only for files under `output/`
-  and never inside `snapshots/`. It denies content matching the same redaction list the
-  formatters and `qualiow session finalize` apply, naming the categories it matched, so a
-  secret is caught before it reaches disk rather than after.
+- **`write-guard.mjs`** (matcher `Write|Edit|MultiEdit|NotebookEdit`) fires only for files
+  under `output/` and never inside `snapshots/`. It denies content matching the same redaction
+  list the formatters and `qualiow session finalize` apply — for an `Edit`, the file as it will
+  read after the edit — naming the categories it matched, so a secret is caught before it
+  reaches disk rather than after.
+- **`bash-guard.mjs`** (matcher `Bash`) asks before `playwright-cli run-code` (it runs in the
+  Playwright node process, not the browser sandbox), asks before `git` with options that can
+  run a shell (`-c`, `--upload-pack`, `--ext-diff`…), and denies `npx -c` and `npx -y`/`-p` of a
+  package outside `playwright-cli`, `@playwright/cli` and `qualiow-exploratory-testing`. It is a
+  safety net, not a sandbox.
 
-Set `QUALIOW_HOOKS=off` to disable both, and `QUALIOW_READ_MAX_LINES` to move the threshold —
+Set `QUALIOW_HOOKS=off` to disable all three, and `QUALIOW_READ_MAX_LINES` to move the threshold —
 in `.claude/settings.json` under `env`:
 
 ```json
@@ -229,7 +236,7 @@ in `.claude/settings.json` under `env`:
 
 **Plugin installs get the hooks by default** — `hooks/hooks.json` ships with the plugin and is
 discovered without any configuration. **npm projects opt in** with `qualiow init --hooks`,
-which copies the scripts to `qa/hooks/` and merges into `.claude/settings.json` the two hook
+which copies the scripts to `qa/hooks/` and merges into `.claude/settings.json` the three hook
 entries plus `permissions.allow` rules for `Bash(playwright-cli:*)`,
 `Bash(npx playwright-cli:*)` and `Bash(qualiow:*)`. The merge is by exact string, so running
 it twice changes nothing and hooks you already had are left alone. `docs/GETTING-STARTED.md`
@@ -551,7 +558,7 @@ Full guide: **[docs/BACKEND-VERIFICATION.md](docs/BACKEND-VERIFICATION.md)**. Sa
 confidentiality header and runs through the same redaction list as the skills.
 
 ```bash
-qualiow report -s latest -f html -o report.html
+qualiow report -s latest -f html -o report.html      # writes output/report.html
 qualiow report -s 2026-09-08-1813-explore-parabank -f jira -o bugs.csv
 qualiow report -s latest -f json --stdout
 ```
@@ -613,7 +620,7 @@ qualiow-exploratory-testing-skills/
     marketplace.json          # the repo is its own marketplace (source: "./")
   hooks/
     hooks.json                # PreToolUse registrations (plugin default discovery path)
-    scripts/                  # read-guard.mjs, write-guard.mjs, secret-patterns.mjs
+    scripts/                  # read-guard.mjs, write-guard.mjs, bash-guard.mjs, secret-patterns.mjs
   bin/
     qualiow                   # CLI launcher shim (local build, else npx the npm package)
     mcli, mobile-cli.mjs      # Maestro/simctl/adb shim + permission-friendly wrapper

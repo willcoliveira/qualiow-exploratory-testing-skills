@@ -2,6 +2,76 @@
 
 ## [Unreleased]
 
+Security hardening from a review of the 2.3.0 changes. Nothing here changes what a session
+finds; it narrows what a session can do and what leaves the machine.
+
+**Upgrading**
+
+- A proxy started by an older `wk-ios` is not found by the new `--stop`; kill it once by hand
+  (`pkill ios_webkit_debug_proxy`).
+- npm projects with hooks: run `npx qualiow init --hooks` again to add the new bash guard and
+  the `NotebookEdit` write-guard matcher; skills need `init --force` for the narrowed grants.
+- `qualiow report -o <file>` now writes under `output/` (`-o report.html` → `output/report.html`).
+- `playwright-cli run-code` now asks for confirmation every time, including in `/qa-explore`
+  phases 3, 6 and 7.
+
+### Security
+
+- **Redaction caught nothing inside JSON.** `"password":"…"`, `"Authorization":"Bearer …"`,
+  `"access_token"`, `"client_secret"`, `"apiKey"` and indented or mid-line `Cookie:` passed the
+  redaction list behind `session finalize`, the formatters, the write guard and the triage
+  scrubber. Quoted keys are now matched and the JSON stays valid. Added Stripe, Google API and
+  OAuth, npm, GitLab, Slack `xoxe-` and webhook, STS `SecretAccessKey`/`SessionToken`, `Bearer`
+  under any label, PGP and truncated private keys; `*.example.com` subdomain emails are no
+  longer exempt. Every rule runs in linear time; `redact.ts` and the hook's copy are checked
+  identical by a test.
+- **Triage could send the storage state.** The evidence collector followed symlinks out of the
+  session, and the session directory was taken from the claim card's parent folders alone. The
+  card must now sit in `output/sessions/<dir>/verification/claims/` of a real session, every
+  evidence path is checked after resolving symlinks, `.auth/` and storage-state-shaped files
+  are refused, and reads are size-capped. `claimed_severity`, `reproduction_rate` and file names
+  are now scrubbed; any `scheme://`, JSON-escaped and scheme-less URLs lose credentials and
+  query. The provider response is rebuilt from the questions asked (choice allow-listed, model
+  name flattened, body size-capped), so it cannot inject text into stdout or the block file.
+  The saved request is now the exact body sent.
+- **Skill and agent grants narrowed.** Bare `Bash(npx:*)`, `Bash(node:*)` and `Bash(git:*)` are
+  gone from every skill and agent; each lists the commands it uses.
+- **New `bash-guard.mjs` hook** (plugin default; `init --hooks` for npm): asks before
+  `playwright-cli run-code` (it runs in the Playwright node process, not the browser) and before
+  `git` options that can run a shell; denies `npx -c` and `npx -y`/`-p` of a package outside
+  the allowlist.
+- **Write guard** checks an `Edit` against the file as it will read afterwards, normalises
+  `..`, matches `output/` case-insensitively and covers `NotebookEdit`.
+- **`session finalize`** scans every text file whatever its extension (`.txt`, `.har`, `.csv`…),
+  skips only the top-level `snapshots/`, and refuses a symlink leading outside the session or a
+  text file over 32MB.
+- **`init --hooks`** refuses to overwrite a `settings.json` it cannot parse (it used to replace
+  it, dropping deny rules) and upgrades the matcher of an existing qualiow-only entry.
+- **`report -o`** is confined to `output/`.
+- `INDEX.md` / `all-bugs.md` cells escape `|` and newlines, and row dedupe/delete match the
+  exact Report cell instead of a substring.
+- `session prune --older-than` accepts plain decimals only.
+- `session finalize` reads UTF-16 files (with or without a byte-order mark) as text instead of
+  skipping them as binary, and `--redact` writes them back in their own encoding.
+- `list knowledge --entry` and `kb digest --entry` refuse an id that is a path, so they cannot
+  print a `.yml` file outside the knowledge base.
+- **Mobile driver.** `adb shell` re-parses its arguments in the device shell, so a deep link with
+  `;` ran a command on the device and every link with `&` was cut short (the skill's own
+  deep-link edge cases silently tested a truncated URL on Android). Every device-shell argument
+  is now single-quoted and app ids are validated at `set-app`. Typed text escapes Maestro's
+  `${…}` evaluation so it is typed literally, and a testID containing `${` is refused. Control
+  characters from the app are stripped from snapshots, logs and `wkeval` output.
+- **`wk-ios`.** `ios_webkit_debug_proxy` 1.9.2 has no localhost-only bind, so the proxy listens
+  on every interface without authentication; `wk-ios` now says so when it starts it, the docs
+  and the mobile skill make `wk-ios --stop` mandatory, and the pid and log files moved to a
+  private `${TMPDIR}/wk-ios-<uid>/`. `WK_PAGE_FILTER` matches the parsed URL (host or subdomain,
+  `host:port`, path prefix) instead of a substring anywhere in it.
+- `bin/qualiow` refuses to run when it cannot read an exact version from `plugin.json`, instead
+  of falling back to `npx …@latest`.
+- CI runs with a read-only token, pins its actions by commit SHA and pins the `claude-code`
+  used for `plugin validate`. `brace-expansion` 5.0.7 → 5.0.12 (advisories reachable through
+  `glob`).
+
 ### Fixed
 
 - **`wk-ios` can evaluate in a stale Safari tab.** Safari keeps old tabs inspectable, so the
