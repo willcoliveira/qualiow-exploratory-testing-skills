@@ -38,6 +38,9 @@ prefix literally as the first token of every command. The npm package is
   anywhere except through the notes' `## Refuted Findings` section
 - never `verification/JEV-*` or `verification/LAYA-*` — the advisory triage reaches the report
   only through each bug file's `## Verification` section
+- `evidence-level.md` when it exists (contract 2 — `stats.json` has `"contract": 2`): its body
+  goes into `## Coverage Level` unchanged. Never `backlog.md` — the report does not render it
+- nothing outside this session directory — no other session's files, ever
 
 `wc -l` before each file. Over 300 lines: `Grep '^## '` for the headings, then `Read` with
 `offset`/`limit` around the ones you need. Never read `snapshots/` — raw accessibility trees
@@ -51,21 +54,23 @@ Exactly the format in `skills/qa-explore/references/output-contract.md`. Section
 2. `# Session Report — <target>`
 3. `## Session Metadata`
 4. `## Executive Summary`
-5. `## Summary Stats`
-6. `## Coverage Map` — columns `| Area | Risk | Status | Bugs | Notes |`
-7. `## Bugs Found`
-8. `## Observations`
-9. `## Areas Not Tested`
-10. `## Recommendations`
-11. `## Reflection`
-12. `## Session Stats`
-13. `## Refuted Findings` — only when the session directory has a `verification/` directory;
+5. `## Coverage Level` — only when `stats.json` has `"contract": 2`
+6. `## Summary Stats`
+7. `## Coverage Map` — columns `| Area | Risk | Status | Bugs | Notes |`
+8. `## Bugs Found`
+9. `## Observations`
+10. `## Areas Not Tested`
+11. `## Recommendations`
+12. `## Reflection`
+13. `## Session Stats`
+14. `## Refuted Findings` — only when the session directory has a `verification/` directory;
     copied from `phase-7-notes.md` like every other prose section
 
 Mobile appends `## Mobile Context` and `## Deferred Tests`. Backend inserts
 `## AC Matrix Summary` after the executive summary. A session with a `verification/`
-directory gets the sixth `Verification` column in `## Bugs Found` and section 13; a session
+directory gets the sixth `Verification` column in `## Bugs Found` and section 14; a session
 without one gets neither, so its report is byte-for-byte what it was before the judge existed.
+A session without `"contract": 2` gets no section 5, so a contract-1 report is unchanged too.
 
 Sourcing rules:
 
@@ -81,6 +86,13 @@ Sourcing rules:
   never get a row here.
 - **Summary Stats and Session Stats** — the numbers in `stats.json`, transcribed. Do not
   recompute, adjust, or add a metric that is not there.
+- **Coverage Level** — the body of `evidence-level.md` (every line after its two-line
+  confidentiality header), copied verbatim: no re-wording, no re-ordering, no summary of it in
+  any other section. Never recompute it from `stats.json`, the charter or the bugs, never
+  judge whether it is right, and never edit `evidence-level.md` or `stats.json`
+  `coverage_level`. If the file is absent in a contract-2 session, write
+  `_Missing from evidence-level.md_` under the heading and name it in your return — the session
+  runs `qualiow session level <dir> --write`, not you.
 
 ## Finalize
 
@@ -92,9 +104,11 @@ Exit 0: done. Exit 1: it prints a numbered violation list. Fix only
 - a format violation in `session-report.md` — wrong heading, wrong column order, absent
   section.
 
-Never touch `bugs/*.md` or `bugs/refuted/*.md` content, severity, verification line or business
-impact, never move a file between those two directories, the numbers in `stats.json`, or
-any phase file. Re-run finalize once. If violations remain, stop and list them.
+Never touch `bugs/*.md` or `bugs/refuted/*.md` content, severity, verification line, area line
+or business impact, never move a file between those two directories, the numbers in
+`stats.json`, `evidence-level.md`, `backlog.md`, or any phase file. A contract-2 violation
+(an area, its evidence, a bug's area, or a level that is missing or stale) is the session's to
+fix: list it in your return. Re-run finalize once. If violations remain, stop and list them.
 
 ## Return
 

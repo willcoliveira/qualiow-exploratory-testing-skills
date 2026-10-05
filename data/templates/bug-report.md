@@ -8,10 +8,13 @@
 **Severity:** Critical | High | Medium | Low
 **Priority:** P0 | P1 | P2 | P3
 **Component:** [Component]
+**Area:** A<N> | none
 **URL:** [exact URL where the bug was found — mobile: screen name or deep link — backend: endpoint or resource]
 **Environment:** [e.g. Playwright CLI, Chromium, 1280x720, logged in as X — mobile: mode / platform / device / OS — backend: env kind + build]
 **Reproduction rate:** Always | Intermittent (~X%) | Once
 **Verification:** Verified | Verified (severity adjusted from X) | Unverified (reason)
+
+> _The Area line is present only in a contract-2 session (`/qa-explore`, `/qa-explore-quick`): the ID of the charter's `## Feature Risk Ranking` row the bug was found in, or `none`. Never an area reported `not-tested`, `blocked` or `deferred`; never on the claim card. Mobile and backend bug files leave it out._
 
 > _The Verification line and the `## Verification` section at the end are present only when the session ran the adversarial `qa-bug-judge` (Phase 7 of `/qa-explore`). A candidate the judge refuted lives in `bugs/refuted/` with `**Verification:** Refuted` (or `Unreproducible`) and a `## Refutation (Judge)` section holding the verdict block verbatim._
 

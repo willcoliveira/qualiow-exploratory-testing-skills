@@ -41,6 +41,20 @@ playwright-cli snapshot
 
 Do things change? Are order IDs unique? Are timestamps correct?
 
+## Area Evidence (explore only)
+
+When you are done with a charter area — fully tested or only partly — capture its end state
+before moving on, named after its ID in the charter's risk ranking:
+
+```bash
+playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/A<N>-<slug>.png
+```
+
+`<slug>` is a few lowercase ASCII letters, digits and dashes (`A3-checkout-confirmation.png`).
+Every area you will report `tested` or `partial` needs at least one such file — a shared
+session video cannot stand in for it, and nothing under `snapshots/` counts. A journey that
+finishes several areas takes one per area.
+
 ## After Journeys
 
 1. Write findings to `phase-4-journeys.md` (confidentiality header first)

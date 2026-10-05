@@ -19,13 +19,15 @@ _Clear, one-sentence statement of what this session aims to accomplish._
 
 > [Describe the primary testing objective for this session.]
 
-## Areas to Explore
+## Feature Risk Ranking
 
-_Specific pages, features, or flows to cover during this session._
+_Specific pages, features, or flows to cover during this session, one row each. IDs (`A1`, `A2`, …) are permanent: rows may be appended in any phase, never renumbered or removed. `stats.json` `coverage.areas`, each bug's `**Area:**` line and the per-area screenshots (`screenshots/A<N>-<slug>.png`) point at them. A quick session uses `| ID | Feature | Risk |` with 1–3 rows._
 
-- [ ] [Area 1 - e.g., Login flow]
-- [ ] [Area 2 - e.g., Dashboard rendering]
-- [ ] [Area 3 - e.g., Form validation on settings page]
+| ID | Feature | Risk | Why | Time |
+|----|---------|------|-----|------|
+| A1 | [Area 1 - e.g., Login flow] | P0 | [reason] | 40% |
+| A2 | [Area 2 - e.g., Dashboard rendering] | P1 | [reason] | 30% |
+| A3 | [Area 3 - e.g., Form validation on settings page] | P2 | [reason] | 20% |
 
 ## Heuristics to Apply
 

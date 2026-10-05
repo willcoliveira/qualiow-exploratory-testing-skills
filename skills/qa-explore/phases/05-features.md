@@ -53,6 +53,16 @@ After testing each feature, explicitly ask:
 If you notice an inconsistency ("Bill Pay validates but Transfer doesn't"), **follow that
 thread**; don't move on. The inconsistency is a signal.
 
+### Area evidence (explore only)
+
+When you are done with a feature's area — fully tested or only partly — capture it under the
+area's charter ID before moving on (same rule as phase 4: lowercase ASCII slug, at least one
+per `tested` or `partial` area, never a file under `snapshots/`):
+
+```bash
+playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/A<N>-<slug>.png
+```
+
 ### Stable locators for the bug report
 
 A reproduction step must name the element unambiguously. When a ref is ambiguous:

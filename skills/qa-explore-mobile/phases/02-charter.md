@@ -2,7 +2,8 @@
 
 Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/02-charter.md` for the structure (use the app as a user,
 identify journeys, risk-rank, select heuristics, write charter). The mobile additions below
-apply to both modes.
+apply to both modes. Mobile stays on session contract 1: skip every step marked **explore
+only** there (area IDs, `--continue`, per-area screenshots) and never write `contract: 2`.
 
 ## Use the app as a real user — for ~3 min
 

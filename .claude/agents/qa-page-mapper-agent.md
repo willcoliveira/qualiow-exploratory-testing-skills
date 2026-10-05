@@ -23,7 +23,9 @@ The snapshot file path, and optionally the page URL and title.
 
 `wc -l` it first. Over 300 lines: read it in windows with `offset`/`limit`, using `Grep` for
 role keywords (`textbox`, `button`, `link`, `combobox`, `checkbox`, `alert`, `heading`) to find
-the windows worth reading. Read nothing else — no other session file, no source code, no URL.
+the windows worth reading. Read nothing else — no other file of this session, no file of any
+other session (the `--continue` exception in the session-isolation rule belongs to the
+session, through `qualiow session continue-check`, never to you), no source code, no URL.
 
 ## Output
 

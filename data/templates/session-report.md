@@ -19,6 +19,12 @@
 
 [Three sentences: what was tested, what was found, and the biggest risk.]
 
+## Coverage Level
+
+[The body of `evidence-level.md` — everything after its confidentiality header — copied verbatim.]
+
+_Present only in a contract-2 session (`stats.json` has `"contract": 2`: `/qa-explore`, `/qa-explore-quick`). `qualiow session level <dir> --write` computes it — the level overall and per risk tier, the findings line, the gaps and the "To raise this level" list. It is a computed coverage fact, never a ship probability or a release verdict: nobody recomputes, rewords or edits it. If the file is missing, write `_Missing from evidence-level.md_`._
+
 ## Summary Stats
 
 | Metric | Count |
@@ -39,7 +45,7 @@
 | [Area 2] | P1 | partial | 0 | [what was not reached and why] |
 | [Area 3] | P2 | not-tested | — | [reason] |
 
-_Status: `tested` (fully explored with the planned heuristics) · `partial` (visited, not all heuristics or paths exercised) · `not-tested` (in scope, not reached) · `code-verified-only` (believed correct from reading source, never observed running: this is UNVERIFIABLE, not a pass). Name the single not-tested item that carries the most risk._
+_Status: `tested` (fully explored with the planned heuristics) · `partial` (visited, not all heuristics or paths exercised) · `not-tested` (in scope, not reached) · `code-verified-only` (believed correct from reading source, never observed running: this is UNVERIFIABLE, not a pass). A contract-2 session also uses `blocked` (could not be reached) and `deferred` (not reached in the time box), has one row per charter area, and starts each Area cell with the area's ID (`A3 Checkout`). Name the single not-tested item that carries the most risk._
 
 ## Bugs Found
 
