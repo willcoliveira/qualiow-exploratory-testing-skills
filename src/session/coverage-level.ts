@@ -193,7 +193,8 @@ function raiseLine(g: CoverageGap, input: LevelInput): string {
   const severity = bug ? SEVERITY_LABEL[bug.severity] : '';
   switch (g.code) {
     case 'AREA_PARTIAL':
-      return `${where} is partial: finish it, ${cite}, and set it to \`tested\`.`;
+      // A partial area already cites its own A<N>- file (the contract requires it).
+      return `${where} is partial: finish it and set it to \`tested\`.`;
     case 'AREA_BLOCKED':
       return `${where} is blocked: clear the blocker, test it, and ${cite}.`;
     case 'AREA_NOT_TESTED':
@@ -202,11 +203,29 @@ function raiseLine(g: CoverageGap, input: LevelInput): string {
       return input.quick
         ? `${where} was deferred by the time box: test it in a follow-up session.`
         : `${where} was deferred by the time box: test it in a follow-up session (\`/qa-explore --continue\` carries it forward).`;
-    case 'BUG_UNVERIFIED':
-      return `${g.bug} (${severity}${g.area ? `, ${g.area}` : ''}) is unverified: have the bug judge confirm it (a session with verification on).`;
+    case 'BUG_UNVERIFIED': {
+      const label = `${g.bug} (${severity}${g.area ? `, ${g.area}` : ''}) is unverified`;
+      // A quick session has no bug judge, so it cannot act on "have the judge confirm it".
+      return input.quick
+        ? `${label}: a quick session has no bug judge — re-check it in a full \`/qa-explore\` session.`
+        : `${label}: have the bug judge confirm it (a session with verification on).`;
+    }
     case 'BUG_UNMAPPED':
       return `${g.bug} (${severity}) maps to no area: give it \`**Area:** A<N>\`, adding a charter row for where it was found if there is none.`;
   }
+}
+
+export const RAISE_HEADING = '### To raise this level';
+
+/**
+ * The part of `evidence-level.md` that states facts — everything above
+ * "To raise this level". The advice below it is generated from the gaps, which
+ * `coverage_level` already carries; leaving it out of the staleness check lets
+ * its wording improve without making every finalized session stale.
+ */
+export function levelFacts(md: string): string {
+  const at = md.indexOf(`\n${RAISE_HEADING}\n`);
+  return at === -1 ? md : md.slice(0, at + 1);
 }
 
 /**
@@ -248,7 +267,7 @@ export function renderLevel(level: CoverageLevel, input: LevelInput): string {
     lines.push('');
   }
 
-  lines.push('### To raise this level', '');
+  lines.push(RAISE_HEADING, '');
   if (level.level === 'complete') {
     lines.push('Nothing — `complete` is the highest level.');
   } else {

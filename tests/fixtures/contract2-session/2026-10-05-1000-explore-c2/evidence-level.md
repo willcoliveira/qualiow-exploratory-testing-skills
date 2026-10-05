@@ -29,7 +29,7 @@ Reported beside the level, never folded into it: highest shipped severity High Â
 
 ### To raise this level
 
-- A4 (P2) is partial: finish it, cite an `A4-â€¦` file under `screenshots/` or `evidence/`, and set it to `tested`.
+- A4 (P2) is partial: finish it and set it to `tested`.
 - A5 (P3) was deferred by the time box: test it in a follow-up session (`/qa-explore --continue` carries it forward).
 - BUG-002 (Medium, A4) is unverified: have the bug judge confirm it (a session with verification on).
 - BUG-003 (Low) maps to no area: give it `**Area:** A<N>`, adding a charter row for where it was found if there is none.

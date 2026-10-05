@@ -161,3 +161,27 @@ describe('backlogCell — markup and look-alike hosts', () => {
     for (const a of absent) expect(cell).not.toContain(a);
   });
 });
+
+describe('finalize — advice wording is not part of the staleness check', () => {
+  it('a session whose "To raise this level" text came from an older release still passes', async () => {
+    const { cwd, sessionDir } = copySession(dirs);
+    const file = join(sessionDir, 'evidence-level.md');
+    const md = readFileSync(file, 'utf-8');
+    const older = md.replace(
+      '- A4 (P2) is partial: finish it and set it to `tested`.',
+      '- A4 (P2) is partial: finish it, cite an `A4-…` file under `screenshots/` or `evidence/`, and set it to `tested`.',
+    );
+    expect(older).not.toBe(md);
+    writeFileSync(file, older);
+    const r = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(r.violations).toEqual([]);
+  });
+
+  it('an edited fact above the advice is still refused', async () => {
+    const { cwd, sessionDir } = copySession(dirs);
+    const file = join(sessionDir, 'evidence-level.md');
+    writeFileSync(file, readFileSync(file, 'utf-8').replace('| AREA_PARTIAL | A4 | P2 | — |\n', ''));
+    const r = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(r.violations).toEqual([expect.stringContaining('evidence-level.md is stale or edited by hand')]);
+  });
+});

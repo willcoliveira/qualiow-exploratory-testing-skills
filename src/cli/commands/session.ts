@@ -59,7 +59,7 @@ import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../util
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
-import { backlogCell } from '../../session/coverage-level.js';
+import { backlogCell, levelFacts } from '../../session/coverage-level.js';
 import { pathOfUrl, scrubForTransmission } from '../../triage/scrub.js';
 import type { CoverageLevel, RiskTier, SessionMetrics } from '../../types/index.js';
 
@@ -522,7 +522,12 @@ async function checkContract2ForFinalize(
       continue;
     }
     const text = readContainedText(sessionDir, file, MAX_STATS_BYTES);
-    if (text !== expected) violations.push(`${file} is stale or edited by hand — ${rerun}`);
+    // evidence-level.md: the facts are compared byte for byte, the generated advice is not.
+    const same =
+      file === 'evidence-level.md' && text !== null && expected !== undefined
+        ? levelFacts(text) === levelFacts(expected)
+        : text === expected;
+    if (!same) violations.push(`${file} is stale or edited by hand — ${rerun}`);
   }
   const areaTiers = Object.fromEntries(assessment.rows.map((r) => [r.id, r.tier]));
   return { violations, areaTiers };
