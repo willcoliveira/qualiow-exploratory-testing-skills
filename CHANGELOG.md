@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+Fixes from the first live contract-2 session.
+
+### Fixed
+
+- **"To raise this level" in a quick session.** An unverified bug was told to "have the bug
+  judge confirm it", which a quick session cannot do; it now points at a full `/qa-explore`
+  session. Full sessions are unchanged.
+- **Partial areas.** The advice no longer asks a `partial` area to "cite an `A<N>-…` file" —
+  the contract already requires one — and reads "finish it and set it to `tested`".
+- **Advice wording no longer makes finalized sessions stale.** `finalize` compared all of
+  `evidence-level.md` byte for byte, so any change to the generated "To raise this level"
+  text would have refused every finalized session it touched — with a fix,
+  `session level --write`, that is itself refused once a session is finalized — and
+  `--continue` would have refused those sessions as its prior session. The comparison now
+  covers everything above that section: the level, the tier table, the findings line and
+  the gaps, which `stats.json` `coverage_level` also carries. 2.4.0 sessions pass unchanged.
+- **Test cards in bug reports.** `security-rules.md` and the bug-report contract say to name a
+  payment-provider test card by provider and type, never by number: test cards pass Luhn, so
+  `finalize` refused a session that quoted one.
+
 ## [2.4.0] - 2026-10-05
 
 Coverage you can check. `/qa-explore` and `/qa-explore-quick` now write **session contract 2**:

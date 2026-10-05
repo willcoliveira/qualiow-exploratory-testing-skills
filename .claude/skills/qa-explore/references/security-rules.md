@@ -70,6 +70,10 @@ Before writing ANY file to `output/`, scan it and replace every match with `[RED
 - US social-security numbers (SSN)
 - card numbers (13–19 digits that pass Luhn)
 
+Payment-provider test cards pass Luhn too, and the scan cannot tell them from real ones: name
+a test card by provider and type ("the provider's test Mastercard"), never by number, in
+steps, notes and evidence.
+
 Never write actual `.env` values, storage-state contents, or session cookies to any output
 file. Raw probe output and API response bodies are the most common leak; redact them on the
 way in.

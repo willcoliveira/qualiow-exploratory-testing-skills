@@ -71,7 +71,7 @@ or `evidence/` and nowhere else. `snapshots/` and `.auth/` are never evidence.
 <be specific; quote error messages verbatim>
 
 ## Steps to Reproduce
-1. <exact steps a developer can follow>
+1. <exact steps a developer can follow — a test card by provider and type, never its number>
 
 ## Business Impact
 - **Revenue impact:** <or "none identified">
