@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.0] - 2026-10-05
 
 Coverage you can check. `/qa-explore` and `/qa-explore-quick` now write **session contract 2**:
 every charter area has a permanent ID and a recorded status with evidence, the CLI computes a
