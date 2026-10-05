@@ -72,7 +72,8 @@ describe('runInit — fresh install', () => {
     expect(domainFiles.some((f) => f.endsWith('.md'))).toBe(false);
 
     // Examples not installed without --include-examples.
-    expect(existsSync(join(cwd, 'data', 'targets', 'testers-ai.yml'))).toBe(false);
+    expect(existsSync(join(cwd, 'data', 'targets', 'parabank.yml'))).toBe(false);
+    expect(existsSync(join(cwd, 'data', 'targets', 'saucedemo.yml'))).toBe(false);
 
     // local-* targets never ship, regardless of includeExamples.
     const targetFiles = readdirSync(join(cwd, 'data', 'targets'));
@@ -173,7 +174,7 @@ describe('runInit — dry run', () => {
 });
 
 describe('runInit — includeExamples', () => {
-  it('installs the example and testers-ai target configs', async () => {
+  it('installs the example templates and the parabank and saucedemo demo targets', async () => {
     const cwd = makeTmpCwd();
     await runInit(
       { includeExamples: true, force: false, dryRun: false },
@@ -181,7 +182,8 @@ describe('runInit — includeExamples', () => {
     );
 
     expect(existsSync(join(cwd, 'data', 'targets', '_example-api-only.yml'))).toBe(true);
-    expect(existsSync(join(cwd, 'data', 'targets', 'testers-ai.yml'))).toBe(true);
+    expect(existsSync(join(cwd, 'data', 'targets', 'parabank.yml'))).toBe(true);
+    expect(existsSync(join(cwd, 'data', 'targets', 'saucedemo.yml'))).toBe(true);
 
     // Still never local-*.
     const targetFiles = readdirSync(join(cwd, 'data', 'targets'));

@@ -758,7 +758,7 @@ wandering stops instead of quietly becoming a second session.
   project that ran `init --hooks` both fire: the same deny twice and two node spawns per tool
   call. Documented, not guarded against.
 - **Measurement is `/skill-doctor` before and after**, plus a dogfood `/qa-explore-quick`
-  followed by `/qa-explore-report latest` against the shipped `testers-ai` target. The
+  followed by `/qa-explore-report latest` against the shipped demo target. The
   per-skill context-cost lines are recorded in the pull request and the changelog **only as
   measured** — this record states no saving, and no number belongs here until that run has
   happened. ISSUE-003 is the standing reason: an unrepeatable measurement is not evidence.

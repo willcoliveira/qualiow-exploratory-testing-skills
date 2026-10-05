@@ -94,14 +94,14 @@ Under a plugin install the CLI runs through `bin/qualiow`.
 claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
 claude plugin install qualiow@qualiow
 
-# Explore a public site
-/qa-explore https://testers.ai/testing/
+# Explore a public demo site (shipped as the parabank and saucedemo targets)
+/qa-explore --target parabank
 
 # Explore with a saved target config
 /qa-explore --target company-staging
 
 # Skip the phase-7 bug judge for one run
-/qa-explore https://testers.ai/testing/ --no-judge
+/qa-explore --target saucedemo --no-judge
 
 # Quick check on a specific page
 /qa-explore-quick https://app.example.com/checkout

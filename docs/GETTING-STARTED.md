@@ -32,7 +32,7 @@ That writes:
 | the 11 skills | `.claude/skills/qa-*/` |
 | the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
-| the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
+| the `_default` target (add `--include-examples` for the `_example-*` templates and the `parabank.yml` and `saucedemo.yml` demo targets) | `data/targets/` |
 | the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
 | the credential template | `qa/.env.example` |
 | empty session/bug/context trees and the auth directory | `output/sessions/`, `output/bugs/`, `output/context/`, `.auth/` |
@@ -133,11 +133,13 @@ of that path needs network. A plain git checkout is described in the project REA
 
 ### Option A: explore a public site
 
-Point `/qa-explore` at any public site. A good first target is
-<https://testers.ai/testing/>, which ships as the `testers-ai` target config.
+Point `/qa-explore` at any public site. Two public demo apps ship as target configs (install
+them with `npx qualiow init --include-examples`): `parabank`, a demo online bank
+(<https://parabank.parasoft.com/>), and `saucedemo`, a small e-commerce shop
+(<https://www.saucedemo.com/>).
 
 ```bash
-/qa-explore https://testers.ai/testing/
+/qa-explore --target parabank
 ```
 
 Claude will:
@@ -184,7 +186,7 @@ phase 7; a bug it cannot reach (model unavailable, timeout, budget spent) still 
 `Unverified`. To skip it for one run:
 
 ```bash
-/qa-explore https://testers.ai/testing/ --no-judge
+/qa-explore --target saucedemo --no-judge
 ```
 
 or set it off for a target in its YAML:

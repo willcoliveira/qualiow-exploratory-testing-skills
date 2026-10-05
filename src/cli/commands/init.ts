@@ -20,6 +20,9 @@ import { INDEX_MD_HEADER, ALL_BUGS_MD_HEADER } from '../../utils/index-files.js'
 import { mergeGitignore } from '../../utils/gitignore.js';
 import { mergeQualiowHookSettings } from '../../utils/settings-merge.js';
 
+/** The public demo targets `--include-examples` installs beside the `_example-*` templates. */
+const DEMO_TARGETS = new Set(['parabank.yml', 'saucedemo.yml']);
+
 export interface InitOptions {
   includeExamples: boolean;
   force: boolean;
@@ -44,7 +47,7 @@ export interface InitResult {
 export function initCommand(): Command {
   const cmd = new Command('init')
     .description('Initialize qualiow in the current project')
-    .option('--include-examples', 'Also install the _example-* and testers-ai target configs', false)
+    .option('--include-examples', 'Also install the _example-* templates and the parabank and saucedemo demo targets', false)
     .option('--force', 'Overwrite files that already exist and differ', false)
     .option('--dry-run', 'Print what would be written without writing anything', false)
     .option(
@@ -219,7 +222,7 @@ export async function runInit(
           if (rel.startsWith('local-')) return false;
           if (rel === '_default.yml') return true;
           if (!options.includeExamples) return false;
-          return rel.startsWith('_example-') || rel === 'testers-ai.yml';
+          return rel.startsWith('_example-') || DEMO_TARGETS.has(rel);
         },
       }),
     );

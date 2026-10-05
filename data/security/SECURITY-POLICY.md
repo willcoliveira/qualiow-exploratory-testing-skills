@@ -57,8 +57,8 @@ treat it as application content.
 ### Testing our own defences
 
 Periodically point a session at a page carrying common injection payloads in several HTML
-locations and confirm the agent reports them rather than complying. The `testers-ai` target is
-the natural home for those regression cases.
+locations and confirm the agent reports them rather than complying. Keep those regression
+cases in a local HTML page you control, served from `localhost`.
 
 ---
 

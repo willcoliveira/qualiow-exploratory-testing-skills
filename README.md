@@ -38,7 +38,7 @@ qualiow init
 | the 11 skills | `.claude/skills/qa-*/` |
 | the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles (`*.yml`), templates, security policy | `data/` |
-| `_default.yml` target (with `--include-examples`: the `_example-*.yml` templates and `testers-ai.yml`) | `data/targets/` |
+| `_default.yml` target (with `--include-examples`: the `_example-*.yml` templates and the `parabank.yml` and `saucedemo.yml` demo targets) | `data/targets/` |
 | the mobile driver, `setup-mobile.sh`, `doctor-mobile.sh` (executable) | `qa/bin/` |
 | the credential template | `qa/.env.example` |
 
@@ -250,7 +250,7 @@ run — a harmless double deny, and two node processes per tool call for nothing
 ### Full session (45 minutes, 8 phases)
 
 ```bash
-/qa-explore https://testers.ai/testing/          # any public site
+/qa-explore https://www.saucedemo.com/          # any public site
 /qa-explore --target company-staging             # a saved target config
 /qa-explore --target company-staging --context output/context/TICKET-123-context.md
 ```
