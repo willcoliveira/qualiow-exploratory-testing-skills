@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.4.1] - 2026-10-05
 
 Fixes from the first live contract-2 session.
 
