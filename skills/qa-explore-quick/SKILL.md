@@ -32,7 +32,7 @@ Before opening the browser:
 1. Resolve config per `paths.md`: `qa/target.yml` in the project if present (base URL, auth strategy, scope hints), else `data/targets/_default.yml`.
 2. Credentials from `qa/.env`, else `.env`; never log the values.
 3. Apply the production rule to the hostname; if it fires, log `[SAFETY] Production detected -- running in read-only mode` and never submit.
-4. Create `output/sessions/<YYYY-MM-DD-HHmm>-quick-<slug>/` with `screenshots/`, `bugs/`, and a 5-line `charter.md` (header, URL, focus, time box 15 min, read-only flag). Start `session-log.md`.
+4. Create `output/sessions/<YYYY-MM-DD-HHmm>-quick-<slug>/` with `screenshots/`, `bugs/`, `evidence/`, and a short `charter.md` (header, URL, focus, time box 15 min, read-only flag). Start `session-log.md`.
 5. Choose the session id `-s=quick-<HHmm>-<slug>`. **Every `playwright-cli` call below carries `-s=<sid>`; the examples omit it.**
 
 ```bash
@@ -53,6 +53,16 @@ From the snapshot, identify:
 - Error states visible
 
 `playwright-cli find "<text>"` locates a label without re-reading the whole tree.
+
+Then add the areas you will test to `charter.md` — 1 to 3 rows, IDs `A1`, `A2`, `A3`, never
+renumbered or removed:
+
+```markdown
+## Feature Risk Ranking
+| ID | Feature | Risk |
+|----|---------|------|
+| A1 | [the page or feature under test] | P1 |
+```
 
 ### 3. Focused Testing (10 min)
 
@@ -79,6 +89,14 @@ Based on what's on the page, apply relevant heuristics:
 
 For each bug: `playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/BUG-NNN.png` and document immediately.
 
+When you are done with an area — fully tested or only partly — capture it under its charter ID
+(lowercase ASCII slug; at least one per area you will report `tested` or `partial`; nothing
+under `snapshots/` counts):
+
+```bash
+playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/A<N>-<slug>.png
+```
+
 ### 4. Report (2 min)
 
 A quick session writes the **same** artefacts as a full one — never a quick-only report
@@ -92,17 +110,37 @@ starts with these two lines, verbatim:
 
 - `bugs/BUG-NNN.md` — one file per bug, header first, then
   `# BUG-NNN: [Component] fails [Condition] causing [Impact]`, then `**Severity:**`,
-  `**Priority:**`, `**Component:**`, `**URL:**`,
+  `**Priority:**`, `**Component:**`, `**Area:** A<N>` (the charter row it was found in, or
+  `none`; never an area you report `not-tested`, `blocked` or `deferred`), `**URL:**`,
   `**Environment:** Playwright CLI, Chromium, <viewport>`, `**Reproduction rate:**`, then
   `## Summary`, `## Expected Behavior`, `## Actual Behavior`, `## Steps to Reproduce`,
   `## Business Impact` (mandatory: Revenue / Trust / Regulatory / Data / Scale, "none
   identified" where it does not apply), `## Evidence` (`- Screenshot:`, `- Video:`,
   `- Log:`, `- Console errors:`, `- Network failures:`) and `## Recommended Fix Priority`
-- `session-report.md` — `Kind: quick`; `## Executive Summary`; `## Summary Stats`;
-  `## Coverage Map` (`| Area | Risk | Status | Bugs | Notes |`, one row for the page or
-  feature); `## Bugs Found`; `## Observations`; `## Areas Not Tested`; `## Recommendations`;
-  `## Session Stats`
-- `stats.json` — `kind: "quick"`, the eight required fields
+- `stats.json` — `kind: "quick"`, the eight required fields, `"contract": 2`, and one
+  `coverage.areas` entry per charter row: `{ "id": "A1", "status": "tested", "evidence": ["screenshots/A1-<slug>.png"] }`.
+  Status is `tested`, `partial`, `blocked`, `not-tested` or `deferred` (not reached in the
+  time box); every status but `tested` carries a `reason` of at most 160 characters with no
+  URL and no personal data; `evidence` paths sit under `screenshots/`, `videos/`, `traces/`,
+  `logs/` or `evidence/`, never `snapshots/`. Quick has no `--continue`, so no `continues`.
+  Never write `coverage_level`.
+- then compute the coverage level — it validates the charter table, the areas, the evidence
+  and every bug's `**Area:**` line, and on exit 1 names each violation and its fix:
+
+  ```bash
+  qualiow session level output/sessions/<session-dir> --write
+  ```
+
+  On exit 0 it writes `evidence-level.md`, `backlog.md` and `stats.json` `coverage_level`.
+  Never write or edit those by hand. A quick session's level is never higher than
+  `qualified`. The level is a computed coverage fact, never a ship probability or a release
+  verdict.
+- `session-report.md` — `Kind: quick`; `## Executive Summary`; `## Coverage Level` (the body
+  of `evidence-level.md` after its confidentiality header, copied verbatim — never
+  recomputed or reworded); `## Summary Stats`;
+  `## Coverage Map` (`| Area | Risk | Status | Bugs | Notes |`, one row per charter area,
+  the Area cell starting with its ID); `## Bugs Found`; `## Observations`;
+  `## Areas Not Tested`; `## Recommendations`; `## Session Stats`
 
 Then finalize:
 
@@ -111,7 +149,8 @@ qualiow session finalize output/sessions/<session-dir>
 ```
 
 It validates `stats.json`, checks the confidentiality header on every artefact and scans them
-against the redaction list, then appends the session row to `output/sessions/INDEX.md` and one
+against the redaction list, re-checks contract 2 (a level that is missing or stale after a later
+edit: re-run `qualiow session level <dir> --write`), then appends the session row to `output/sessions/INDEX.md` and one
 row per bug to `output/bugs/all-bugs.md` and records the metrics. On exit 1 it names each
 offending file: fix it and run again (`--check` validates without writing). Resolve the
 `qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`.

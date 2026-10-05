@@ -221,7 +221,7 @@ describe('runKbDigest — --entry', () => {
   });
 
   it('refuses an id that is a path', () => {
-    expect(() => runKbDigest({ entry: '../../targets/testers-ai' }, REPO_ROOT)).toThrow(/Unknown entry/);
+    expect(() => runKbDigest({ entry: '../../targets/parabank' }, REPO_ROOT)).toThrow(/Unknown entry/);
   });
 });
 

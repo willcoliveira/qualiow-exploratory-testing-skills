@@ -23,6 +23,16 @@ export interface ParsedBug {
   actual: string;
   steps: string[];
   business_impact: string;
+  /**
+   * The `**Area:**` line of a contract-2 bug — `A3` or `none` as written (bold
+   * and backticks stripped) — or null when the file has no such line.
+   */
+  area: string | null;
+  /**
+   * From the `**Verification:**` line: any `Verified …` variant is verified;
+   * `Unverified …`, anything else, or no line at all is unverified.
+   */
+  verification: 'verified' | 'unverified';
   evidence: {
     screenshots: string[];
     videos: string[];
@@ -127,6 +137,11 @@ function cleanValue(v: string): string {
     .trim()
     .replace(/^`|`$/g, '')
     .trim();
+}
+
+/** A field value with its bold markers and backticks removed. */
+function stripMarkup(v: string): string {
+  return v.replace(/[*`]/g, '').trim();
 }
 
 function extractEvidence(content: string): ParsedBug['evidence'] {
@@ -261,6 +276,12 @@ export async function parseBugReport(filePath: string): Promise<ParsedBug> {
   // Extract evidence
   const evidence = extractEvidence(content);
 
+  const areaLine = content.match(/^[ \t]*(?:[-*][ \t]+)?\*\*Area:\*\*[ \t]*(.*)$/im);
+  const area = areaLine ? stripMarkup(areaLine[1]) : null;
+  const verificationLine = content.match(/^[ \t]*(?:[-*][ \t]+)?\*\*Verification:\*\*[ \t]*(.*)$/im);
+  const verification: ParsedBug['verification'] =
+    verificationLine && /^verified\b/i.test(stripMarkup(verificationLine[1])) ? 'verified' : 'unverified';
+
   return {
     id,
     title,
@@ -275,6 +296,8 @@ export async function parseBugReport(filePath: string): Promise<ParsedBug> {
     actual,
     steps,
     business_impact,
+    area,
+    verification,
     evidence,
   };
 }

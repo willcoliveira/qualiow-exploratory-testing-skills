@@ -21,6 +21,12 @@ without the `Verification` column or the refuted appendix.
 
 ## Stop Recording
 
+**Explore only — area evidence first.** While the browser is still open, `Glob`
+`output/sessions/<session-dir>/screenshots/A*-*.png` against the charter's risk ranking: every
+area you will report `tested` or `partial` needs at least one `A<N>-<slug>.png` (phase 4). Take
+any that is missing now; once the browser is closed it can no longer be taken, and an area
+without one cannot be reported `tested` or `partial`.
+
 ```bash
 playwright-cli video-chapter "Reporting"
 playwright-cli video-stop
@@ -33,7 +39,8 @@ playwright-cli tracing-stop
 the command line: `npx playwright trace open <trace>` then `npx playwright trace actions --errors-only`,
 `npx playwright trace requests --failed`, `npx playwright trace console`, and `npx playwright trace close`
 (check `npx playwright trace --help` for the exact subcommands of the installed version).
-Copy the trace into `output/sessions/<session-dir>/` if it is evidence for a bug.
+Copy the trace into `output/sessions/<session-dir>/traces/` (never the session root) if it is
+evidence for a bug or an area.
 
 ### Annotated video for Critical / High bugs (optional)
 
@@ -77,8 +84,8 @@ verdict adds later:
 
 - then `# BUG-NNN: [Component] fails [Condition] causing [Impact]`
 - `**Severity:**` (per `severity-guide.md`; when in doubt go lower), `**Priority:**`,
-  `**Component:**`, `**URL:**`, `**Environment:** Playwright CLI, Chromium, <viewport>`,
-  `**Reproduction rate:**`
+  `**Component:**`, `**Area:**` (explore only, see below), `**URL:**`,
+  `**Environment:** Playwright CLI, Chromium, <viewport>`, `**Reproduction rate:**`
 - `## Summary`, `## Expected Behavior`, `## Actual Behavior`, `## Steps to Reproduce`
 - `## Business Impact` — MANDATORY; answer at least one of Revenue / Trust / Regulatory /
   Data / Scale, write "none identified" for the rest
@@ -86,6 +93,13 @@ verdict adds later:
   `playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/BUG-NNN.png`),
   console errors, network failures (`playwright-cli request <n>` output, redacted)
 - `## Recommended Fix Priority`
+
+**Explore only — `**Area:**`.** The charter ID of the area the bug was found in (`**Area:** A3`),
+or `**Area:** none` when it belongs to no row. A bug found in an area you tested but never
+ranked is a reason to append that row to the charter (and take its `A<N>-` screenshot while
+the browser is still open), not to write `none`. A bug may not point at an area you will
+report `not-tested`, `blocked` or `deferred`: if you found a bug there, you were in it, so it
+is at least `partial`. The line stays out of the claim card.
 
 Redact per `security-rules.md` before writing. Number from `BUG-001`; ids are final — a draft
 the judge refutes keeps its number under `bugs/refuted/`, so a gap in `bugs/` is expected and
@@ -244,7 +258,9 @@ them, so a section you leave out is a section nobody can write for you:
 
 - `## Executive Summary` — 3 sentences: what was tested, what was found, the biggest risk
 - `## Coverage Map` — rows for `| Area | Risk | Status | Bugs | Notes |`
-  (Status: tested / partial / not-tested / code-verified-only)
+  (Status: tested / partial / not-tested / code-verified-only). Explore only: one row per
+  charter area, the Area cell starting with its ID (`A3 Checkout`) and the Status the same as
+  that area's `coverage.areas` entry (`blocked` and `deferred` included)
 - `## Observations` — including what's MISSING and the data-integrity results
 - `## Areas Not Tested` — each with its reason
 - `## Recommendations` — for the next session
@@ -262,8 +278,67 @@ Write `output/sessions/<session-dir>/stats.json` exactly as `output-contract.md`
 `areas_not_tested`, `blocked_by`). In judge mode put the judge's tally under `coverage.verification` —
 `{ "judged", "verified", "unverified", "refuted", "unreproducible", "budget_min" }` —
 and count shipped bugs only in `bugs_found` and `severity_counts`. Under `triage-shadow` add
-`coverage.verification.triage.<provider>` as `evidence-triage.md` defines it. No other top-level keys. The `## Session Stats` table in
+`coverage.verification.triage.<provider>` as `evidence-triage.md` defines it. The `## Session Stats` table in
 the report is rendered from this file.
+
+**Explore only — session contract 2.** Also write `"contract": 2`, `"continues"` (the prior
+session directory name under `--continue`, otherwise `null`) and one `coverage.areas` entry
+per row of the charter's risk ranking — no more, no fewer:
+
+```json
+"contract": 2,
+"continues": null,
+"coverage": {
+  "areas": [
+    { "id": "A1", "status": "tested", "evidence": ["screenshots/A1-login.png"] },
+    { "id": "A2", "status": "partial", "evidence": ["screenshots/A2-transfer.png", "videos/session.webm"], "reason": "negative amounts only; scheduled transfers not reached" },
+    { "id": "A3", "status": "deferred", "evidence": [], "reason": "not reached in the time box" }
+  ]
+}
+```
+
+- `status` is one of `tested` (every planned heuristic run), `partial` (visited, not every
+  path), `blocked` (could not be reached — auth, environment, the read-only rule; say which),
+  `not-tested` (in scope, decided against; say why) or `deferred` (not reached in the time box).
+- `evidence` lists session-relative paths under `screenshots/`, `videos/`, `traces/`, `logs/`
+  or `evidence/` — plain ASCII, no leading `/` or `~`, no `\` or `:`, never `snapshots/` or
+  `.auth/`, each an existing, non-empty file, at most 20 per area. A `tested` or `partial` area
+  cites at least one `A<N>-…` file from `screenshots/` or `evidence/`.
+- `reason` is required for every status but `tested`: at most 160 characters, no URL, and no
+  name, e-mail, account number or other personal data — the redaction list does not catch
+  every kind.
+- Never write `coverage_level`: `qualiow session level --write` does, below.
+
+The schema is strict. The top-level keys are exactly: `session_id`, `kind`, `target`, `date`,
+`duration_min`, `bugs_found`, `severity_counts`, `pages_explored`, `domain`, `started_at`,
+`completed_at`, `phases_completed`, `total_phases`, `coverage`, `evidence`,
+`areas_not_tested`, `blocked_by`, and, for a contract-2 session only, `contract`, `continues`
+and the CLI-written `coverage_level`. Nothing else.
+
+## Compute the Coverage Level (explore only)
+
+Before the reporting agent runs — it copies the result, it does not compute it:
+
+```bash
+qualiow session level output/sessions/<session-dir> --write
+```
+
+It validates the session against contract 2 — the charter table, every `coverage.areas`
+entry, every evidence path, every bug's `**Area:**` and `**Verification:**` line — and on
+exit 1 prints one violation per line, each naming the area or bug and the fix. Fix what it
+names and run it again. On exit 0 it prints the level and writes three things:
+`evidence-level.md`, `backlog.md` (the rows not `tested`, rendered from `coverage.areas`) and
+`stats.json` `coverage_level`. **Never write or edit any of the three by hand.** Change
+`stats.json`, the charter or a bug file afterwards and the level is stale: run it again, or
+finalize refuses the session.
+
+The level — `unassessed`, `incomplete`, `qualified` or `complete`, overall and per risk tier —
+is a computed coverage fact, never a ship probability or a release verdict, and the findings
+line beside it is separate on purpose. What the session ships, what it recommends and how it
+summarises the risk stay your judgement: cite the level in `## Executive Summary` or
+`## Recommendations` in your own words if it helps (its "To raise this level" list is a good
+start for the next session), never restate it as a verdict. `phase-7-notes.md` is not an
+input to the level, so editing the notes afterwards does not make it stale.
 
 ## Assemble and Finalize
 
@@ -272,10 +347,12 @@ the `qa-reporting-agent` sub-agent (`qualiow:qa-reporting-agent` under a plugin 
 the session directory and `kind: explore`. It reads `charter.md`, `stats.json`, `bugs/*.md`,
 the phase files in windows and `phase-7-notes.md`, writes `session-report.md` in the format
 of `${CLAUDE_SKILL_DIR}/references/output-contract.md` — copying your Executive Summary,
-Recommendations, Reflection and Refuted Findings verbatim and adding the `Verification`
-column to `## Bugs Found` from each bug file — and then runs `qualiow session finalize`, which
+Recommendations, Reflection and Refuted Findings verbatim, adding the `Verification`
+column to `## Bugs Found` from each bug file, and copying the body of `evidence-level.md`
+verbatim into `## Coverage Level` — and then runs `qualiow session finalize`, which
 validates `stats.json` against the strict schema, checks the confidentiality header on every
-artefact, scans the directory against the redaction list, appends the session row to
+artefact, scans the directory against the redaction list, re-checks a contract-2 session and
+refuses it while anything is missing or the level is stale, appends the session row to
 `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records the
 session metrics and sets `progress.json` to `complete`. It is idempotent.
 
@@ -286,12 +363,17 @@ could not fix, fix that yourself and re-run the check:
 qualiow session finalize output/sessions/<session-dir> --check
 ```
 
-`--check` writes nothing and prints a numbered list of violations naming each file. Resolve
+`--check` writes nothing and prints a numbered list of violations naming each file. A
+violation that ends "re-run `qualiow session level <dir> --write`" means the level is missing
+or stale: fix the cause, run that command, then finalize again. Resolve
 the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/references/paths.md`; if the CLI is unavailable,
-write the index rows by hand in the column order defined there.
+write the index rows by hand in the column order defined there — and since no level can be
+computed by hand, leave `contract`, `continues` and `coverage.areas` out of `stats.json` and
+say in the notes that the session has no coverage level.
 
 If sub-agents are unavailable, do the step yourself as in 2.1.0: write `session-report.md`
-from the notes in the contract's format and run `qualiow session finalize output/sessions/<session-dir>`.
+from the notes in the contract's format (with `## Coverage Level` copied from
+`evidence-level.md`) and run `qualiow session finalize output/sessions/<session-dir>`.
 
 ## Close the Browser Session
 

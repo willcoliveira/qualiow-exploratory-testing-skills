@@ -26,6 +26,16 @@ export type {
   DomainConfig,
   SeverityCounts,
   SessionMetrics,
+  SessionMetricsRecord,
+  RiskTier,
+  AreaStatus,
+  CoverageArea,
+  CoverageLevelName,
+  GapCode,
+  CoverageGap,
+  CoverageFindings,
+  CoverageLevel,
+  CoverageLevelSummary,
   BugSeverity,
   BugReport,
   ValidationError,
@@ -59,6 +69,11 @@ export {
   DomainConfigSchema,
   SeverityCountsSchema,
   SessionMetricsSchema,
+  SessionMetricsRecordSchema,
+  CoverageAreaSchema,
+  CoverageGapSchema,
+  CoverageLevelSchema,
+  CoverageLevelSummarySchema,
   KnowledgeReleaseSchema,
   KnowledgeChangelogSchema,
 } from './schemas/index.js';
@@ -77,7 +92,46 @@ export {
   appendSessionMetrics,
   appendSessionMetricsDeduped,
   readAllMetrics,
+  reduceForMetrics,
 } from './utils/metrics.js';
+export {
+  relInside,
+  isAuthPath,
+  resolveEvidence,
+  readContainedText,
+  EVIDENCE_DIRS,
+  AREA_EVIDENCE_DIRS,
+  MAX_AREAS,
+  MAX_EVIDENCE_PER_AREA,
+  MAX_EVIDENCE_TOTAL,
+} from './utils/session-paths.js';
+export type { EvidenceResult } from './utils/session-paths.js';
+
+// Session contract 2: the computed coverage level
+export {
+  parseRiskTable,
+  parseAreas,
+  evaluateContract2,
+  RISK_TABLE_HEADING,
+  CONTRACT2_KINDS,
+} from './session/contract2.js';
+export type {
+  RiskRow,
+  ContractBug,
+  Contract2Input,
+  Contract2Evaluation,
+  EvidenceResolver,
+} from './session/contract2.js';
+export {
+  computeLevel,
+  inputsDigest,
+  renderLevel,
+  renderBacklog,
+  LEVEL_DISCLAIMER,
+} from './session/coverage-level.js';
+export type { LevelArea, LevelBug, LevelInput } from './session/coverage-level.js';
+export { assessContract2 } from './session/assess.js';
+export type { Contract2Assessment, AssessContext } from './session/assess.js';
 export {
   SESSION_KINDS,
   SESSION_DIR_RE,
@@ -156,6 +210,19 @@ export { runList, readSessionIndex } from './cli/commands/list.js';
 export type { ListOptions, SessionRow } from './cli/commands/list.js';
 export { runValidate } from './cli/commands/validate.js';
 export { runKb, runKbDigest } from './cli/commands/kb.js';
+export {
+  runSessionFinalize,
+  runSessionLevel,
+  runSessionContinueCheck,
+  isSessionFinalized,
+  UNTRUSTED_OPEN,
+  UNTRUSTED_CLOSE,
+} from './cli/commands/session.js';
+export type {
+  SessionFinalizeResult,
+  SessionLevelResult,
+  SessionContinueCheckResult,
+} from './cli/commands/session.js';
 export type { KbDigestOptions } from './cli/commands/kb.js';
 export {
   runJudgeTriage,
@@ -185,7 +252,7 @@ export {
 } from './triage/client.js';
 export type { CallOptions, CallResult } from './triage/client.js';
 export { parseClaimCard, parseVerdictBlock, parseSeverityField, normaliseJudgeVerdict } from './triage/claim-parser.js';
-export { scrubForTransmission } from './triage/scrub.js';
+export { scrubForTransmission, pathOfUrl } from './triage/scrub.js';
 export type { ScrubResult } from './triage/scrub.js';
 export {
   DEFAULT_EVIDENCE_MAX_LINES,

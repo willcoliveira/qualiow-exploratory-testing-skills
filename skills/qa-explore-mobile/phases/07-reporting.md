@@ -143,6 +143,8 @@ block under `coverage.mobile` (the schema is strict; no other top-level keys):
 
 (For native mode set `"mode": "native"`, `app_under_test` to the app id, and `target_url` to null.)
 
+Never write `contract: 2`, `continues`, `coverage.areas` or `coverage_level`, and skip every step of qa-explore's phase 7 marked **explore only** (`**Area:**`, `qualiow session level`): mobile sessions stay on contract 1.
+
 ## Assemble and Finalize
 
 Invoke the `qa-reporting-agent` sub-agent (`qualiow:qa-reporting-agent` under a plugin

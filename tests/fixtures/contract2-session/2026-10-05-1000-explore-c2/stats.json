@@ -1,0 +1,106 @@
+{
+  "session_id": "2026-10-05-1000-explore-c2",
+  "kind": "explore",
+  "target": "example-shop",
+  "date": "2026-10-05",
+  "duration_min": 45,
+  "bugs_found": 3,
+  "severity_counts": {
+    "critical": 0,
+    "high": 1,
+    "medium": 1,
+    "low": 1
+  },
+  "pages_explored": 6,
+  "contract": 2,
+  "continues": null,
+  "coverage": {
+    "verification": {
+      "judged": 4,
+      "verified": 2,
+      "unverified": 1,
+      "refuted": 1,
+      "unreproducible": 0,
+      "budget_min": 15
+    },
+    "areas": [
+      {
+        "id": "A1",
+        "status": "tested",
+        "evidence": [
+          "screenshots/A1-login.png"
+        ]
+      },
+      {
+        "id": "A2",
+        "status": "tested",
+        "evidence": [
+          "screenshots/A2-checkout.png",
+          "evidence/A2-checkout-requests.txt"
+        ]
+      },
+      {
+        "id": "A3",
+        "status": "tested",
+        "evidence": [
+          "screenshots/A3-search.png"
+        ]
+      },
+      {
+        "id": "A4",
+        "status": "partial",
+        "evidence": [
+          "screenshots/A4-account.png"
+        ],
+        "reason": "password change not reached"
+      },
+      {
+        "id": "A5",
+        "status": "deferred",
+        "evidence": [],
+        "reason": "not reached in the time box"
+      }
+    ]
+  },
+  "areas_not_tested": [
+    "A5 help pages — time box"
+  ],
+  "blocked_by": null,
+  "coverage_level": {
+    "level": "qualified",
+    "tiers": {
+      "P0": "complete",
+      "P1": "complete",
+      "P2": "unassessed",
+      "P3": "unassessed"
+    },
+    "findings": {
+      "highest_shipped": "high",
+      "unverified": 1,
+      "on_p0": 1
+    },
+    "gaps": [
+      {
+        "code": "AREA_PARTIAL",
+        "area": "A4",
+        "tier": "P2"
+      },
+      {
+        "code": "AREA_DEFERRED",
+        "area": "A5",
+        "tier": "P3"
+      },
+      {
+        "code": "BUG_UNVERIFIED",
+        "area": "A4",
+        "bug": "BUG-002",
+        "tier": "P2"
+      },
+      {
+        "code": "BUG_UNMAPPED",
+        "bug": "BUG-003"
+      }
+    ],
+    "inputs_digest": "sha256:8189d7bfd7f79646193a6c83e804a257dd5a9023b2ebcbcbbcb5c039be87239f"
+  }
+}

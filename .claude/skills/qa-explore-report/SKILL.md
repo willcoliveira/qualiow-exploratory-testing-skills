@@ -45,6 +45,7 @@ directory; list the candidates if it is ambiguous.
 - `phase-7-notes.md` — the session's own summary, coverage rows, observations, recommendations and reflection; copy those sections, never invent them
 - `phase-3-discovery.md`, `phase-4-journeys.md`, `phase-5-features.md`, `phase-6-edge-cases.md` (explore and mobile sessions; quick sessions have none; backend sessions have `ac-matrix.md`, `evidence/`, `expected-behaviour.md` instead)
 - `bugs/BUG-*.md`
+- `evidence-level.md`, when it exists (a contract-2 session) — CLI-written; copied, never recomputed
 - the existing `session-report.md`, if any (its coverage map is the coverage source)
 
 Size a file before you open it (`wc -l <file>`). A phase file or a report over 300 lines is
@@ -59,7 +60,10 @@ it here.
 Map with `| Area | Risk | Status | Bugs | Notes |`, Bugs Found, Observations, Areas Not
 Tested, Recommendations, Reflection, Session Stats; mobile and backend additions preserved;
 for a session with a `verification/` directory, the `Verification` column in Bugs Found and
-`## Refuted Findings` after Session Stats, as `qa-reporting-agent` defines them).
+`## Refuted Findings` after Session Stats; for a session whose `evidence-level.md` exists,
+`## Coverage Level` right after Executive Summary holding that file's body verbatim — all as
+`qa-reporting-agent` defines them). Never run `qualiow session level` from here: the level belongs
+to the session that computed it, and the command refuses a finalized session.
 
 **summary**: a brief executive summary: target, date, duration; bug count by severity; top 3
 findings; key recommendation.

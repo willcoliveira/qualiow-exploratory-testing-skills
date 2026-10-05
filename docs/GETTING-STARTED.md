@@ -32,7 +32,7 @@ That writes:
 | the 11 skills | `.claude/skills/qa-*/` |
 | the five sub-agents | `.claude/agents/` |
 | knowledge base, domain profiles, templates, security policy | `data/knowledge/`, `data/domains/`, `data/templates/`, `data/security/` |
-| the `_default` target (add `--include-examples` for the `_example-*` templates and `testers-ai.yml`) | `data/targets/` |
+| the `_default` target (add `--include-examples` for the `_example-*` templates and the `parabank.yml` and `saucedemo.yml` demo targets) | `data/targets/` |
 | the mobile driver plus `setup-mobile.sh` and `doctor-mobile.sh`, executable | `qa/bin/` |
 | the credential template | `qa/.env.example` |
 | empty session/bug/context trees and the auth directory | `output/sessions/`, `output/bugs/`, `output/context/`, `.auth/` |
@@ -133,11 +133,13 @@ of that path needs network. A plain git checkout is described in the project REA
 
 ### Option A: explore a public site
 
-Point `/qa-explore` at any public site. A good first target is
-<https://testers.ai/testing/>, which ships as the `testers-ai` target config.
+Point `/qa-explore` at any public site. Two public demo apps ship as target configs (install
+them with `npx qualiow init --include-examples`): `parabank`, a demo online bank
+(<https://parabank.parasoft.com/>), and `saucedemo`, a small e-commerce shop
+(<https://www.saucedemo.com/>).
 
 ```bash
-/qa-explore https://testers.ai/testing/
+/qa-explore --target parabank
 ```
 
 Claude will:
@@ -151,8 +153,10 @@ Claude will:
 6. Draft one bug report per finding, then have the `qa-bug-judge` sub-agent try to refute each
    one from a fresh context; survivors go to `bugs/`, refuted candidates to `bugs/refuted/`
 7. Write `phase-7-notes.md` — the executive summary, coverage map, recommendations and
-   reflection — then hand the assembly of `session-report.md` and the
-   `qualiow session finalize <session-dir>` call to the `qa-reporting-agent` sub-agent
+   reflection — and `stats.json` with one `coverage.areas` entry per charter area, run
+   `qualiow session level <session-dir> --write` to compute the coverage level, then hand the
+   assembly of `session-report.md` and the `qualiow session finalize <session-dir>` call to
+   the `qa-reporting-agent` sub-agent
 
 The eight phases and their share of the 45-minute cap:
 
@@ -184,7 +188,7 @@ phase 7; a bug it cannot reach (model unavailable, timeout, budget spent) still 
 `Unverified`. To skip it for one run:
 
 ```bash
-/qa-explore https://testers.ai/testing/ --no-judge
+/qa-explore --target saucedemo --no-judge
 ```
 
 or set it off for a target in its YAML:
@@ -195,6 +199,20 @@ verification:
 ```
 
 With the judge off, phase 7 writes `bugs/` directly and no `verification/` directory appears.
+
+The 45-minute cap means some areas are not reached. They are not dropped: the session marks
+them `deferred` in `stats.json`, the CLI renders them into `backlog.md`, and the next session
+can start from them:
+
+```bash
+/qa-explore --target my-app --continue latest
+```
+
+`--continue` takes a session directory name or `latest`, and only a finalized session of the
+same target. The new session never opens the old one's files; it runs
+`qualiow session continue-check latest --target my-app`, which prints a fenced, redacted,
+path-only summary (risk rows, backlog, site-map paths) that is treated as data, and puts the
+backlog rows first in its charter with their IDs.
 
 ### Option B: quick check on one page
 
@@ -244,9 +262,14 @@ output/sessions/2026-09-08-1813-explore-parabank/
   verification/           # claim cards and verdicts (judge on)
   screenshots/
     BUG-001.png
+    A1-login.png          # per-area evidence, named after the charter ID
   snapshots/              # raw page snapshots — working files, never part of the report
   videos/
+  traces/                 # Playwright traces kept as evidence
+  evidence/               # any other evidence file an area or bug cites
   session-report.md       # the deliverable
+  evidence-level.md       # coverage level, written by `qualiow session level --write`
+  backlog.md              # areas not tested, rendered by the same command
   stats.json              # machine-readable session metrics
 ```
 
@@ -269,13 +292,31 @@ qualiow session finalize latest             # validate, then append the rows
 
 Finalizing twice changes nothing — the rows are appended once.
 
+Explore and quick sessions from 2.4.0 are **contract 2** (`"contract": 2` in `stats.json`), and
+finalize checks their coverage record too: a `coverage.areas` entry for every charter row,
+evidence files that exist under `screenshots/`, `videos/`, `traces/`, `logs/` or `evidence/`
+(an `A<N>-` screenshot for every tested area), a reason for every area not tested, an
+`**Area:**` line on every bug, and a coverage level that matches all of that. The level is
+computed, never typed:
+
+```bash
+qualiow session level latest            # validate and print the level
+qualiow session level latest --write    # also write evidence-level.md, backlog.md, stats.coverage_level
+```
+
+The level — `unassessed`, `incomplete`, `qualified` or `complete`, overall and per risk tier — says
+how much of the charter was covered with evidence. It is a coverage fact, never a ship
+probability or a release verdict; the findings line beside it is separate. Edit the stats, the
+charter or a bug after `--write` and finalize asks you to run it again. Sessions written before
+2.4.0, and mobile and backend sessions, are contract 1 and are checked as before.
+
 ### Bug report structure
 
 Each report opens with the confidentiality blockquote, then:
 
 - **Title** — `# BUG-NNN: [Component] fails [Condition] causing [Impact]`
 - **Severity** — Critical, High, Medium or Low (conservative by design) — plus Priority,
-  Component, URL, Environment and reproduction rate
+  Component, Area (the charter ID, explore and quick), URL, Environment and reproduction rate
 - **Summary**, **Expected Behavior**, **Actual Behavior**
 - **Steps to Reproduce** — numbered, specific enough for someone else to follow
 - **Business Impact** — revenue, trust, regulatory, data and scale. Mandatory
@@ -285,6 +326,7 @@ Each report opens with the confidentiality blockquote, then:
 ### Session report structure
 
 - Session metadata and executive summary
+- **Coverage level** (contract 2) — `evidence-level.md` copied verbatim
 - Summary stats and the bug table
 - **Coverage map** (`| Area | Risk | Status | Bugs | Notes |`) — including what was *not* tested
 - Observations that are not bugs but are worth discussing
@@ -423,7 +465,9 @@ qualiow list knowledge --stats      # also: --domain --tag --type --entry <id> -
 qualiow report -s latest -f html -o report.html   # writes output/report.html
 qualiow kb check
 qualiow kb digest --for explore     # the knowledge a session loads
+qualiow session level latest --write          # compute a contract-2 session's coverage level
 qualiow session finalize latest     # validate a finished session and index it
+qualiow session continue-check latest --target my-app   # what --continue would carry forward
 qualiow session prune --older-than 30        # dry-run; add --yes to remove
 ```
 

@@ -8,7 +8,7 @@ file: most large reads have a cheaper route that returns the same facts.
 
 | Tier | What runs there | Use it for |
 |---|---|---|
-| **0 — deterministic code** | the `qualiow` CLI (`${CLAUDE_SKILL_DIR}/references/paths.md` resolves the binary) | anything with a fixed contract: knowledge digests, index rows, `stats.json` validation, the redaction scan, session listing and archival |
+| **0 — deterministic code** | the `qualiow` CLI (`${CLAUDE_SKILL_DIR}/references/paths.md` resolves the binary) | anything with a fixed contract: knowledge digests, index rows, `stats.json` validation, the redaction scan, session listing and archival, the contract-2 coverage level, `evidence-level.md` and `backlog.md` (`qualiow session level`), and the `--continue` carry-forward (`qualiow session continue-check`) |
 | **1 — cheap-model sub-agents** | `qa-reporting-agent` (sonnet), `qa-page-mapper-agent` (haiku), `qa-diff-indexer-agent` (haiku), `qa-gather-agent` (sonnet) | bounded reads that need light judgement and return a structured digest |
 | **1b — adversarial verification** | `qa-bug-judge` (opus, effort high) | one claim card in, one verdict block out: a second opinion on a candidate bug from a context that never saw how it was found |
 | **0b — decision model (opt-in, advisory)** | `qualiow judge triage`, only when the target sets `verification.mode: triage-shadow` | probabilities over one scrubbed claim card, recorded beside the verdict and never acted on (`${CLAUDE_SKILL_DIR}/references/evidence-triage.md`) |
@@ -44,6 +44,11 @@ These stay in this session, always, whatever the tiering:
 - **AC verdicts** — `PASS`, `PARTIAL`, `FAIL`, `BLOCKED`, `NOT-REACHABLE`, `UNVERIFIABLE`
 - **The executive summary** and the recommendations
 - **The reflection** — what worried you, what you did not test, what to do next
+- **The disposition** — what the session's findings mean for shipping. The coverage level is
+  computed by the CLI and is a coverage fact, never a ship probability or a release verdict;
+  reading it as one is a judgement, and it stays here
+- **Each area's status and reason** in `coverage.areas` — the CLI checks them, it does not set
+  them
 
 A delegate that returns any of these has exceeded its brief; discard that part of its answer
 and make the call yourself.
@@ -69,6 +74,12 @@ Bounded (say the maximum size in the request), structured (a table or a fixed he
 cited (`file:line`, a ref, or a probe command), and free of opinions — no "looks fine", no
 "this is probably a bug", no severity. You then reason over its output; you never paste it
 into a report unchanged.
+
+Tier-0 output is different: it is computed, not judged. The body of `evidence-level.md` is
+copied into the report's `## Coverage Level` verbatim — by the reporting agent or by you —
+precisely so that nobody recomputes or rewords it. Never edit `evidence-level.md`,
+`backlog.md` or `stats.json` `coverage_level` by hand; change the inputs and run
+`qualiow session level <dir> --write` again.
 
 ## Thresholds
 

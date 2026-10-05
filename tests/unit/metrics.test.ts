@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, existsSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, existsSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   appendSessionMetrics,
   appendSessionMetricsDeduped,
   readAllMetrics,
+  reduceForMetrics,
 } from '../../src/utils/metrics.js';
 import type { SessionMetrics } from '../../src/types/index.js';
 
@@ -123,5 +124,68 @@ describe('readAllMetrics', () => {
     expect(appendSessionMetricsDeduped(TMP_DIR, makeMetrics({ session_id: 'dedupe' }))).toBe(true);
     expect(appendSessionMetricsDeduped(TMP_DIR, makeMetrics({ session_id: 'dedupe' }))).toBe(false);
     expect(readAllMetrics(TMP_DIR).filter((m) => m.session_id === 'dedupe')).toHaveLength(1);
+  });
+});
+
+describe('metrics.jsonl — contract-2 reduction [M2]', () => {
+  const c2 = (): SessionMetrics => ({
+    ...makeMetrics({ session_id: 'c2-1' }),
+    contract: 2,
+    continues: null,
+    coverage: {
+      checklist_total: 4,
+      areas: [
+        { id: 'A1', status: 'tested', evidence: ['screenshots/A1-login.png'] },
+        { id: 'A2', status: 'deferred', evidence: [], reason: 'billing admin not reached' },
+      ],
+    },
+    areas_not_tested: ['billing admin — time box'],
+    coverage_level: {
+      level: 'qualified',
+      tiers: { P0: 'complete', P1: 'n/a', P2: 'unassessed', P3: 'n/a' },
+      findings: { highest_shipped: 'high', unverified: 1, on_p0: 1 },
+      gaps: [{ code: 'AREA_DEFERRED', area: 'A2', tier: 'P2' }],
+      inputs_digest: `sha256:${'b'.repeat(64)}`,
+    },
+  });
+
+  it('a contract-1 line is written exactly as before', () => {
+    const m = makeMetrics({ session_id: 'c1', coverage: { areas: ['free text'] }, areas_not_tested: ['x — y'] });
+    expect(reduceForMetrics(m)).toBe(m);
+    appendSessionMetrics(TMP_DIR, m);
+    expect(readFileSync(join(TMP_DIR, 'metrics.jsonl'), 'utf-8')).toBe(`${JSON.stringify(m)}\n`);
+  });
+
+  it('a contract-2 line keeps counts by status and tier, the level, the tiers and the gap codes only', () => {
+    appendSessionMetrics(TMP_DIR, c2(), { areaTiers: { A1: 'P0', A2: 'P2' } });
+    const raw = readFileSync(join(TMP_DIR, 'metrics.jsonl'), 'utf-8');
+    for (const leak of ['billing admin', 'A1-login.png', 'screenshots/', 'inputs_digest', 'findings']) {
+      expect(raw).not.toContain(leak);
+    }
+    const line = JSON.parse(raw);
+    expect(line.areas_not_tested).toBeUndefined();
+    expect(line.coverage.checklist_total).toBe(4);
+    expect(line.coverage.areas.total).toBe(2);
+    expect(line.coverage.areas.by_status).toEqual({ tested: 1, partial: 0, blocked: 0, 'not-tested': 0, deferred: 1 });
+    expect(line.coverage.areas.by_tier.P2.deferred).toBe(1);
+    expect(line.coverage_level).toEqual({
+      level: 'qualified',
+      tiers: { P0: 'complete', P1: 'n/a', P2: 'unassessed', P3: 'n/a' },
+      gaps: ['AREA_DEFERRED'],
+    });
+  });
+
+  it('without the charter tiers there is no by_tier, and no reason leaks either', () => {
+    const line = reduceForMetrics(c2());
+    expect((line.coverage as { areas: Record<string, unknown> }).areas.by_tier).toBeUndefined();
+    expect(JSON.stringify(line)).not.toContain('billing admin');
+  });
+
+  it('a reduced line reads back, so dedupe still holds for contract-2 sessions', () => {
+    expect(appendSessionMetricsDeduped(TMP_DIR, c2())).toBe(true);
+    expect(appendSessionMetricsDeduped(TMP_DIR, c2())).toBe(false);
+    const all = readAllMetrics(TMP_DIR);
+    expect(all).toHaveLength(1);
+    expect(all[0].coverage_level).toMatchObject({ level: 'qualified', gaps: ['AREA_DEFERRED'] });
   });
 });

@@ -66,17 +66,26 @@ const KEEP_HOST_RE = /(?:^|\.)(?:example\.(?:com|org|net)|localhost)$/i;
 /** Longer than any real address; such a match is dropped whole rather than parsed. */
 const MAX_URL_CHARS = 4096;
 
-function urlToPath(url: string): string {
-  if (url.length > MAX_URL_CHARS) return '[URL]';
+/**
+ * The path of `url` alone — no scheme, host, query or fragment — or null when
+ * it does not parse. Shared with `qualiow session continue-check`.
+ */
+export function pathOfUrl(url: string): string | null {
+  if (url.length > MAX_URL_CHARS) return null;
   try {
     const parsed = new URL(url);
     // A non-special scheme (redis:, postgres:, …) can leave an authority-shaped
     // or query-shaped tail in `pathname`; neither is kept.
     const path = parsed.pathname.replace(/^\/\/[^/]*/, '').replace(/[?#].*$/, '');
-    return `[URL ${path || '/'}]`;
+    return path || '/';
   } catch {
-    return '[URL]';
+    return null;
   }
+}
+
+function urlToPath(url: string): string {
+  const path = pathOfUrl(url);
+  return path === null ? '[URL]' : `[URL ${path}]`;
 }
 
 /**

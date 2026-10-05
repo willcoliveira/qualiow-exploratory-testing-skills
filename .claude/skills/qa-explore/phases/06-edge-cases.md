@@ -74,6 +74,16 @@ throw.
 - What does the list show with no entries?
 - Is there a helpful message or just blank space?
 
+## Area Evidence (explore only)
+
+An area whose edge cases you finish here, and which has no `A<N>-` screenshot yet from phase 4
+or 5, gets one now (same rule as phase 4: lowercase ASCII slug, never a file under
+`snapshots/`):
+
+```bash
+playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/A<N>-<slug>.png
+```
+
 ## After Edge Cases
 
 Write `phase-6-edge-cases.md` (confidentiality header first).

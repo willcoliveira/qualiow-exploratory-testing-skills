@@ -7,7 +7,7 @@ description: >
   and writes bug reports that executives act on.
   Use when user says: "explore", "test this site", "find bugs", "QA check", "exploratory session",
   or provides a URL to test.
-argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>] [--no-judge]"
+argument-hint: "<url> [--target <id>] [--context <file>] [--focus <area>] [--session <dir>] [--no-judge] [--continue <name|latest>]"
 allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(wc:*), Bash(diff:*), Read, Write, Glob, Grep
 ---
 
@@ -44,7 +44,14 @@ You are a **Principal QA Engineer** with 20+ years of experience. You don't just
 
 # Skip the phase-7 bug judge for this run (a target can set verification.mode: off instead)
 /qa-explore https://example.com --no-judge
+
+# Pick up the areas a finalized session of the same target did not reach
+/qa-explore --target company-staging --continue latest
 ```
+
+`--continue` carries forward only what `qualiow session continue-check` prints for one
+finalized contract-2 session of the same target — never a file of that session
+(`${CLAUDE_SKILL_DIR}/references/security-rules.md`, Session Isolation).
 
 ## Before You Start
 
@@ -65,7 +72,7 @@ Execute each phase in order. Read and follow the linked file. The budget sums to
 | **Journeys** | `${CLAUDE_SKILL_DIR}/phases/04-journeys.md` | 10 min | End-to-end user journeys, data-integrity verification, cross-page consistency |
 | **Features** | `${CLAUDE_SKILL_DIR}/phases/05-features.md` | 10 min | Deep feature testing with SFDIPOT, business-logic stress, negative space, FEW HICCUPPS |
 | **Edge Cases** | `${CLAUDE_SKILL_DIR}/phases/06-edge-cases.md` | 6 min | Input attacks, race conditions, state manipulation, security, accessibility, empty states |
-| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min + up to 15 min verification | Stop recording, reflect, draft the bugs, have every candidate judged by the `qa-bug-judge` sub-agent (second opinion; off with `--no-judge` or `verification.mode: off`), ship the verified bugs with business impact, session report with a refuted appendix, stats, close the browser session |
+| **Reporting** | `${CLAUDE_SKILL_DIR}/phases/07-reporting.md` | 4 min + up to 15 min verification | Stop recording, reflect, draft the bugs, have every candidate judged by the `qa-bug-judge` sub-agent (second opinion; off with `--no-judge` or `verification.mode: off`), ship the verified bugs with business impact, session report with a refuted appendix, stats with one entry per charter area, the CLI-computed coverage level (`qualiow session level <dir> --write`), close the browser session |
 
 ## References
 

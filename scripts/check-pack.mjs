@@ -40,7 +40,8 @@ const MUST_INCLUDE = [
   'data/targets/_default.yml',
   'data/targets/_example-api-only.yml',
   'data/targets/_example-backend.yml',
-  'data/targets/testers-ai.yml',
+  'data/targets/parabank.yml',
+  'data/targets/saucedemo.yml',
   'docs/GETTING-STARTED.md',
   'docs/MOBILE-SETUP.md',
   'docs/BACKEND-VERIFICATION.md',
@@ -63,10 +64,10 @@ const MUST_EXCLUDE = [
   /^\.auth\//,
 ];
 
-// The POC target configs never ship.
+// The POC target configs never ship. parabank and saucedemo are the shipped demo
+// targets (MUST_INCLUDE above), so they are not on this list.
 const POC_TARGETS = [
-  'compendiumdev', 'demoqa', 'gh-users-search', 'parabank',
-  'saucedemo', 'thinking-tester', 'ultimateqa', 'webdriveruniversity',
+  'compendiumdev', 'demoqa', 'gh-users-search', 'thinking-tester', 'ultimateqa', 'webdriveruniversity',
 ];
 
 const out = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
