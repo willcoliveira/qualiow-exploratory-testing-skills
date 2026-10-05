@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { extractCoverage } from '../../src/formatters/common.js';
 import { csvEscape } from '../../src/formatters/jira-export.js';
@@ -90,5 +91,28 @@ describe('generateMarkdownSummary — canonical session', () => {
   it('starts with the confidentiality header', async () => {
     const content = await generateMarkdownSummary(CANONICAL_SESSION_DIR);
     expect(content.startsWith('> CONFIDENTIAL:')).toBe(true);
+  });
+});
+
+describe('generateMarkdownSummary — pipes in cell text', () => {
+  it('escapes a | in a bug title and a coverage cell so neither can add a column', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'qualiow-summary-'));
+    try {
+      const session = join(dir, '2026-09-08-1813-explore-example');
+      cpSync(CANONICAL_SESSION_DIR, session, { recursive: true });
+      const bug = join(session, 'bugs', 'BUG-001.md');
+      writeFileSync(bug, readFileSync(bug, 'utf-8').replace('causing [a 500 error]', 'causing [a 500 | 502 error]'));
+      const report = join(session, 'session-report.md');
+      writeFileSync(report, readFileSync(report, 'utf-8').replace(/\| Checkout \|/, '| Checkout \\| cart |'));
+
+      const content = await generateMarkdownSummary(session);
+      const bugRow = content.split('\n').find((l) => l.startsWith('| BUG-001 |')) as string;
+      expect(bugRow).toContain('500 \\| 502');
+      expect(bugRow.split(/(?<!\\)\|/).length).toBe(6);
+      const coverageRows = content.slice(content.indexOf('## Coverage')).split('\n').filter((l) => l.startsWith('| '));
+      for (const row of coverageRows) expect(row.split(/(?<!\\)\|/).length).toBe(7);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

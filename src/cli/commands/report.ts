@@ -164,14 +164,32 @@ export function resolveReportOutputPath(cwd: string, requested: string): string 
 }
 
 /**
- * Resolves `latest`, an exact directory name, or a unique substring match.
+ * Resolves `latest`, an exact directory name, a unique substring match, or a
+ * path to a directory directly under `output/sessions/` (`output/sessions/<dir>`,
+ * relative to the project, or absolute) — the form the session skills pass.
  * Throws when nothing matches or when a substring matches more than one session.
  */
-export function resolveSessionDir(sessionsDir: string, sessionId: string): string {
+export function resolveSessionDir(sessionsDir: string, requested: string): string {
+  // A tab-completed directory name ends in a slash; it names the same session.
+  const sessionId = requested.length > 1 ? requested.replace(/[\\/]+$/, '') : requested;
   const dirs = readdirSync(sessionsDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort();
+
+  if (/[\\/]/.test(sessionId)) {
+    // A path: exact match only, and only one level below output/sessions/.
+    const projectRoot = dirname(dirname(resolve(sessionsDir)));
+    const abs = resolve(projectRoot, sessionId);
+    const name = basename(abs);
+    if (dirname(abs) !== resolve(sessionsDir) || !dirs.includes(name)) {
+      throw new Error(
+        `"${sessionId}" is not a session directory directly under output/sessions/. ` +
+          'List them with: npx qualiow list sessions',
+      );
+    }
+    return join(sessionsDir, name);
+  }
 
   if (sessionId === 'latest') {
     const canonical = dirs.filter((d) => SESSION_DIR_RE.test(d));

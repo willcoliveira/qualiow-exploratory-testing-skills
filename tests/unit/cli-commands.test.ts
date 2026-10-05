@@ -86,6 +86,27 @@ describe('resolveSessionDir', () => {
     const sessionsDir = makeSessionsDir();
     expect(() => resolveSessionDir(sessionsDir, 'zzz-nope')).toThrow(/No session matches/);
   });
+
+  it('the output/sessions/<dir> path form the skills pass, relative or absolute, resolves exactly', () => {
+    const sessionsDir = makeSessionsDir();
+    const want = join(sessionsDir, '2026-09-01-1000-explore-alpha');
+    expect(resolveSessionDir(sessionsDir, 'output/sessions/2026-09-01-1000-explore-alpha')).toBe(want);
+    expect(resolveSessionDir(sessionsDir, want)).toBe(want);
+  });
+
+  it('a path that is not a directory directly under output/sessions/ throws, never matching a substring', () => {
+    const sessionsDir = makeSessionsDir();
+    for (const p of ['output/other/2026-09-01-1000-explore-alpha', 'output/sessions/../sessions/beta', 'output/sessions/alpha']) {
+      expect(() => resolveSessionDir(sessionsDir, p)).toThrow(/not a session directory directly under output\/sessions/);
+    }
+  });
+
+  it('a tab-completed trailing slash names the same session', () => {
+    const sessionsDir = makeSessionsDir();
+    const want = join(sessionsDir, '2026-09-03-1000-explore-beta');
+    expect(resolveSessionDir(sessionsDir, '2026-09-03-1000-explore-beta/')).toBe(want);
+    expect(resolveSessionDir(sessionsDir, 'output/sessions/2026-09-03-1000-explore-beta/')).toBe(want);
+  });
 });
 
 // ─── runReport ──────────────────────────────────────────────────────

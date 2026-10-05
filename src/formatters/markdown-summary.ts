@@ -11,6 +11,7 @@ import {
   extractListSection,
 } from './common.js';
 import { CONFIDENTIALITY_HEADER_MD } from '../utils/confidentiality.js';
+import { escapeTableCell } from '../utils/index-files.js';
 
 const SEVERITY_LABEL: Record<string, string> = {
   critical: 'Critical',
@@ -46,7 +47,7 @@ export async function generateMarkdownSummary(sessionDir: string): Promise<strin
     lines.push('## Bugs', '', '| ID | Severity | Component | Title |', '|---|---|---|---|');
     for (const bug of session.bugs) {
       lines.push(
-        `| ${bug.id} | ${SEVERITY_LABEL[bug.severity]} | ${bug.component || '—'} | ${bug.title} |`,
+        `| ${escapeTableCell(bug.id)} | ${SEVERITY_LABEL[bug.severity]} | ${escapeTableCell(bug.component) || '—'} | ${escapeTableCell(bug.title)} |`,
       );
     }
     lines.push('');
@@ -56,7 +57,8 @@ export async function generateMarkdownSummary(sessionDir: string): Promise<strin
   if (coverage.length) {
     lines.push('## Coverage', '', '| Area | Risk | Status | Bugs | Notes |', '|---|---|---|---|---|');
     for (const c of coverage) {
-      lines.push(`| ${c.area} | ${c.risk} | ${c.status} | ${c.bugsFound} | ${c.notes} |`);
+      const cells = [c.area, c.risk, c.status, c.bugsFound, c.notes].map(escapeTableCell);
+      lines.push(`| ${cells.join(' | ')} |`);
     }
     lines.push('');
   }
