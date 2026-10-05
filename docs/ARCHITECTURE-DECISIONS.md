@@ -1097,7 +1097,9 @@ verdict.**
   refuses the session when `coverage_level`, `evidence-level.md` or `backlog.md` is missing or
   differs from the recomputation ("re-run `qualiow session level <dir> --write`"). The digest
   covers parsed fields only — areas, tiers, and each bug's id, severity, area and verification
-  — so `finalize --redact` rewriting bug text does not invalidate it. An exception anywhere in
+  — so `finalize --redact` rewriting bug text does not invalidate it. The "To raise this level" advice
+  is generated from the gaps and left out of the comparison (2.4.1), so its wording can
+  improve without making finalized sessions stale. An exception anywhere in
   parsing or computing is a violation, never a pass. `metrics.jsonl` gets a reduced copy:
   counts per status and tier, the level and tiers, the gap codes — never a reason or an
   evidence file name.

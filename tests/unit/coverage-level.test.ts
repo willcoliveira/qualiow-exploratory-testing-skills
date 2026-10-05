@@ -194,6 +194,20 @@ describe('renderLevel', () => {
     expect(body).toContain('- BUG-002 (Low) maps to no area');
   });
 
+  it('a partial area is told to finish, not to cite a file it already cites', () => {
+    expect(body).toContain('- A3 (P2) is partial: finish it and set it to `tested`.');
+    expect(body).not.toContain('is partial: finish it, cite');
+  });
+
+  it('an unverified bug in a quick session points at a full session, not at a judge it does not have', () => {
+    const quick = mk([['P1', 'tested']], [['A1', false, 'high']], true);
+    const quickBody = renderLevel(computeLevel(quick), quick);
+    expect(quickBody).toContain(
+      '- BUG-001 (High, A1) is unverified: a quick session has no bug judge — re-check it in a full `/qa-explore` session.',
+    );
+    expect(quickBody).not.toContain('have the bug judge confirm it');
+  });
+
   it('no free text written by the session crosses into it [L3]', () => {
     expect(md).not.toContain('Feature');
     expect(md).not.toContain('time box\n'); // area reasons stay in backlog.md
