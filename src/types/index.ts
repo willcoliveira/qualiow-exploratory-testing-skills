@@ -305,7 +305,74 @@ export interface SessionMetrics {
   evidence?: Record<string, unknown>;
   areas_not_tested?: string[];
   blocked_by?: string | null;
+  /** Session contract 2 (`/qa-explore`, `/qa-explore-quick`): turns on the coverage checks. */
+  contract?: 2;
+  /** Under `--continue`: the directory NAME of the finalized session this one continues. */
+  continues?: string | null;
+  /** Written only by `qualiow session level <dir> --write`. */
+  coverage_level?: CoverageLevel;
 }
+
+// ─── Session contract 2: coverage level ──────────────────────────────
+
+export type RiskTier = 'P0' | 'P1' | 'P2' | 'P3';
+
+/** `deferred` = not reached in the time box. */
+export type AreaStatus = 'tested' | 'partial' | 'blocked' | 'not-tested' | 'deferred';
+
+/** One `stats.json` `coverage.areas[]` entry, keyed to a charter risk row by `id`. */
+export interface CoverageArea {
+  id: string;
+  status: AreaStatus;
+  evidence: string[];
+  reason?: string;
+}
+
+/** A computed coverage fact — never a ship probability or release verdict. */
+export type CoverageLevelName = 'unassessed' | 'incomplete' | 'qualified' | 'complete';
+
+export type GapCode =
+  | 'AREA_PARTIAL'
+  | 'AREA_BLOCKED'
+  | 'AREA_NOT_TESTED'
+  | 'AREA_DEFERRED'
+  | 'BUG_UNVERIFIED'
+  | 'BUG_UNMAPPED';
+
+export interface CoverageGap {
+  code: GapCode;
+  area?: string;
+  bug?: string;
+  tier?: RiskTier;
+}
+
+/** The product-state line shown beside the level, never folded into it. */
+export interface CoverageFindings {
+  highest_shipped: BugSeverity | null;
+  unverified: number;
+  on_p0: number;
+}
+
+export interface CoverageLevel {
+  level: CoverageLevelName;
+  tiers: Record<RiskTier, CoverageLevelName | 'n/a'>;
+  findings: CoverageFindings;
+  gaps: CoverageGap[];
+  /** sha256 over the parsed inputs only (areas, tiers, bug id/severity/area/verification). */
+  inputs_digest: string;
+}
+
+/** What `metrics.jsonl` keeps of a coverage level: the level, the tiers and the gap codes. */
+export interface CoverageLevelSummary {
+  level: CoverageLevelName;
+  tiers: Record<RiskTier, CoverageLevelName | 'n/a'>;
+  gaps: GapCode[];
+}
+
+/** One `metrics.jsonl` line — a contract-2 session's coverage reduced to counts. */
+export type SessionMetricsRecord = Omit<SessionMetrics, 'coverage_level'> & {
+  coverage_level?: CoverageLevel | CoverageLevelSummary;
+};
 
 // ─── Bug Report ──────────────────────────────────────────────────────
 

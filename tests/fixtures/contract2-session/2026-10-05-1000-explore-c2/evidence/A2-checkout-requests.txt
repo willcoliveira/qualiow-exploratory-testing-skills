@@ -1,0 +1,2 @@
+POST /api/cart/checkout 200 412ms
+GET /api/orders/latest 200 88ms

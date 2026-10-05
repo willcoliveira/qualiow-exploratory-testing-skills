@@ -116,3 +116,21 @@ describe('generateMarkdownSummary — pipes in cell text', () => {
     }
   });
 });
+
+describe('extractCoverage — contract-2 report', () => {
+  it('reads ## Coverage Map, not the ## Coverage Level section above it', () => {
+    const report = readFileSync(
+      join(process.cwd(), 'tests', 'fixtures', 'contract2-session', '2026-10-05-1000-explore-c2', 'session-report.md'),
+      'utf-8',
+    );
+    const coverage = extractCoverage(report);
+    expect(coverage.map((c) => c.area)).toEqual([
+      'A1 Login',
+      'A2 Checkout',
+      'A3 Search',
+      'A4 Account settings',
+      'A5 Help pages',
+    ]);
+    expect(coverage[3]).toMatchObject({ risk: 'P2', status: 'partial', bugsFound: '1' });
+  });
+});

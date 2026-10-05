@@ -11,10 +11,11 @@
  * session (`references/delegation-rules.md`).
  */
 
-import { closeSync, constants, existsSync, fstatSync, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { learnedPatternLeadIns } from '../cli/commands/kb.js';
 import { resolveDataDir } from '../utils/paths.js';
+import { isAuthPath, readCapped, readContainedText, relInside } from '../utils/session-paths.js';
 import { sanitizeProviderText } from './client.js';
 import { capForScrub, scrubForTransmission } from './scrub.js';
 import type {
@@ -147,40 +148,11 @@ export function resolveClaimLocation(cwd: string, claimFileArg: string): ClaimLo
 }
 
 // ─── Safe reads ──────────────────────────────────────────────────────
+//
+// `relInside`, `isAuthPath` and `readCapped` live in `src/utils/session-paths.ts`,
+// shared with the contract-2 evidence checks; `readCapped` is re-exported here.
 
-/** `rel` of `abs` inside `root`, '/'-separated, or null when it is not inside. */
-function relInside(root: string, abs: string): string | null {
-  const rel = relative(root, abs);
-  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
-  return rel.split(sep).join('/');
-}
-
-const isAuthPath = (p: string): boolean => p.split(/[\\/]/).includes('.auth');
-
-/**
- * Reads at most `maxBytes` of a regular file. Returns null for anything that
- * is not one (checked before opening, so a FIFO never blocks, and again on
- * the open descriptor).
- */
-export function readCapped(path: string, maxBytes: number): { text: string; partial: boolean } | null {
-  if (!statSync(path).isFile()) return null;
-  const fd = openSync(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
-  try {
-    const st = fstatSync(fd);
-    if (!st.isFile()) return null;
-    const want = Math.min(st.size, maxBytes);
-    const buf = Buffer.alloc(want);
-    let got = 0;
-    while (got < want) {
-      const n = readSync(fd, buf, got, want - got, got);
-      if (n === 0) break;
-      got += n;
-    }
-    return { text: buf.subarray(0, got).toString('utf-8'), partial: st.size > maxBytes };
-  } finally {
-    closeSync(fd);
-  }
-}
+export { readCapped };
 
 /**
  * A text file of the session read through the same containment as the
@@ -188,14 +160,7 @@ export function readCapped(path: string, maxBytes: number): { text: string; part
  * file, size cap), or null.
  */
 export function readSessionText(sessionDir: string, rel: string, maxBytes = MAX_SESSION_TEXT_BYTES): string | null {
-  try {
-    const realSession = realpathSync(sessionDir);
-    const real = realpathSync(join(sessionDir, rel));
-    if (relInside(realSession, real) === null || isAuthPath(real)) return null;
-    return readCapped(real, maxBytes)?.text ?? null;
-  } catch {
-    return null;
-  }
+  return readContainedText(sessionDir, rel, maxBytes);
 }
 
 // ─── Evidence ────────────────────────────────────────────────────────

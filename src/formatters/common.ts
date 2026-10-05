@@ -98,9 +98,13 @@ export function extractReportMeta(report: string, sessionId: string): ReportMeta
 /**
  * Extracts the coverage-map table. Accepts the canonical header
  * `| Area | Risk | Status | Bugs | Notes |` and the legacy `| Area | Status |`.
+ * `## Coverage Map` is looked up by its full name first: a contract-2 report puts
+ * `## Coverage Level` above it, and a bare `Coverage` prefix would land there.
  */
 export function extractCoverage(report: string): CoverageEntry[] {
-  const table = parseMarkdownTable(report, { headingPrefix: 'Coverage' });
+  const table =
+    parseMarkdownTable(report, { headingPrefix: 'Coverage Map' }) ??
+    parseMarkdownTable(report, { headingPrefix: 'Coverage' });
   if (!table) return [];
   return table.rows.map((row) => ({
     area: row['area'] ?? '',

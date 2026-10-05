@@ -382,3 +382,43 @@ describe('SessionMetricsSchema', () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe('SessionMetricsSchema — session contract 2 keys', () => {
+  const base = {
+    session_id: '2026-10-05-1000-explore-c2',
+    target: 'example-shop',
+    date: '2026-10-05',
+    duration_min: 45,
+    bugs_found: 0,
+    severity_counts: { critical: 0, high: 0, medium: 0, low: 0 },
+    pages_explored: 3,
+  };
+  const strict = SessionMetricsSchema.strict();
+
+  it('accepts contract 2, continues as a name or null, and no continues key at all', () => {
+    expect(strict.safeParse({ ...base, contract: 2, continues: null }).success).toBe(true);
+    expect(strict.safeParse({ ...base, contract: 2, continues: '2026-10-04-0900-explore-c2' }).success).toBe(true);
+    expect(strict.safeParse({ ...base, contract: 2 }).success).toBe(true);
+  });
+
+  it('rejects any other contract value and a continues that is a path', () => {
+    expect(strict.safeParse({ ...base, contract: 1 }).success).toBe(false);
+    expect(strict.safeParse({ ...base, contract: '2' }).success).toBe(false);
+    expect(strict.safeParse({ ...base, continues: 'output/sessions/2026-10-04-0900-explore-c2' }).success).toBe(false);
+    expect(strict.safeParse({ ...base, continues: '../2026-10-04-0900-explore-c2' }).success).toBe(false);
+  });
+
+  it('validates coverage_level strictly', () => {
+    const level = {
+      level: 'qualified',
+      tiers: { P0: 'complete', P1: 'n/a', P2: 'incomplete', P3: 'unassessed' },
+      findings: { highest_shipped: null, unverified: 0, on_p0: 0 },
+      gaps: [{ code: 'AREA_PARTIAL', area: 'A3', tier: 'P2' }],
+      inputs_digest: `sha256:${'a'.repeat(64)}`,
+    };
+    expect(strict.safeParse({ ...base, contract: 2, coverage_level: level }).success).toBe(true);
+    expect(strict.safeParse({ ...base, coverage_level: { ...level, level: 'shippable' } }).success).toBe(false);
+    expect(strict.safeParse({ ...base, coverage_level: { ...level, gaps: [{ code: 'AREA_PARTIAL', note: 'x' }] } }).success).toBe(false);
+    expect(strict.safeParse({ ...base, coverage_level: { ...level, inputs_digest: 'abc' } }).success).toBe(false);
+  });
+});

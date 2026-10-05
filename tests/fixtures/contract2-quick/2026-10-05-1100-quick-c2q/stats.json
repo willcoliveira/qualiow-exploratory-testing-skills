@@ -1,0 +1,50 @@
+{
+  "session_id": "2026-10-05-1100-quick-c2q",
+  "kind": "quick",
+  "target": "example-shop",
+  "date": "2026-10-05",
+  "duration_min": 15,
+  "bugs_found": 0,
+  "severity_counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0
+  },
+  "pages_explored": 1,
+  "contract": 2,
+  "coverage": {
+    "areas": [
+      {
+        "id": "A1",
+        "status": "tested",
+        "evidence": [
+          "screenshots/A1-search-box.png"
+        ]
+      },
+      {
+        "id": "A2",
+        "status": "tested",
+        "evidence": [
+          "screenshots/A2-results.png"
+        ]
+      }
+    ]
+  },
+  "coverage_level": {
+    "level": "qualified",
+    "tiers": {
+      "P0": "n/a",
+      "P1": "qualified",
+      "P2": "qualified",
+      "P3": "n/a"
+    },
+    "findings": {
+      "highest_shipped": null,
+      "unverified": 0,
+      "on_p0": 0
+    },
+    "gaps": [],
+    "inputs_digest": "sha256:8bdf6f98ab2acff736f0ed2afe3f43ace2754da48d35ce19af6347b02651f985"
+  }
+}

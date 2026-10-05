@@ -40,6 +40,11 @@ export {
 export {
   SeverityCountsSchema,
   SessionMetricsSchema,
+  SessionMetricsRecordSchema,
+  CoverageAreaSchema,
+  CoverageGapSchema,
+  CoverageLevelSchema,
+  CoverageLevelSummarySchema,
 } from './session-metrics.schema.js';
 
 export { KnowledgeReleaseSchema } from './knowledge-release.schema.js';
