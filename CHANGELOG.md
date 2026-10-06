@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.0] - 2026-10-06
 
 Fewer places where the session's word is taken for something the CLI can check. The ideas came
 from a read of TesterArmy's open-source e2e framework; the mechanisms are qualiow's own
