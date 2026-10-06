@@ -29,13 +29,14 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `evidence/` | explore — any other file an area or bug cites; backend — raw probe output |
 | `snapshots/*.yml` | raw accessibility trees from `playwright-cli --raw snapshot`; working files, never shipped; the session's top-level `snapshots/` is the only directory excluded from the secrets scan |
 | `phase-7-notes.md` | phase 7 (backend: phase 5) — the session's own executive summary, coverage rows, observations, areas not tested, recommendations and reflection; the input the report is assembled from |
-| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim, and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned. Under `verification.mode: triage-shadow`, also `verification/JEV-NNN.md` / `LAYA-NNN.md` (the advisory triage block) and `.json` (the exact request sent) |
+| `verification/claims/CLAIM-NNN.md`, `verification/VERDICT-NNN.md`, `verification/proposed-patterns.md` | phase 7 verification (explore) — the claim card the `qa-bug-judge` sub-agent sees, its verdict copied verbatim (reasoning before the verdict; a live re-run ends with `REPRO_COMMANDS:`, one command per line indented two spaces, the session id written `-s=<sid>`, no credential), and the false-positive patterns it proposed; `verification/drafts/BUG-NNN.md` holds each draft until its verdict sorts it and is then left as a working file. All header-first, all secret-scanned. Under `verification.mode: triage-shadow`, also `verification/JEV-NNN.md` / `LAYA-NNN.md` (the advisory triage block) and `.json` (the exact request sent) |
 | `bugs/refuted/BUG-NNN.md` | phase 7 — a candidate the judge REFUTED or found UNREPRODUCIBLE, with the verdict under `## Refutation (Judge)`. Excluded from `bugs_found`, the index rows and `## Bugs Found`; listed only in `## Refuted Findings` |
 | `bugs/BUG-NNN.md` | phase 7 |
 | `session-report.md` | the `qa-reporting-agent` sub-agent, from `phase-7-notes.md`, the bugs, `stats.json` and the phase files (quick sessions write it directly) |
 | `stats.json` | phase 7 |
 | `evidence-level.md` | contract 2 only — written by `qualiow session level <dir> --write`, never by hand: the coverage level overall and per risk tier, the findings line, the gaps and the "To raise this level" list. Its body is copied verbatim into the report's `## Coverage Level` |
 | `backlog.md` | contract 2 only — rendered by the same command from the `coverage.areas` entries that are not `tested`; never hand-written. The only part of a session `--continue` carries forward, through `qualiow session continue-check` |
+| `evidence-manifest.json` | every session kind — written by `qualiow session finalize` on each passing run, never by hand: `{ "generated_by": "qualiow session finalize", "files": [{ "path", "size", "sha256", "scan" }] }`, one entry per file under `screenshots/`, `videos/`, `traces/`, `logs/` and `evidence/`, sorted by path. `scan` is `text-clean` (a text file that passed the secret scan) or `binary-not-scanned` (images, video, archives such as a trace — nobody has vouched for their contents). A record of what was there and what was checked, not a signature |
 | mobile: `logs/BUG-NNN.log` · backend: `ac-matrix.md`, `evidence/`, `probes/`, `expected-behaviour.md` | as produced |
 
 The coverage map lives inside `session-report.md`. There is no separate session-level
@@ -95,6 +96,7 @@ or `evidence/` and nowhere else. `snapshots/` and `.auth/` are never evidence.
 - Judge repro result: <one line>
 - Severity: <original X → final Y — only when adjusted>
 - Full verdict: `../verification/VERDICT-NNN.md`
+- Replay: `../verification/VERDICT-NNN.md` (REPRO_COMMANDS) (only when the verdict carries a `REPRO_COMMANDS:` list)
 - Triage (advisory): <predicted verdict> · <ROUTE> · P(refuted)=<x> — `../verification/JEV-NNN.md` (only under `triage-shadow`)
 ```
 
@@ -102,6 +104,24 @@ The `**Verification:**` line and the `## Verification` section are present only 
 session ran the adversarial judge (`/qa-explore` does unless verification is `off`). A bug
 under `bugs/refuted/` carries `**Verification:** Refuted` or `Unreproducible` and, instead of
 `## Verification`, a `## Refutation (Judge)` section holding the verdict block verbatim.
+The judge's commands stay in the verdict file; the `Replay:` line points at them and nothing
+copies them into the bug.
+
+`qualiow session finalize` cross-checks these lines against `verification/VERDICT-NNN.md`
+(found through the `Full verdict:` link, else by the bug's number) and refuses the session
+when:
+
+- a bug in `bugs/` says `Verified…` and its verdict file is missing, or is not CONFIRMED or
+  CONFIRMED-ADJUSTED — unless the line says `judge overruled`, which needs the file to exist
+  and nothing more;
+- a bug in `bugs/` says `Verified…` and the session has no `verification/` directory;
+- a bug in `bugs/refuted/` says `Refuted` without a REFUTED verdict, or `Unreproducible`
+  without an UNREPRODUCIBLE one;
+- any `verification/VERDICT-*.md` does not parse to a known verdict, or carries a `METHOD`
+  other than `live-repro` / `evidence-only` or a `CONFIDENCE` other than `high` / `medium` /
+  `low`.
+
+`Unverified (…)` bugs are not cross-checked: they make the conservative claim.
 
 The `**Area:**` line is present only in a contract-2 session (`/qa-explore`,
 `/qa-explore-quick`): the ID of the charter risk row the bug was found in, or `none`. It never
@@ -273,8 +293,10 @@ removed.
 Every session ends by appending one row to `output/sessions/INDEX.md` and one row per bug
 to `output/bugs/all-bugs.md`. Both rows are written by `qualiow session finalize <session-dir>`,
 which refuses the session — exit 1, naming the file — when an artefact is missing the
-confidentiality header, an unredacted secret survives the scan, or `stats.json` does not
-conform; for a contract-2 session also when an area, its evidence or a bug's `**Area:**` fails
+confidentiality header, an unredacted secret survives the scan — including the literal value,
+or an encoded form of it, of a credential variable the target names (the violation names the
+variable, never the value) — a bug's `**Verification:**` line disagrees with its verdict file
+(above), or `stats.json` does not conform; for a contract-2 session also when an area, its evidence or a bug's `**Area:**` fails
 the checks above, or the level is missing or stale ("re-run
 `qualiow session level <dir> --write`"). The column order (defined once in `paths.md`) is:
 

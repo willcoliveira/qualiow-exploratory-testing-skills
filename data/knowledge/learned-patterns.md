@@ -41,6 +41,40 @@ disqualifier before filing any of these.
   *Disqualifier: no acceptance criterion, spec or design covers it, and both behaviours are
   defensible.*
 
+## UI False Positive Patterns (rule out before drafting)
+
+What a browser session misreads most often. Each one looks exactly like a defect in a snapshot
+or a single screenshot; rule it out before a draft or a claim card is written.
+
+- **"The link does nothing"**: a link with `target="_blank"` opens a new tab and leaves the
+  current page as it was. Run `tab-list` before calling it dead. *Disqualifier: a new tab
+  opened on the expected URL.* A missing new-tab cue for screen-reader users can still be a
+  separate accessibility finding.
+- **"The control has no accessible name / the label is cut short"**: a label with an inline link
+  inside it ("I agree to the *Terms* and the *Privacy Policy*") reaches the accessibility tree
+  in pieces, text and links as separate nodes. *Disqualifier: the fragments either side of the
+  inline link add up to the full label on the screen.*
+- **"Items are missing from the list"**: an infinite-scroll list loads the next page only when
+  its "Loading more" sentinel enters the viewport, and a snapshot taken at the top shows the
+  first page alone. *Disqualifier: scrolling the sentinel into view, and waiting, loads the
+  rest.* Count again after the last page before claiming anything is absent.
+- **"Images are broken"**: lazy-loaded images below the fold have not been requested yet, so
+  they read as empty or zero-width. *Disqualifier: once scrolled into view the image loads,
+  with a successful response.* An image that stays empty in view, or a failed request, is real.
+- **"The page is dead"**: the first request to a development server can wait while the route
+  compiles on demand, and arrive as a blank page, a timeout or a transient error. *Disqualifier:
+  a reload a few seconds later renders normally.* A slow first load matters only where users
+  get one; say which environment it was.
+- **"My data changed on its own"**: two sessions sharing one account — parallel runs, a
+  teammate, a second browser on the same login — edit each other's data. *Disqualifier: the
+  change matches what the other session did on the same account.* Give every concurrent
+  session its own account; a genuine cross-account leak is a different and much worse finding.
+- **"The app shows an error page"**: a web application firewall, bot challenge or rate-limit
+  interstitial ("checking your browser", a captcha, an edge `403`) is served by the
+  infrastructure in front of the app, not by the app. *Disqualifier: the response carries the
+  edge's markup or headers rather than the application's, and the same request passes from an
+  ordinary browser.* Record it as an environment blocker that limits coverage, not as a defect.
+
 ## Triage and Re-Verification Patterns
 
 - **"Closed: no legitimate user vector" is a hypothesis to falsify, not a fact.** When a bug is
