@@ -156,6 +156,57 @@ More residual risks from the plan review and the implementation review were acce
 
 ---
 
+## ISSUE-005: Mobile in-app login still has the model type the password
+
+**Status:** Open
+**Impact:** `/qa-explore-mobile` in native mode, when the target's `auth.strategy` logs in with
+a password inside the app
+
+On the web, the password no longer passes through the model: `qualiow auth fill` reads the
+variable named by `auth.credentials.password`, runs `playwright-cli fill` itself and redacts
+the value from what it prints, and the write guard denies any file under `output/` that carries
+the value of a credential variable from `qa/.env` or `.env`. The mobile driver has no
+equivalent. A native in-app login is driven with `qa/bin/mcli fill <ref> "<value>"`, so the
+value is read by the model, appears in the command line and in the transcript, and is only
+kept out of session output by the write guard and the finalize scan.
+
+The web branch of `/qa-explore-mobile` is not affected — a human completes the identity
+provider's login on the device — and neither is an app that signs in by e-mail and a static
+OTP. The fix is an `mcli` counterpart to `auth fill` (read the variable, run the Maestro input
+step, mask the echo) plus secure-field masking in the snapshot; both are deferred.
+
+The web token strategy (`auth.strategy: token`, `cookie-set` / `localstorage-set` in
+`qa-explore/phases/01-auth.md`) is the same gap on the web side: `auth fill` covers form fields
+only, so the token value is still read and typed by the model.
+
+---
+
+## Hardening after 2.4.1 (unreleased, ADR-016): what it closes and what it leaves
+
+Credential values, the verdict cross-check and the evidence manifest change some of the
+entries above. The entries themselves are left as written; this is the current reading.
+
+| Entry | Now |
+|---|---|
+| ISSUE-004 — "Self-asserted state" | **Narrowed.** `finalize` refuses a `Verified` bug whose verdict file is missing or not CONFIRMED / CONFIRMED-ADJUSTED (unless `judge overruled`), and a refuted file whose verdict disagrees. Still open: the session writes `VERDICT-NNN.md` itself, by copying the judge's block, so nothing proves a verdict file came from the judge; and the rest of that row (any non-empty `A<N>-` file, `INDEX.md` as the finalized marker) stands |
+| ISSUE-004 — "Percent-encoded secrets and `redact()`" | **Narrowed for credentials.** The value scan matches the target's credential values literal, URI-encoded, form-encoded, JSON-escaped and base64-encoded, wherever they sit. Tokens the target does not name still depend on the pattern list and its word-boundary gap |
+| Hardening backlog — "Signed session reports" | **Still open.** `evidence-manifest.json` records each evidence file's size and SHA-256 at finalize. It shows what was there and what the scan read; it is not a signature, and a later edit to the files or to the manifest is not prevented |
+| ISSUE-003 / "Benchmark suite" | **Still open.** The judge's reasoning-first order, its repeated-value rule and the finder's rule-out list have no measured effect until a planted-bug benchmark exists |
+
+New residual risks:
+
+| Item | Residual risk |
+|---|---|
+| Short or unnamed credentials | Values under six characters, and variables that neither the target config nor the default list (`QA_PASS`, `QA_TOKEN`, `QA_API_TOKEN`) names, are not scanned for by value in `finalize`. The write guard's name rule (`…PASS`, `…PASSWORD`, `…TOKEN`, `…SECRET`, `…API_KEY`, `…_KEY`) covers more of `.env`, at write time only |
+| Binary evidence | Screenshots, video and trace archives are listed `binary-not-scanned`. A password typed into an unmasked field, or a token inside a trace, is not detected — the label says so, nothing prevents it |
+| Older sessions | A finalized 2.4.x session that holds a credential value in the clear now fails `finalize --check`, and so `--continue` from it. `finalize --redact` rewrites the files |
+| `REPRO_COMMANDS` replay | The commands are the judge's own run with `-s=<sid>` as a placeholder; refs are only valid against the snapshot before them, so a replay against a changed page can drift. It is a record, not a test |
+
+Deferred with ADR-016: the planted-bug benchmark, a loop guard in the bash guard, a closed list
+of `blocked` reasons, and secure-field masking on mobile (ISSUE-005).
+
+---
+
 ## Security review 2026-10-04 (shipped in 2.3.1)
 
 A pen-test style review of the 2.3.0 changes (judge #23, triage #24, the `WK_PAGE_FILTER` fix)

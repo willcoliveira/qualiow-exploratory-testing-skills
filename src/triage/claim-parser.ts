@@ -97,6 +97,27 @@ export function parseSeverityField(raw: string | undefined): string | null | und
   return any ? capSeverity(any[1]) : null;
 }
 
+/**
+ * `REPRO_COMMANDS:` — the one multi-line field: a command written on the key's own line,
+ * then every following line indented by whitespace, up to the first line that is not
+ * (the next `KEY:`, or the end of the block). Blank lines between commands are skipped.
+ * Fields are looked up by name, never by position, so the block parses in any order.
+ */
+function multiLineField(body: string, key: string): string[] | undefined {
+  const lines = body.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.startsWith(`${key}:`));
+  if (start === -1) return undefined;
+  const out: string[] = [];
+  const inline = lines[start].slice(key.length + 1).trim();
+  if (inline) out.push(inline);
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    if (!/^[ \t]/.test(line)) break;
+    out.push(line.trim());
+  }
+  return out;
+}
+
 export function parseVerdictBlock(content: string): ParsedVerdict {
   const fence = /```[a-z]*\r?\n([\s\S]*?)```/.exec(content);
   const body = fence ? fence[1] : content;
@@ -106,6 +127,7 @@ export function parseVerdictBlock(content: string): ParsedVerdict {
   };
   const verdictRaw = get('VERDICT') ?? '';
   const severityRaw = get('SEVERITY');
+  const reproCommands = multiLineField(body, 'REPRO_COMMANDS');
   return {
     verdict: normaliseJudgeVerdict(verdictRaw),
     verdictRaw,
@@ -117,5 +139,6 @@ export function parseVerdictBlock(content: string): ParsedVerdict {
     reproResult: get('REPRO_RESULT'),
     reasoning: get('REASONING'),
     falsePositivePattern: get('FALSE_POSITIVE_PATTERN'),
+    ...(reproCommands === undefined ? {} : { reproCommands }),
   };
 }

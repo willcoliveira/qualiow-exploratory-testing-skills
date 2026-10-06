@@ -124,6 +124,65 @@ describe('parseVerdictBlock', () => {
     expect(v.severity).toBe('Medium');
     expect(v.method).toBe('evidence-only');
   });
+
+  it('an old block has no reproCommands at all', () => {
+    expect(parseVerdictBlock(read('VERDICT-101.md'))).not.toHaveProperty('reproCommands');
+    expect(parseVerdictBlock(read('VERDICT-103.md'))).not.toHaveProperty('reproCommands');
+  });
+
+  it('reads the reasoning-first order with REPRO_COMMANDS last', () => {
+    const v = parseVerdictBlock(
+      [
+        '> CONFIDENTIAL: header',
+        '',
+        '```',
+        'METHOD: live-repro',
+        'REPRO_RESULT: Reproduced 2/2: the default flag moved to the new card.',
+        'REASONING: Saved a second card and reloaded; no card carried the default badge.',
+        'VERDICT: CONFIRMED',
+        'CONFIDENCE: high',
+        'SEVERITY: agree with claimed High',
+        'REPRO_COMMANDS:',
+        '  playwright-cli -s=<sid> open https://example.com/account/payment-methods',
+        '  qualiow auth fill --session <sid> --ref e12 --env QA_PASS',
+        '',
+        '  playwright-cli -s=<sid> snapshot',
+        '```',
+      ].join('\n'),
+    );
+    expect(v.verdict).toBe('CONFIRMED');
+    expect(v.method).toBe('live-repro');
+    expect(v.confidence).toBe('high');
+    expect(v.severity).toBe('High');
+    expect(v.reasoning).toContain('default badge');
+    expect(v.reproCommands).toEqual([
+      'playwright-cli -s=<sid> open https://example.com/account/payment-methods',
+      'qualiow auth fill --session <sid> --ref e12 --env QA_PASS',
+      'playwright-cli -s=<sid> snapshot',
+    ]);
+  });
+
+  it('REPRO_COMMANDS ends at the next unindented line, and keeps a command on its own line', () => {
+    const v = parseVerdictBlock(
+      [
+        '```',
+        'VERDICT: CONFIRMED',
+        'REPRO_COMMANDS: playwright-cli -s=<sid> open https://example.com/',
+        '  playwright-cli -s=<sid> click e4',
+        'FALSE_POSITIVE_PATTERN: none',
+        '```',
+      ].join('\n'),
+    );
+    expect(v.reproCommands).toEqual([
+      'playwright-cli -s=<sid> open https://example.com/',
+      'playwright-cli -s=<sid> click e4',
+    ]);
+    expect(v.falsePositivePattern).toBe('none');
+  });
+
+  it('an empty REPRO_COMMANDS field is an empty list, not missing', () => {
+    expect(parseVerdictBlock('```\nVERDICT: REFUTED\nREPRO_COMMANDS:\n```\n').reproCommands).toEqual([]);
+  });
 });
 
 describe('parseSeverityField / normaliseJudgeVerdict', () => {

@@ -8,6 +8,10 @@
  * session under contract 2 it also refuses one whose areas, evidence or bug areas fail
  * the contract, or whose coverage level is missing or stale.
  *
+ * A passing finalize also cross-checks every bug's `**Verification:**` line against the
+ * judge's verdict file, scans for the target's own credential values as well as for
+ * secret-shaped text, and writes `evidence-manifest.json`.
+ *
  * `level` computes that coverage level and, with `--write`, writes it — the only writer
  * of `evidence-level.md`, `backlog.md` and `stats.json` `coverage_level`.
  * `continue-check` is the only path by which one session's output reaches another.
@@ -61,6 +65,13 @@ import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
 import { backlogCell, levelFacts } from '../../session/coverage-level.js';
 import { pathOfUrl, scrubForTransmission } from '../../triage/scrub.js';
+import { checkVerdicts } from '../../session/verdict-check.js';
+import {
+  EVIDENCE_MANIFEST_FILE,
+  buildEvidenceManifest,
+  renderEvidenceManifest,
+} from '../../session/evidence-manifest.js';
+import { collectSecretValues } from '../../utils/secret-values.js';
 import type { CoverageLevel, RiskTier, SessionMetrics } from '../../types/index.js';
 
 type Log = (line: string) => void;
@@ -76,11 +87,11 @@ export function sessionCommand(): Command {
   cmd
     .command('finalize')
     .description(
-      'Validate a session (confidentiality header, no secrets, stats.json shape) and append its INDEX.md / all-bugs.md rows',
+      'Validate a session (confidentiality header, no secrets or credential values, stats.json shape, judge verdicts), write evidence-manifest.json and append its INDEX.md / all-bugs.md rows',
     )
     .argument('<dir>', 'Session directory name, a unique substring, or "latest"')
     .option('--check', 'Validate only; write nothing', false)
-    .option('--redact', 'Rewrite files containing secrets with the redacted text', false)
+    .option('--redact', 'Rewrite files containing secrets or credential values with the redacted text', false)
     .action(async (dir: string, options: { check: boolean; redact: boolean }) => {
       try {
         const result = await runSessionFinalize(dir, options, { cwd: process.cwd() });
@@ -226,6 +237,8 @@ export interface SessionFinalizeResult {
   redactedFiles?: RedactedFile[];
   indexRowAdded?: boolean;
   bugRowsAdded?: string[];
+  /** True when `evidence-manifest.json` was written (a passing, non-`--check` run). */
+  evidenceManifestWritten?: boolean;
 }
 
 export async function runSessionFinalize(
@@ -276,6 +289,12 @@ export async function runSessionFinalize(
     }
   }
 
+  // The target's own credential values, resolved once from the env var NAMES its config
+  // declares. A typed password has no shape the pattern rules could catch. Values stay
+  // in memory: a violation names the category, never the variable or the value.
+  const targetId = stats?.target ?? (typeof raw?.target === 'string' ? raw.target : undefined);
+  const secretValues = collectSecretValues(cwd, targetId);
+
   // 2. every *.md under the session dir must start with the confidentiality header.
   const walk = walkSession(sessionDir);
   for (const v of walk.violations) violations.push(v);
@@ -290,11 +309,17 @@ export async function runSessionFinalize(
   // 3. no secrets in any text file, whatever its extension, except under the
   // session's own top-level snapshots/ (raw page trees, never shipped). Text is told
   // from binary by content, so renaming a file does not take it out of the scan.
+  // evidence-manifest.json is finalize's own output — paths and hashes, where a 13-digit
+  // timestamp in a file name reads as a card number — and is held to the exact content
+  // finalize would write instead (step 6).
+  const textFiles = new Set<string>();
   for (const { path: file, rel } of walk.files) {
     if (rel.split(sep)[0] === 'snapshots') continue;
+    if (rel === EVIDENCE_MANIFEST_FILE) continue;
     const size = statSync(file).size;
     const encoding = sniffTextEncoding(file);
     if (encoding === null) continue;
+    textFiles.add(file);
     if (size > MAX_SCAN_BYTES) {
       violations.push(
         `${rel} is a ${formatBytes(size)} text file, over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — ` +
@@ -304,9 +329,9 @@ export async function runSessionFinalize(
     }
     const raw = readFileSync(file);
     const content = decodeText(raw, encoding);
-    if (!containsSecrets(content)) continue;
+    if (!containsSecrets(content, { values: secretValues })) continue;
 
-    const { text, redactions } = redact(content);
+    const { text, redactions } = redact(content, { values: secretValues });
     if (options.redact) {
       writeFileSync(file, encodeText(text, encoding, raw));
       redactedFiles.push({ file: rel, categories: redactions });
@@ -316,7 +341,12 @@ export async function runSessionFinalize(
     }
   }
 
-  // 4. session contract 2 — only on a stats.json that passed the schema.
+  // 4. verdict cross-check — only in a session that ran the bug judge (a verification/
+  // directory, or a bug with a **Verification:** line): Verified needs a CONFIRMED or
+  // CONFIRMED-ADJUSTED verdict on file, a refuted bug the verdict that refuted it.
+  violations.push(...checkVerdicts(sessionDir));
+
+  // 5. session contract 2 — only on a stats.json that passed the schema.
   let areaTiers: Record<string, RiskTier> | undefined;
   if (stats && raw) {
     const contract = await checkContract2ForFinalize(sessionDir, sessionsDir, raw, stats.kind);
@@ -324,14 +354,40 @@ export async function runSessionFinalize(
     areaTiers = contract.areaTiers;
   }
 
+  // 6. evidence-manifest.json — CLI-written only. A file that is not a regular one is
+  // refused rather than written through; under --check an existing manifest must be
+  // exactly what this run would write, so an edit made after finalize is caught.
+  const manifestPath = join(sessionDir, EVIDENCE_MANIFEST_FILE);
+  const manifestState = regularFileState(manifestPath);
+  if (manifestState === 'other') {
+    violations.push(`${EVIDENCE_MANIFEST_FILE} is not a regular file — remove it; finalize writes it`);
+  }
+
   if (violations.length > 0) {
     return { ok: false, violations, sessionDir, redactedFiles };
   }
 
+  // The secret scan has passed, so every text file in it is clean.
+  const manifestText = renderEvidenceManifest(buildEvidenceManifest(walk.files, (p) => textFiles.has(p)));
+
   if (options.check) {
+    if (manifestState === 'file' && readFileSync(manifestPath, 'utf-8') !== manifestText) {
+      return {
+        ok: false,
+        violations: [
+          `${EVIDENCE_MANIFEST_FILE} is stale or edited by hand — it does not match the evidence on disk; ` +
+            `re-run \`qualiow session finalize ${dirName}\``,
+        ],
+        sessionDir,
+        redactedFiles,
+      };
+    }
     log(chalk.green(`  ✓ ${dirName} passes finalize checks (--check — nothing written)`));
     return { ok: true, violations: [], sessionDir, redactedFiles };
   }
+
+  // Written before any index row, so a refused write leaves the indexes untouched.
+  writeFileGuarded(manifestPath, manifestText);
 
   // stats is guaranteed defined here: an undefined stats always pushes a violation above.
   const finalStats = stats as SessionMetrics;
@@ -405,7 +461,26 @@ export async function runSessionFinalize(
   if (indexRowAdded) log(chalk.white('    INDEX.md row appended'));
   if (bugRowsAdded.length) log(chalk.white(`    all-bugs.md rows appended: ${bugRowsAdded.join(', ')}`));
 
-  return { ok: true, violations: [], sessionDir, redactedFiles, indexRowAdded, bugRowsAdded };
+  return {
+    ok: true,
+    violations: [],
+    sessionDir,
+    redactedFiles,
+    indexRowAdded,
+    bugRowsAdded,
+    evidenceManifestWritten: true,
+  };
+}
+
+/** `absent`, a regular single-link `file`, or `other` (a link, a directory, a hard link). */
+function regularFileState(path: string): 'absent' | 'file' | 'other' {
+  let st: ReturnType<typeof lstatSync>;
+  try {
+    st = lstatSync(path);
+  } catch {
+    return 'absent';
+  }
+  return st.isFile() && st.nlink === 1 ? 'file' : 'other';
 }
 
 // ─── contract 2 ─────────────────────────────────────────────────────

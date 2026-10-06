@@ -1,5 +1,74 @@
 # Changelog
 
+## [Unreleased]
+
+Fewer places where the session's word is taken for something the CLI can check. The ideas came
+from a read of TesterArmy's open-source e2e framework; the mechanisms are qualiow's own
+(ADR-016).
+
+**Upgrading**
+
+- npm projects: run `npx qualiow init --force` for the new phase files, the judge and the
+  reporting agent, and `npx qualiow init --hooks` again for the write guard's credential-value
+  check. Plugin installs update as a whole.
+- A finalized session that holds a credential value in the clear now fails
+  `qualiow session finalize --check`, and so cannot be continued from with `--continue`;
+  `finalize --redact` rewrites the files.
+- Older verdict blocks still parse: fields are read by name, and `REPRO_COMMANDS:` is optional.
+
+### Security
+
+- **`qualiow auth fill --session <sid> --ref <ref> --env <NAME>`.** Types the value of an env
+  var (environment, then `qa/.env`, then `.env`) into a page field through `playwright-cli`, so
+  a password never passes through the model or into the transcript. Its output is redacted;
+  exit 2 names a missing variable and never shows a value. It types only a login credential the
+  target declares (`auth.credentials`, `auth.token`, or `QA_USER`/`QA_PASS`/`QA_TOKEN`), never an
+  API or cloud key, whatever the page asks for. Web logins (`/qa-explore` phase 1,
+  which `/qa-explore-quick` follows, and `/qa-target-setup`) use it for the password. Mobile still types the password through the model (ISSUE-005).
+- **Credential values are scanned for by value.** `finalize` checks every artefact for the
+  literal value of each credential variable the target names (plus `QA_PASS`, `QA_TOKEN` and
+  `QA_API_TOKEN`), and for its URI, form, JSON-escaped and base64 encodings, not only for the
+  redaction list's patterns. The write guard denies a file under `output/` that carries such a
+  value. A violation names the variable, never the value. Values under six characters are not
+  scanned for.
+
+### Added
+
+- **Verdict cross-check in `qualiow session finalize`.** A bug marked `Verified` needs a
+  CONFIRMED or CONFIRMED-ADJUSTED verdict file (any verdict when the line says
+  `judge overruled`); a file in `bugs/refuted/` needs the REFUTED or UNREPRODUCIBLE verdict its
+  line names; every verdict file must parse to a known verdict, method and confidence.
+  `Unverified (…)` bugs are not checked.
+- **`evidence-manifest.json`.** Every passing finalize lists each file under `screenshots/`,
+  `videos/`, `traces/`, `logs/` and `evidence/` with its size, SHA-256 and `scan` —
+  `text-clean`, or `binary-not-scanned` for images, video and trace archives the secret scan
+  cannot read. CLI-written, never by hand; a record, not a signature.
+- **`REPRO_COMMANDS:` in the judge's verdict.** After a live re-run the judge lists the
+  commands it ran, one per line, with `-s=<sid>` as a placeholder and a password step written
+  as `qualiow auth fill …`. A shipped bug's `## Verification` points at it with a `Replay:`
+  line.
+- **Seven UI false-positive patterns** in `data/knowledge/learned-patterns.md` — a link that
+  opened a new tab, a label split around an inline link, an infinite list never scrolled, lazy
+  images, a dev server compiling, two sessions on one account, a firewall or bot-challenge
+  page — and a rule-out step before a bug is drafted in `/qa-explore` phase 7 and in
+  `/qa-explore-quick`.
+
+### Changed
+
+- **The judge writes its reasoning before its verdict.** The block order is `METHOD`,
+  `REPRO_RESULT`, `REASONING`, then `VERDICT`, `CONFIDENCE`, `SEVERITY`,
+  `FALSE_POSITIVE_PATTERN`, `REPRO_COMMANDS`. A value the claim says is wrong in one place is no
+  longer refuted by the same value being right in another: one wrong copy confirms. The
+  "calibrated, not default refuted" standard is unchanged.
+- `output-contract.md`, phase 7, `/qa-explore-quick`, `qa-reporting-agent`, CLAUDE.md and
+  GETTING-STARTED describe the new checks, the manifest and the `Replay:` line.
+
+### Deferred (next release)
+
+- A planted-bug benchmark to measure the judge and the rule-out step (ISSUE-003).
+- A loop guard in the bash guard, a closed list of `blocked` reasons, and secure-field masking
+  on mobile.
+
 ## [2.4.1] - 2026-10-05
 
 Fixes from the first live contract-2 session.

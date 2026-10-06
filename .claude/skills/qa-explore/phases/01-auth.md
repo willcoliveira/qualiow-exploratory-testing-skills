@@ -14,18 +14,28 @@ credentials when the login page appears.
 
 ## Credentials (adaptive: uses snapshot to find form fields)
 
-Resolve the values named by `auth.credentials.username` / `auth.credentials.password` in the
-order from `${CLAUDE_SKILL_DIR}/references/paths.md` (`qa/.env`, then `.env`). Read the value,
-pass it to the command, and never echo it into the log or the report.
+`auth.credentials.username` and `auth.credentials.password` name env vars, resolved in the
+order from `${CLAUDE_SKILL_DIR}/references/paths.md` (environment, `qa/.env`, then `.env`).
+The username is not a secret and may be filled as a literal; it is often an email address,
+which the redaction list still replaces in anything written to `output/`. The password is
+**never read and never typed by you**: `qualiow auth fill` reads the variable named by
+`auth.credentials.password`, fills the field through playwright-cli itself and prints the
+result with the value redacted. Pass it the session id, not the `-s=` flag, and the target id:
+it types only a variable the target declares as a login credential (`auth.credentials`,
+`auth.token`, or `QA_USER`/`QA_PASS`/`QA_TOKEN`), so a page that asks for anything else gets
+nothing.
 
 ```bash
 playwright-cli open <login_url>
 playwright-cli snapshot
 playwright-cli fill <email_ref> "<username value>"
-playwright-cli fill <pass_ref> "<password value>"
+qualiow auth fill --session <sid> --ref <pass_ref> --env <the NAME from auth.credentials.password> --target <target id>
 playwright-cli click <submit_ref>
 playwright-cli state-save .auth/<target>.json
 ```
+
+Exit 2 means the variable is not set: say which one and stop the credentials path — never
+ask for the value in the conversation.
 
 ## Token (`auth.strategy: token`)
 

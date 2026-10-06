@@ -270,6 +270,7 @@ output/sessions/2026-09-08-1813-explore-parabank/
   session-report.md       # the deliverable
   evidence-level.md       # coverage level, written by `qualiow session level --write`
   backlog.md              # areas not tested, rendered by the same command
+  evidence-manifest.json  # every evidence file with size and SHA-256, written by finalize
   stats.json              # machine-readable session metrics
 ```
 
@@ -281,8 +282,13 @@ Plus, at the top level:
 
 Both are written by `qualiow session finalize`, which the session runs as its last step. It
 checks the session against the output contract first — a confidentiality header on every
-markdown file, `stats.json` in the metrics shape, no unredacted secret anywhere — and refuses
-to append rows until the violations it lists are fixed. Run it by hand at any time:
+markdown file, `stats.json` in the metrics shape, no unredacted secret anywhere (including the
+literal value of a credential variable such as `QA_PASS`, named by variable, never printed),
+and, when the bug judge ran, every bug's `**Verification:**` line agreeing with its verdict
+file — and refuses to append rows until the violations it lists are fixed. A passing run also
+writes `evidence-manifest.json`: every file under `screenshots/`, `videos/`, `traces/`,
+`logs/` and `evidence/` with its size, SHA-256 and whether the secret scan read it
+(`text-clean`) or could not (`binary-not-scanned`). Run it by hand at any time:
 
 ```bash
 qualiow session finalize latest --check     # report violations, write nothing
@@ -419,6 +425,12 @@ QA_AWS_REGION=eu-west-1
 QA_API_TOKEN=...            # only for a target declaring api.auth: bearer-env
 EXAMPLE_API_KEY=...         # a no-UI service names its own variable; see _example-api-only.yml
 ```
+
+A web session types the password with `qualiow auth fill --session <sid> --ref <ref> --env QA_PASS --target <id>`,
+which reads the value itself and fills the field through `playwright-cli`, so the value never
+passes through the model or into the transcript. `finalize` refuses a session that has the
+literal value of a credential variable anywhere in its files. Mobile sessions still type the
+password through the model.
 
 ## 5. Add knowledge
 
