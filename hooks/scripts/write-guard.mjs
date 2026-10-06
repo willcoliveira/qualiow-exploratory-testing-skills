@@ -15,18 +15,63 @@
  * boundary is caught; edits that only remove or keep secrets already there
  * pass, so a file can be cleaned up one value at a time.
  *
+ * It also denies the literal value of a credential env var — a plain password
+ * has no shape the patterns could catch. The values come from `<cwd>/qa/.env`
+ * and `<cwd>/.env` (and the hook's own environment, for the same names): every
+ * variable whose NAME ends in PASS, PASSWORD, TOKEN, SECRET, API_KEY or _KEY,
+ * plus QA_PASS, QA_TOKEN and QA_API_TOKEN, six characters or longer, matched
+ * literally and URL-encoded, JSON-escaped or base64-encoded.
+ *
  * Node built-ins only, plus the sibling `secret-patterns.mjs` — a
  * git-sourced plugin install has neither `dist/` nor `node_modules`. Never
  * throws and never echoes the matched text back: the denial reason names
- * categories only.
+ * categories and variable names only.
  */
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { countSecrets, findSecretCategories } from './secret-patterns.mjs';
+import { parseEnv } from 'node:util';
+import {
+  MIN_SECRET_VALUE_LENGTH,
+  countSecretValues,
+  countSecrets,
+  findSecretCategories,
+} from './secret-patterns.mjs';
 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 // Larger files are judged on the inserted text alone.
 const MAX_POST_EDIT_BYTES = 5 * 1024 * 1024;
+
+const SECRET_ENV_NAME = /(PASS|PASSWORD|TOKEN|SECRET|API_KEY|_KEY)$/;
+const DEFAULT_SECRET_ENV_NAMES = ['QA_PASS', 'QA_TOKEN', 'QA_API_TOKEN'];
+const MAX_ENV_FILE_BYTES = 256 * 1024;
+
+/** `[{ name, value }]` for the credential env vars this project defines. Values stay in memory. */
+function knownSecretValues(cwd) {
+  const out = [];
+  const seen = new Set();
+  const add = (name, value) => {
+    if (typeof value !== 'string' || value.length < MIN_SECRET_VALUE_LENGTH || seen.has(value)) return;
+    seen.add(value);
+    out.push({ name, value });
+  };
+  const names = new Set(DEFAULT_SECRET_ENV_NAMES);
+  for (const file of [resolve(cwd, 'qa', '.env'), resolve(cwd, '.env')]) {
+    let parsed;
+    try {
+      if (statSync(file).size > MAX_ENV_FILE_BYTES) continue;
+      parsed = parseEnv(readFileSync(file, 'utf-8'));
+    } catch {
+      continue;
+    }
+    for (const [name, value] of Object.entries(parsed)) {
+      if (!SECRET_ENV_NAME.test(name) && !DEFAULT_SECRET_ENV_NAMES.includes(name)) continue;
+      names.add(name);
+      add(name, value);
+    }
+  }
+  for (const name of names) add(name, process.env[name]);
+  return out;
+}
 
 function deny(reason) {
   process.stdout.write(
@@ -128,7 +173,28 @@ try {
   const edited = postEditContent(input.tool_name, toolInput, absPath);
   if (edited) introducedCategories(edited[0], edited[1]).forEach((c) => found.add(c));
 
-  if (found.size > 0) {
+  const values = knownSecretValues(cwd);
+  const leaked = new Set();
+  if (values.length > 0) {
+    for (const name of countSecretValues(insertedText(input.tool_name, toolInput), values).keys()) leaked.add(name);
+    if (edited) {
+      const was = countSecretValues(edited[0], values);
+      for (const [name, n] of countSecretValues(edited[1], values)) {
+        if (n > (was.get(name) || 0)) leaked.add(name);
+      }
+    }
+  }
+
+  if (leaked.size > 0) {
+    const names = [...leaked].join(', ');
+    deny(
+      `Refusing to write ${filePath}: it contains the value of ${names}` +
+        (found.size > 0 ? ` and ${[...found].join(', ')}` : '') +
+        '. Replace it with [REDACTED] before writing; a credential is filled with ' +
+        '`qualiow auth fill --session <sid> --ref <ref> --env <NAME>`, never typed. ' +
+        'Set QUALIOW_HOOKS=off to disable.',
+    );
+  } else if (found.size > 0) {
     deny(
       `Refusing to write ${filePath}: it contains ${[...found].join(', ')}. ` +
         'Redact per security-rules.md ([REDACTED]) before writing; ' +

@@ -203,3 +203,38 @@ describe('containsSecrets', () => {
     expect(containsSecrets('Error code: 404')).toBe(false);
   });
 });
+
+describe('redact — known credential values', () => {
+  // An obvious fake: a password has no shape, so only its value can find it.
+  const values = [{ name: 'QA_PASS', value: 'Fake-Pass 2026!' }];
+
+  it('replaces the literal value and names only the category', () => {
+    const result = redact('typed Fake-Pass 2026! into the field', { values });
+    expect(result.text).toBe('typed [REDACTED] into the field');
+    expect(result.redactions).toEqual(['Credential value']);
+    expect(result.redactions.join(' ')).not.toContain('QA_PASS');
+  });
+
+  it.each([
+    ['URI-encoded', encodeURIComponent('Fake-Pass 2026!')],
+    ['form-encoded', encodeURIComponent('Fake-Pass 2026!').replace(/%20/g, '+')],
+    ['JSON-escaped', JSON.stringify('Fake-Pass 2026!').slice(1, -1)],
+    ['base64', Buffer.from('Fake-Pass 2026!').toString('base64')],
+    ['base64url', Buffer.from('Fake-Pass 2026!').toString('base64url')],
+  ])('replaces the %s form', (_label, encoded) => {
+    const result = redact(`body=${encoded}&next=1`, { values });
+    expect(result.text).not.toContain(encoded);
+    expect(result.redactions).toContain('Credential value');
+  });
+
+  it('containsSecrets sees the value only when it is given', () => {
+    expect(containsSecrets('note: Fake-Pass 2026!')).toBe(false);
+    expect(containsSecrets('note: Fake-Pass 2026!', { values })).toBe(true);
+  });
+
+  it('skips a value shorter than six characters', () => {
+    const result = redact('pin 12345 here', { values: [{ name: 'QA_PASS', value: '12345' }] });
+    expect(result.text).toBe('pin 12345 here');
+    expect(result.redactions).toEqual([]);
+  });
+});
