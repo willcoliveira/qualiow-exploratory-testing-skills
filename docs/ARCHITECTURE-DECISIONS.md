@@ -9,7 +9,8 @@ Every major design choice evaluated with trade-offs, real-world evidence from ou
 Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0 and 011 for
 2.2.0. This table is the current reading of each one; where the two disagree, this table wins.
 013 was written for the adversarial bug judge, after 2.2.1, and 014 for the advisory triage.
-015 was written for session contract 2 in 2.4.0.
+015 was written for session contract 2 in 2.4.0, and 016 for the credential, verdict and
+evidence checks after 2.4.1.
 
 | ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
@@ -28,6 +29,7 @@ Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0
 | 013 | Adversarial bug judge before a bug ships | **Done in 2.3.0** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
 | 014 | Advisory decision-model triage before the judge | **Done in 2.3.0 (opt-in, advisory)** | `qualiow judge triage`, `verification.mode: triage-shadow`, providers `typesafe` (hosted) and `laya` (loopback only). Recorded beside the verdict; never replaces, gates, orders or shortens the judge. Record below |
 | 015 | Session contract 2 and the computed coverage level | **Done in 2.4.0** | `/qa-explore` and `/qa-explore-quick` opt in with `"contract": 2`; `qualiow session level` checks the coverage record and computes the level; `finalize` fails closed on gaps or a stale level; `--continue` reads a prior session only through `qualiow session continue-check`. Mobile, backend and older sessions unchanged. Record below |
+| 016 | Credential values, verdict cross-check, evidence manifest, judge reasoning first | **Done (unreleased)** | `qualiow auth fill` types the password; `finalize` scans for credential values, ties every `Verified` line to a confirming verdict and writes `evidence-manifest.json`; the judge writes its reasoning before its verdict and its commands as `REPRO_COMMANDS`. Amends 013 and 015. Record below |
 
 ---
 
@@ -1161,6 +1163,132 @@ joins the never-delegate list and stays in the session.
   limits stated.
 
 **Status: DONE in 2.4.0**
+
+---
+
+## ADR-016: Credential Values, Verdict Cross-Check, Evidence Manifest and the Judge's Block
+
+*Written for the release after 2.4.1. Amends ADR-013 (the verdict block) and ADR-015 (the
+self-asserted `**Verification:**` line it accepted as a residual risk). The ideas were prompted
+by a read of an Apache-2.0 open-source agentic test framework; nothing was copied from it, and
+every mechanism below is specified in qualiow's own terms.*
+
+### Context
+
+Four gaps, each one a place where the session's word was taken for something the CLI could
+check:
+
+1. **Credentials passed through the model.** Phase 1 logged in by writing
+   `playwright-cli fill <ref> <password>` itself, so the value sat in the model's context, the
+   transcript and the tool result (`playwright-cli` echoes the code it ran, filled text
+   included). The redaction list matches *shapes* — `password=…`, a JWT, an `sk-` key — and a
+   bare password in a session log, a repro step or a captured request body has no shape.
+2. **`**Verification:** Verified` was self-asserted.** ADR-015 listed it as accepted residual
+   risk: a bug line saying `Verified` counted as verified whether or not a CONFIRMED verdict
+   existed beside it, and a refuted file could say `Refuted` over a verdict that said
+   something else.
+3. **Nothing recorded what the evidence was.** `finalize` scanned every text file and said
+   nothing about the rest. A screenshot, a video or a trace archive was never read by the scan,
+   and no artefact said so; nothing recorded which files were there at finalize time.
+4. **The judge's block put the verdict first.** `VERDICT:` was the first line and `REASONING:`
+   came after it, which invites reasoning written to fit a verdict already chosen. A claim that
+   one copy of a repeated value was wrong could be "refuted" by a correct copy elsewhere on the
+   page. And a confirmed bug carried no record of the commands that confirmed it.
+
+### Decision Made
+
+**The CLI checks what it can and labels what it cannot; the model never handles a credential
+value it does not need, and the judge shows its working before its verdict.**
+
+- **Value-based redaction.** `collectSecretValues` reads the target's credential variable
+  names — `auth.credentials.password`, `auth.token`, `api.token_env`, the triage key variables,
+  plus `QA_PASS`, `QA_TOKEN` and `QA_API_TOKEN` by default — resolves each value (environment →
+  `qa/.env` → `.env`), skips values shorter than six characters, and expands each into the
+  encodings a value takes in transit: literal, URI-encoded, both form encodings, JSON-escaped,
+  base64 standard, unpadded and URL-safe. `redact()` and `containsSecrets()` take these as
+  `values`, reported under the category `Credential value`. `finalize` scans every artefact for
+  them as well as for the pattern list; the plugin's write guard does the same with node
+  builtins, for every variable in `qa/.env` or `.env` whose name ends in `PASS`, `PASSWORD`,
+  `TOKEN`, `SECRET`, `API_KEY` or `_KEY`. A violation names the variable, never the value.
+- **`qualiow auth fill --session <sid> --ref <ref> --env <NAME>`.** The session names the
+  variable; the CLI reads the value and runs `playwright-cli -s=<sid> fill <ref>` with it,
+  spawned from an argv array, no shell. The child's output is redacted for that value in every
+  encoding before it is printed. The name must match `^[A-Z][A-Z0-9_]*$`, the session id and
+  ref must be plain tokens, and a missing variable is exit 2, named and never shown. The name
+  must be a login credential of the target (`auth.credentials.username/password`, `auth.token`,
+  or the default `QA_USER`/`QA_PASS`/`QA_TOKEN`): the command can type a secret into a page the
+  model chose, so it must not become a way for page content to obtain an API or cloud key. The
+  username stays an ordinary fill: it is not a secret, and an e-mail is caught by the pattern
+  list anyway.
+- **Verdict cross-check at finalize.** For any session with a `verification/` directory or a
+  bug carrying a `**Verification:**` line, `finalize` parses each verdict (by field name, in any
+  order) and refuses: a `Verified` bug whose verdict — found through its `Full verdict:` link,
+  else by number — is missing or is not CONFIRMED or CONFIRMED-ADJUSTED, unless the line says
+  `judge overruled`; a `Verified` line with no `verification/` directory; a `bugs/refuted/`
+  file whose `Refuted` or `Unreproducible` disagrees with its verdict; and any verdict file that
+  does not parse to a known verdict, `METHOD` or `CONFIDENCE`. `Unverified (…)` is not checked:
+  it is the conservative claim.
+- **Evidence manifest.** Every passing `finalize` writes `evidence-manifest.json` —
+  `generated_by`, then one `{ path, size, sha256, scan }` per file under `screenshots/`,
+  `videos/`, `traces/`, `logs/` and `evidence/`, sorted by path. `scan` is `text-clean` (a text
+  file that passed the scan) or `binary-not-scanned` (an image, a video, an archive): the
+  honest label for files nobody has vouched for. The content is a function of the files alone,
+  so rewriting it is idempotent. CLI-written, never by hand.
+- **The judge reasons first.** The block order is now `METHOD`, `REPRO_RESULT`, `REASONING`,
+  then `VERDICT`, `CONFIDENCE`, `SEVERITY`, `FALSE_POSITIVE_PATTERN`. `METHOD` and `CONFIDENCE`
+  carry their bare value. A value the claim says is wrong in one place is not refuted by the
+  same value being right in another: the judge checks every place the claim names, and one
+  wrong copy confirms. After a live re-run the block ends with `REPRO_COMMANDS:` — the judge's
+  own commands, one per line indented two spaces, `-s=<sid>` as a placeholder, a password step
+  written as `qualiow auth fill …`, ending with the command whose output shows the defect. The
+  shipped bug's `## Verification` points at it with `Replay:`; the commands are never copied
+  into the bug. The "calibrated, not default refuted" standard is unchanged.
+- **Finder-side false positives.** Seven browser misreadings — a new tab read as a dead link, a
+  label split around an inline link, an unscrolled infinite list, lazy images, a dev server
+  compiling, two sessions on one account, a firewall interstitial — go into
+  `learned-patterns.md` under their own heading, and `/qa-explore` phase 7 and
+  `/qa-explore-quick` rule them out before a bug is drafted. The heading is kept apart from
+  `## False Positive Patterns` so they do not crowd the twelve lead-ins the advisory triage
+  sends out.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| Keep pattern-only redaction | A password has no shape. It passes every pattern in the list wherever it lands |
+| Let the session write `fill <ref> "$QA_PASS"` and rely on the shell | The value is expanded before `playwright-cli` runs, and comes back in the echoed code, so it still reaches the tool result and the transcript |
+| Mask the value in the model's view only | The model still sends it; anything it writes afterwards can carry it. The CLI never handing it over is the stronger property |
+| Keep trusting the `**Verification:**` line | Then "Verified" means "the session said so", which is what ADR-015 accepted as residual risk and what the judge exists to avoid |
+| Sign the session report | Needs key management and a trust model the pack does not have. The manifest is a record of what was there and what was checked, not a signature; signing stays on the hardening backlog |
+| Scan binaries (OCR screenshots, unzip traces) | Costly, slow and partial; an OCR pass that misses a field would read as "scanned". Labelling them `binary-not-scanned` is accurate today |
+| Keep the verdict first and ask for "careful" reasoning | The order is the mechanism; an instruction to be careful does not change what was written first |
+
+### Consequences
+
+- **`finalize` refuses more.** A session whose bug lines and verdict files agree passes as
+  before; one edited by hand after the judge ran does not. Sessions that never ran the judge
+  are unaffected by the cross-check.
+- **Older sessions can fail the value scan.** A 2.4.x session that logged a password in the
+  clear is refused by `finalize --check`, and so by `--continue`, which re-runs it on the prior
+  session. That is the scan doing its job; `finalize --redact` rewrites the files.
+- **Old verdict blocks still parse.** Fields are read by name, and `REPRO_COMMANDS:` is
+  optional.
+- **Residual risks:**
+  - values shorter than six characters, and variables neither the target nor the default list
+    names, are not scanned for by value (the write guard's name rule covers more of `.env`);
+  - a screenshot or video can show a password typed into an unmasked field —
+    `binary-not-scanned` says so, nothing prevents it;
+  - mobile (`mcli fill`) still types the password through the model, and so does the web
+    `token` strategy (`KNOWN-ISSUES.md` ISSUE-005);
+  - the manifest records the evidence at finalize; it does not stop a later edit.
+- **Deferred:** a planted-bug benchmark to measure the judge and the rule-out step
+  (`KNOWN-ISSUES.md` ISSUE-003); a loop guard in the bash guard for a session repeating one
+  command; a closed enum for `blocked` area reasons; masking secure fields on mobile.
+- **No effect is claimed here.** Whether the reasoning-first order or the rule-out step lowers
+  the false-positive rate is a measurement for the planted-bug benchmark, not something this
+  record can state.
+
+**Status: DONE (unreleased)**
 
 ---
 
