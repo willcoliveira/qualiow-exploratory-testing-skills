@@ -154,21 +154,31 @@ export function resolveReportOutputPath(cwd: string, requested: string): string 
  * path to a directory directly under `output/sessions/` (`output/sessions/<dir>`,
  * relative to the project, or absolute) — the form the session skills pass.
  * Throws when nothing matches or when a substring matches more than one session.
+ *
+ * On win32 every comparison is case-insensitive, as the filesystem is: the same
+ * directory arrives as `C:\Proj\output\…` from one shell and `c:\proj\output\…`
+ * from another. The directory is always returned as it is spelled on disk.
  */
-export function resolveSessionDir(sessionsDir: string, requested: string): string {
+export function resolveSessionDir(
+  sessionsDir: string,
+  requested: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const fold = platform === 'win32' ? (s: string) => s.toLowerCase() : (s: string) => s;
   // A tab-completed directory name ends in a slash; it names the same session.
   const sessionId = requested.length > 1 ? requested.replace(/[\\/]+$/, '') : requested;
   const dirs = readdirSync(sessionsDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
     .sort();
+  const onDisk = (name: string): string | undefined => dirs.find((d) => fold(d) === fold(name));
 
   if (/[\\/]/.test(sessionId)) {
     // A path: exact match only, and only one level below output/sessions/.
     const projectRoot = dirname(dirname(resolve(sessionsDir)));
     const abs = resolve(projectRoot, sessionId);
-    const name = basename(abs);
-    if (dirname(abs) !== resolve(sessionsDir) || !dirs.includes(name)) {
+    const name = onDisk(basename(abs));
+    if (fold(dirname(abs)) !== fold(resolve(sessionsDir)) || name === undefined) {
       throw new Error(
         `"${sessionId}" is not a session directory directly under output/sessions/. ` +
           'List them with: qualiow list sessions',
@@ -184,9 +194,10 @@ export function resolveSessionDir(sessionsDir: string, requested: string): strin
     return join(sessionsDir, pool[pool.length - 1]);
   }
 
-  if (dirs.includes(sessionId)) return join(sessionsDir, sessionId);
+  const exact = onDisk(sessionId);
+  if (exact !== undefined) return join(sessionsDir, exact);
 
-  const matches = dirs.filter((d) => d.includes(sessionId));
+  const matches = dirs.filter((d) => fold(d).includes(fold(sessionId)));
   if (matches.length === 1) return join(sessionsDir, matches[0]);
   if (matches.length > 1) {
     throw new Error(

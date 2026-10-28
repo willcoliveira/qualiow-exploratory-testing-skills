@@ -108,6 +108,25 @@ describe('resolveSessionDir', () => {
     expect(resolveSessionDir(sessionsDir, '2026-09-03-1000-explore-beta/')).toBe(want);
     expect(resolveSessionDir(sessionsDir, 'output/sessions/2026-09-03-1000-explore-beta/')).toBe(want);
   });
+
+  it('on win32 a path or name that differs only in case resolves to the directory as it is on disk', () => {
+    const sessionsDir = makeSessionsDir();
+    const want = join(sessionsDir, '2026-09-01-1000-explore-alpha');
+    // The same directory, spelled the way a Windows shell or a cwd with another drive-letter case gives it.
+    const upperPath = join(sessionsDir.toUpperCase(), '2026-09-01-1000-EXPLORE-ALPHA');
+    expect(resolveSessionDir(sessionsDir, upperPath, 'win32')).toBe(want);
+    expect(resolveSessionDir(sessionsDir, 'OUTPUT/Sessions/2026-09-01-1000-Explore-Alpha', 'win32')).toBe(want);
+    expect(resolveSessionDir(sessionsDir, '2026-09-01-1000-EXPLORE-ALPHA', 'win32')).toBe(want);
+    expect(resolveSessionDir(sessionsDir, 'BETA', 'win32')).toBe(join(sessionsDir, '2026-09-03-1000-explore-beta'));
+  });
+
+  it('elsewhere the comparison stays case-sensitive', () => {
+    const sessionsDir = makeSessionsDir();
+    expect(() => resolveSessionDir(sessionsDir, 'OUTPUT/Sessions/2026-09-01-1000-explore-alpha', 'linux')).toThrow(
+      /not a session directory directly under output\/sessions/,
+    );
+    expect(() => resolveSessionDir(sessionsDir, 'BETA', 'linux')).toThrow(/No session matches/);
+  });
 });
 
 // ─── runReport ──────────────────────────────────────────────────────
