@@ -59,6 +59,16 @@ describe('mobile runs no bug judge (ADR-013)', () => {
   });
 });
 
+describe('qa-bug-judge keeps quoted text off the field lines', () => {
+  const judge = readFileSync(join(REPO_ROOT, '.claude', 'agents', 'qa-bug-judge.md'), 'utf-8')
+    .replace(/\s+/g, ' ');
+
+  it('quotes tested text as `> ` lines and writes exactly one VERDICT line', () => {
+    expect(judge).toContain('`VERDICT:` appears on exactly one line');
+    expect(judge).toMatch(/prefixed `> `, even when the quoted text itself starts with a field name/);
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
