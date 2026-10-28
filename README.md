@@ -119,7 +119,7 @@ from the shell.
 | `qualiow session list` | — | The session listing, same as `list sessions` |
 | `qualiow session archive <dir>` | `--remove` | Tar the session directory; `--remove` also deletes it and marks its INDEX row archived |
 | `qualiow session delete <dir>` | `--yes` | Remove a session directory and its index rows. Dry-run until `--yes` |
-| `qualiow session prune` | `--older-than <days>` `--yes` | The same, for every session older than N days |
+| `qualiow session prune` | `--older-than <days>` `--yes` `--force` | The same, for every session older than N days; a session whose `progress.json` is not complete is skipped unless `--force` |
 | `qualiow judge triage <claim-file>` | `--target <id>` `--out <dir>` `--evidence-max-lines <n>` `--dry-run` `--mock <json>` `--provider typesafe\|laya` `--endpoint <url>` | **Opt-in, advisory.** Asks a decision model typed questions about one claim card and records the answers beside the judge's verdict. Sends nothing unless the target sets `verification.mode: triage-shadow` and lists the provider; exit 2 = not enabled (nothing sent), 3 = unavailable |
 | `qualiow --version` | — | Print the package version |
 

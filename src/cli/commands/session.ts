@@ -212,7 +212,8 @@ export function sessionCommand(): Command {
     .description('Delete sessions older than N days (dry run unless --yes)')
     .requiredOption('--older-than <days>', 'Delete sessions with a timestamp older than N days')
     .option('--yes', 'Perform the deletion instead of a dry run', false)
-    .action((options: { olderThan: string; yes: boolean }) => {
+    .option('--force', 'Also delete sessions whose progress.json does not say complete', false)
+    .action((options: { olderThan: string; yes: boolean; force: boolean }) => {
       try {
         runSessionPrune(options, { cwd: process.cwd() });
       } catch (err) {
@@ -1726,10 +1727,21 @@ export interface SessionPruneResult {
   ok: boolean;
   dryRun: boolean;
   candidates: string[];
+  /** Old enough, but still in progress — kept unless `--force`. */
+  skipped: string[];
+}
+
+/**
+ * A session still being written: it has a `progress.json` that does not say
+ * `complete` (an unreadable one counts as not complete). A session with no
+ * `progress.json` at all — older output, or one never tracked — is not held back.
+ */
+function sessionInProgress(sessionDir: string): boolean {
+  return existsSync(join(sessionDir, 'progress.json')) && !progressComplete(sessionDir);
 }
 
 export function runSessionPrune(
-  options: { olderThan: string | number; yes?: boolean },
+  options: { olderThan: string | number; yes?: boolean; force?: boolean },
   ctx: { cwd: string; log?: Log; now?: Date },
 ): SessionPruneResult {
   const cwd = ctx.cwd;
@@ -1761,8 +1773,18 @@ export function runSessionPrune(
     .filter((d): d is DiscoveredSessionDir => d !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const selected = dirs.filter((d) => now.getTime() - d.timestamp.getTime() > thresholdMs);
+  const old = dirs.filter((d) => now.getTime() - d.timestamp.getTime() > thresholdMs);
+  // An old timestamp does not make a session finished: one still running — or resumed
+  // after a pause — keeps its directory unless --force says otherwise.
+  const held = options.force ? [] : old.filter((d) => sessionInProgress(join(sessionsDir, d.name)));
+  const selected = old.filter((d) => !held.includes(d));
   const candidates = selected.map((d) => d.name);
+  const skipped = held.map((d) => d.name);
+  const logSkipped = (): void => {
+    for (const name of skipped) {
+      log(chalk.yellow(`  ○ Skipped ${name} — its progress.json is not complete (pass --force to delete it anyway)`));
+    }
+  };
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — ${candidates.length} session(s) older than ${days} day(s):`));
@@ -1770,14 +1792,16 @@ export function runSessionPrune(
       log(chalk.white(`  ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
     }
     if (!candidates.length) log(chalk.white('  (none)'));
+    logSkipped();
     log('');
-    return { ok: true, dryRun: true, candidates };
+    return { ok: true, dryRun: true, candidates, skipped };
   }
 
   for (const d of selected) {
     performDelete(cwd, join(sessionsDir, d.name));
     log(chalk.green(`  ✓ Deleted ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
   }
+  logSkipped();
 
-  return { ok: true, dryRun: false, candidates };
+  return { ok: true, dryRun: false, candidates, skipped };
 }

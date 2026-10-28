@@ -1,11 +1,11 @@
 /**
  * Session lifecycle: what finalize cross-checks before it indexes a session, and
- * how the index files are written.
+ * which sessions prune may delete.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runSessionFinalize } from '../../src/cli/commands/session.js';
+import { runSessionFinalize, runSessionPrune } from '../../src/cli/commands/session.js';
 import { compareBugIds } from '../../src/utils/parse-session.js';
 import {
   C2_NAME,
@@ -14,6 +14,7 @@ import {
   cleanup,
   copySession,
   editStats,
+  makeTmpRoot,
   silentLog,
 } from './contract2-helpers.js';
 
@@ -164,5 +165,52 @@ describe('finalize — session-report.md', () => {
     const result = await runSessionFinalize(CANONICAL_NAME, { redact: true }, { cwd, log: silentLog });
     expect(result.ok).toBe(true);
     expect(result.warnings).toEqual([MISSING]);
+  });
+});
+
+describe('prune — a session still in progress', () => {
+  const NOW = new Date(2026, 9, 28);
+  const DONE = '2026-01-01-1000-explore-done';
+  const RUNNING = '2026-01-02-1000-explore-running';
+  const BROKEN = '2026-01-03-1000-explore-broken';
+  const UNTRACKED = '2026-01-04-1000-explore-untracked';
+
+  /** Four old sessions: progress complete, progress running, an unreadable progress.json, none at all. */
+  function project(): { cwd: string; dirOf: (name: string) => string } {
+    const cwd = makeTmpRoot('qualiow-prune-', registry);
+    const dirOf = (name: string) => join(cwd, 'output', 'sessions', name);
+    for (const name of [DONE, RUNNING, BROKEN, UNTRACKED]) mkdirSync(dirOf(name), { recursive: true });
+    writeFileSync(join(dirOf(DONE), 'progress.json'), JSON.stringify({ status: 'complete' }));
+    writeFileSync(join(dirOf(RUNNING), 'progress.json'), JSON.stringify({ status: 'in_progress', phase: 4 }));
+    writeFileSync(join(dirOf(BROKEN), 'progress.json'), '{ "status": ');
+    return { cwd, dirOf };
+  }
+
+  it('--yes keeps a session whose progress.json is not complete', () => {
+    const { cwd, dirOf } = project();
+    const result = runSessionPrune({ olderThan: '0', yes: true }, { cwd, log: silentLog, now: NOW });
+    expect(result.candidates).toEqual([DONE, UNTRACKED]);
+    expect(result.skipped).toEqual([RUNNING, BROKEN]);
+    expect(existsSync(dirOf(DONE))).toBe(false);
+    expect(existsSync(dirOf(UNTRACKED))).toBe(false);
+    expect(existsSync(dirOf(RUNNING))).toBe(true);
+    expect(existsSync(dirOf(BROKEN))).toBe(true);
+  });
+
+  it('the dry run names the skipped sessions and does not count them', () => {
+    const { cwd } = project();
+    const lines: string[] = [];
+    const result = runSessionPrune({ olderThan: '0' }, { cwd, log: (l) => void lines.push(l), now: NOW });
+    expect(result.candidates).toEqual([DONE, UNTRACKED]);
+    expect(result.skipped).toEqual([RUNNING, BROKEN]);
+    expect(lines.some((l) => l.includes(RUNNING) && l.includes('--force'))).toBe(true);
+  });
+
+  it('--force deletes them too', () => {
+    const { cwd, dirOf } = project();
+    const result = runSessionPrune({ olderThan: '0', yes: true, force: true }, { cwd, log: silentLog, now: NOW });
+    expect(result.candidates).toEqual([DONE, RUNNING, BROKEN, UNTRACKED]);
+    expect(result.skipped).toEqual([]);
+    for (const name of [DONE, RUNNING, BROKEN, UNTRACKED]) expect(existsSync(dirOf(name))).toBe(false);
   });
 });
