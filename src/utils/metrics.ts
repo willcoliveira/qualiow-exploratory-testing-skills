@@ -1,5 +1,6 @@
 import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { splitLines } from './text-lines.js';
 import {
   AREA_STATUSES,
   RISK_TIERS,
@@ -108,7 +109,7 @@ export function readAllMetrics(outputDir: string): SessionMetricsRecord[] {
     return [];
   }
 
-  const lines = content.split('\n');
+  const lines = splitLines(content);
   const results: SessionMetricsRecord[] = [];
 
   for (const line of lines) {

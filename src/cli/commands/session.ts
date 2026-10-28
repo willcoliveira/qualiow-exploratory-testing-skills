@@ -60,6 +60,7 @@ import {
   missingColumns,
 } from '../../utils/index-files.js';
 import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../utils/markdown-table.js';
+import { splitLines } from '../../utils/text-lines.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
@@ -1103,7 +1104,7 @@ function referenceMatcher(path: string, matches: (ref: string) => boolean): (lin
 function tableRowsReferencing(path: string, matches: (ref: string) => boolean): string[] {
   if (!existsSync(path)) return [];
   const isMatch = referenceMatcher(path, matches);
-  return tableRowLines(readFileSync(path, 'utf-8').split('\n'))
+  return tableRowLines(splitLines(readFileSync(path, 'utf-8')))
     .map((r) => r.text)
     .filter(isMatch);
 }
@@ -1186,7 +1187,7 @@ function nonBlankNeighbour(lines: string[], from: number, step: -1 | 1): number 
 }
 
 function analyseTable(content: string): SplitTableReport {
-  const lines = content.split('\n');
+  const lines = splitLines(content);
   const { headerIdx, endIdx } = tableBounds(lines);
   if (headerIdx === -1) return { total: 0, visible: 0, blankLines: [] };
 

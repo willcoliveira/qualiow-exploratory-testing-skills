@@ -8,6 +8,7 @@ import { parseSession } from '../utils/parse-session.js';
 import type { ParsedSession, ParsedBug } from '../utils/parse-session.js';
 import { redact } from '../utils/redact.js';
 import { parseMarkdownTable } from '../utils/markdown-table.js';
+import { normalizeEol, splitLines } from '../utils/text-lines.js';
 
 export interface ReportMeta {
   target: string;
@@ -62,7 +63,9 @@ export async function loadSessionForOutput(
   };
 }
 
-export function extractReportMeta(report: string, sessionId: string): ReportMeta {
+export function extractReportMeta(raw: string, sessionId: string): ReportMeta {
+  // The section patterns below are written for LF line ends.
+  const report = normalizeEol(raw);
   const meta: ReportMeta = {
     target: sessionId,
     date: '',
@@ -115,7 +118,8 @@ export function extractCoverage(report: string): CoverageEntry[] {
   }));
 }
 
-export function extractListSection(report: string, heading: string): string[] {
+export function extractListSection(raw: string, heading: string): string[] {
+  const report = normalizeEol(raw);
   const items: string[] = [];
   const regex = new RegExp(
     `##\\s+${heading}\\s*\\n+([\\s\\S]*?)(?=\\n##\\s|\\n---|$)`,
@@ -124,7 +128,7 @@ export function extractListSection(report: string, heading: string): string[] {
   const match = report.match(regex);
   if (!match) return items;
 
-  for (const line of match[1].split('\n')) {
+  for (const line of splitLines(match[1])) {
     const itemMatch = line.match(/^[-*]\s+(?:\[.\]\s+)?(.+)/);
     if (itemMatch) items.push(itemMatch[1].trim());
     const numberedMatch = line.match(/^\d+\.\s+\*\*(.+?)\*\*\s*(.+)?/);
