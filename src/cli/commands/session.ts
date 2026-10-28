@@ -40,7 +40,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import chalk from 'chalk';
 import { resolveSessionDir } from './report.js';
 import { runList } from './list.js';
-import { parseSession } from '../../utils/parse-session.js';
+import { compareBugIds, parseSession } from '../../utils/parse-session.js';
 import { SessionMetricsSchema } from '../../schemas/session-metrics.schema.js';
 import {
   SESSION_DIR_RE,
@@ -417,7 +417,7 @@ export async function runSessionFinalize(
   }
 
   const parsedSession = await parseSession(sessionDir);
-  const bugs = [...parsedSession.bugs].sort((a, b) => a.id.localeCompare(b.id));
+  const bugs = [...parsedSession.bugs].sort((a, b) => compareBugIds(a.id, b.id));
   const existingBugRows = readAllBugsRows(allBugsPath);
   const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
   const bugRowsAdded: string[] = [];

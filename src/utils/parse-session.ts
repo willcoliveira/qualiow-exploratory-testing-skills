@@ -73,6 +73,38 @@ function normalizeSeverity(raw: string): ParsedBug['severity'] {
   return 'medium';
 }
 
+// ─── Bug ids ────────────────────────────────────────────────────────
+
+/** A run of digits without its zero padding, for comparing by value. */
+function digitValue(run: string): string {
+  return run.replace(/^0+(?=\d)/, '');
+}
+
+/**
+ * Orders bug ids the way they are numbered: `BUG-999` before `BUG-1000`,
+ * `BUG-R2-002` before `BUG-R2-010`. Runs of digits compare by value, everything
+ * else by code point — never by locale, so the order is the same on every machine.
+ */
+export function compareBugIds(a: string, b: string): number {
+  const pa = a.match(/\d+|\D+/g) ?? [];
+  const pb = b.match(/\d+|\D+/g) ?? [];
+  for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+    const x = pa[i];
+    const y = pb[i];
+    if (x === y) continue;
+    if (/^\d/.test(x) && /^\d/.test(y)) {
+      const vx = digitValue(x);
+      const vy = digitValue(y);
+      if (vx.length !== vy.length) return vx.length - vy.length;
+      if (vx !== vy) return vx < vy ? -1 : 1;
+      // Same value, different padding: the shorter spelling first.
+      return x.length - y.length;
+    }
+    return x < y ? -1 : 1;
+  }
+  return pa.length - pb.length;
+}
+
 // ─── Section extraction ─────────────────────────────────────────────
 
 /**
@@ -344,7 +376,7 @@ export async function parseSession(sessionDir: string): Promise<ParsedSession> {
   if (existsSync(bugsDir)) {
     const bugFiles = readdirSync(bugsDir)
       .filter((f) => /^BUG-.*\.md$/i.test(f))
-      .sort();
+      .sort(compareBugIds);
 
     for (const file of bugFiles) {
       const bug = await parseBugReport(join(bugsDir, file));
