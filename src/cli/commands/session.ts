@@ -1235,17 +1235,22 @@ function insertTableRow(path: string, row: string): void {
     appendFileSync(path, `${row}\n`);
     return;
   }
-  const lines = readFileSync(path, 'utf-8').split('\n');
+  const content = readFileSync(path, 'utf-8');
+  const lines = content.split('\n');
   const { headerIdx, endIdx } = tableBounds(lines);
   let last = -1;
   for (let i = headerIdx === -1 ? 0 : headerIdx; i < endIdx; i++) {
     if (isTableLine(lines[i])) last = i;
   }
   if (last === -1) {
-    appendFileSync(path, `${row}\n`);
+    // Appended to a file that does not end in a newline, the row would join its last line.
+    const lead = content === '' || content.endsWith('\n') ? '' : '\n';
+    appendFileSync(path, `${lead}${row}\n`);
     return;
   }
   lines.splice(last + 1, 0, row);
+  // A table that ran to the end of a file with no final newline: the row is now last, so end it.
+  if (last + 1 === lines.length - 1) lines.push('');
   writeFileSync(path, lines.join('\n'));
 }
 
