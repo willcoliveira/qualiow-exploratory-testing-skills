@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # tsup's dts build needs the TypeScript compiler API, which TS 7 does not ship.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       dev-dependencies:
         dependency-type: development
