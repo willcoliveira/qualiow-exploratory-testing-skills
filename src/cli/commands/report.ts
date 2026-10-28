@@ -59,7 +59,7 @@ export async function runReport(
   const sessionsDir = resolve(cwd, 'output', 'sessions');
 
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, options.session);
@@ -185,7 +185,7 @@ export function resolveSessionDir(sessionsDir: string, requested: string): strin
     if (dirname(abs) !== resolve(sessionsDir) || !dirs.includes(name)) {
       throw new Error(
         `"${sessionId}" is not a session directory directly under output/sessions/. ` +
-          'List them with: npx qualiow list sessions',
+          'List them with: qualiow list sessions',
       );
     }
     return join(sessionsDir, name);
@@ -207,5 +207,5 @@ export function resolveSessionDir(sessionsDir: string, requested: string): strin
       `"${sessionId}" matches ${matches.length} sessions — be more specific:\n  ${matches.join('\n  ')}`,
     );
   }
-  throw new Error(`No session matches "${sessionId}". List them with: npx qualiow list sessions`);
+  throw new Error(`No session matches "${sessionId}". List them with: qualiow list sessions`);
 }

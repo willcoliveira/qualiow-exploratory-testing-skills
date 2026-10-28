@@ -250,7 +250,7 @@ export async function runSessionFinalize(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -655,7 +655,7 @@ export async function runSessionLevel(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(ctx.cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
   const sessionDir = resolveSessionDir(sessionsDir, dir);
   const dirName = basename(sessionDir);
@@ -1463,7 +1463,7 @@ export function runSessionArchive(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -1525,7 +1525,7 @@ export function runSessionDelete(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -1634,7 +1634,7 @@ export function runSessionPrune(
 
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const thresholdMs = days * 24 * 60 * 60 * 1000;

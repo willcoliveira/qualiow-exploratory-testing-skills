@@ -123,7 +123,7 @@ function listSessions(cwd: string, log: (line: string) => void): void {
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   const indexPath = join(sessionsDir, 'INDEX.md');
   if (!existsSync(sessionsDir)) {
-    log(chalk.yellow('No sessions directory. Run `npx qualiow init` first, then start a session.'));
+    log(chalk.yellow('No sessions directory. Run `qualiow init` first, then start a session.'));
     return;
   }
 
@@ -169,7 +169,7 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   const knowledgeDir = join(dataDir, 'knowledge');
   const manifestPath = join(knowledgeDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
-    log(chalk.yellow(`No knowledge base at ${manifestPath}. Run \`npx qualiow init\` first.`));
+    log(chalk.yellow(`No knowledge base at ${manifestPath}. Run \`qualiow init\` first.`));
     return;
   }
 
@@ -199,7 +199,7 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   if (filesOnDisk !== manifest.entries.length || manifest.stats.total_entries !== filesOnDisk) {
     log(
       chalk.yellow(
-        `  ⚠ Registry (${manifest.entries.length}) / stats (${manifest.stats.total_entries}) disagree with ${filesOnDisk} entry files — run: npx qualiow kb sync`,
+        `  ⚠ Registry (${manifest.entries.length}) / stats (${manifest.stats.total_entries}) disagree with ${filesOnDisk} entry files — run: qualiow kb sync`,
       ),
     );
   }
@@ -323,7 +323,7 @@ function printKnowledgeStats(manifest: ParsedManifest, log: (line: string) => vo
 function listTargets(cwd: string): void {
   const targetsDir = resolve(cwd, 'data', 'targets');
   if (!existsSync(targetsDir)) {
-    console.log(chalk.yellow('No targets found. Run `npx qualiow init` first.'));
+    console.log(chalk.yellow('No targets found. Run `qualiow init` first.'));
     return;
   }
 
@@ -363,7 +363,7 @@ function listTargets(cwd: string): void {
 function listDomains(cwd: string): void {
   const domainsDir = resolve(cwd, 'data', 'domains');
   if (!existsSync(domainsDir)) {
-    console.log(chalk.yellow('No domain configs found. Run `npx qualiow init` first.'));
+    console.log(chalk.yellow('No domain configs found. Run `qualiow init` first.'));
     return;
   }
 

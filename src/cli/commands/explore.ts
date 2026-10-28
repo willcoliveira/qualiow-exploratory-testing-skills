@@ -71,7 +71,7 @@ export async function runExplore(
   if (options.target || existsSync(targetPath)) {
     if (!existsSync(targetPath)) {
       throw new Error(
-        `Target config not found: ${relative(cwd, targetPath)}\n  Available targets: npx qualiow list targets`,
+        `Target config not found: ${relative(cwd, targetPath)}\n  Available targets: qualiow list targets`,
       );
     }
     const result = validateTargetConfig(targetPath);
