@@ -3,7 +3,7 @@
  * how the index files are written.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runSessionFinalize } from '../../src/cli/commands/session.js';
 import { compareBugIds } from '../../src/utils/parse-session.js';
@@ -124,5 +124,45 @@ describe('finalize — stats.json against the bug files', () => {
     expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: out.log })).ok).toBe(true);
     expect(out.lines.some((l) => l.includes(`metrics.jsonl already has a line for session_id "${C2_NAME}"`))).toBe(true);
     expect(readFileSync(join(cwd, 'output', 'metrics.jsonl'), 'utf-8').trim().split('\n')).toHaveLength(1);
+  });
+});
+
+describe('finalize — session-report.md', () => {
+  const report = (sessionDir: string) => join(sessionDir, 'session-report.md');
+  const MISSING =
+    'session-report.md is missing — the INDEX.md row points at it; write it (the qa-reporting-agent assembles it) and re-run finalize';
+
+  it('contract 2: a missing session-report.md is a violation, and no index row points at it', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    rmSync(report(sessionDir));
+    const result = await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([MISSING]);
+    expect(existsSync(join(cwd, 'output', 'sessions', 'INDEX.md'))).toBe(false);
+  });
+
+  it('contract 2: a report without the `# Session Report — <target>` heading is a violation', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    writeFileSync(report(sessionDir), readFileSync(report(sessionDir), 'utf-8').replace('# Session Report — Example Shop', '# Notes'));
+    const result = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([
+      'session-report.md does not open with `# Session Report — <target>` after the confidentiality header',
+    ]);
+  });
+
+  it('contract 2: the heading is found in a CRLF report too', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    writeFileSync(report(sessionDir), readFileSync(report(sessionDir), 'utf-8').replace(/\n/g, '\r\n'));
+    const result = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(result.violations).toEqual([]);
+  });
+
+  it('contract 1: a missing report is a warning, and the session still finalizes', async () => {
+    const { cwd, sessionDir } = canonicalCopy();
+    rmSync(report(sessionDir));
+    const result = await runSessionFinalize(CANONICAL_NAME, { redact: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toEqual([MISSING]);
   });
 });

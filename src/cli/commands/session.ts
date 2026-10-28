@@ -384,6 +384,11 @@ export async function runSessionFinalize(
         'metrics.jsonl dedupes on it, so a copied stats.json can hide this session’s metrics line',
     );
   }
+
+  // 8. session-report.md — the file the INDEX.md row points at, opening with the
+  // contract's heading. Refused in a contract-2 session, reported in an older one.
+  const reportProblem = sessionReportProblem(sessionDir);
+  if (reportProblem) (raw?.contract === 2 ? violations : warnings).push(reportProblem);
   for (const w of warnings) log(chalk.yellow(`  ○ ${w}`));
 
   if (violations.length > 0) {
@@ -500,6 +505,32 @@ export async function runSessionFinalize(
     evidenceManifestWritten: true,
     warnings,
   };
+}
+
+/** The output contract's top heading for `session-report.md`: `# Session Report — <target>`. */
+const SESSION_REPORT_HEADING_RE = /^#\s+Session Report\b/;
+/** Enough of the report to find its first heading. */
+const REPORT_HEAD_BYTES = 64 * 1024;
+
+/**
+ * What is wrong with the session's `session-report.md`, or null: it must exist, and its
+ * first line after the confidentiality header must be the `# Session Report — <target>`
+ * heading. Read under containment, so a link out of the session is never followed.
+ */
+function sessionReportProblem(sessionDir: string): string | null {
+  const file = 'session-report.md';
+  try {
+    lstatSync(join(sessionDir, file));
+  } catch {
+    return `${file} is missing — the INDEX.md row points at it; write it (the qa-reporting-agent assembles it) and re-run finalize`;
+  }
+  const text = readContainedText(sessionDir, file, REPORT_HEAD_BYTES);
+  if (text === null) return `${file} is not a regular file inside the session — replace it with one`;
+  const first = splitLines(text.replace(/^\uFEFF/, '')).find((line) => line.trim() !== '' && !line.startsWith('>'));
+  if (first === undefined || !SESSION_REPORT_HEADING_RE.test(first)) {
+    return `${file} does not open with \`# Session Report — <target>\` after the confidentiality header`;
+  }
+  return null;
 }
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
