@@ -88,6 +88,19 @@ describe('qa-reporting-agent and /qa-explore-report agree with what finalize che
   });
 });
 
+describe('a contract-2 session without the CLI stays contract 2 and unindexed', () => {
+  it('explore phase 7 keeps contract 2 and writes no index rows by hand', () => {
+    const phase7 = skillFile('qa-explore', 'phases', '07-reporting.md').replace(/\s+/g, ' ');
+    expect(phase7).not.toContain('leave `contract`, `continues` and `coverage.areas` out of `stats.json`');
+    expect(phase7).toContain('keep the session on contract 2 exactly as written and write **no** index rows');
+  });
+
+  it('paths.md allows hand-written index rows only for contract-1 sessions', () => {
+    const paths = skillFile('qa-explore', 'references', 'paths.md').replace(/\s+/g, ' ');
+    expect(paths).toContain('never for an explore or quick session');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

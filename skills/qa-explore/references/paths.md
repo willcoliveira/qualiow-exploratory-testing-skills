@@ -98,8 +98,10 @@ ends with `playwright-cli -s=<sid> close` and then `playwright-cli -s=<sid> dele
 ### Index rows
 
 `qualiow session finalize <session-dir>` writes both rows (and creates either index file if
-it is missing). The formats below are what it appends — write them by hand only when the CLI
-is unavailable.
+it is missing). The formats below are what it appends. Write them by hand only for a mobile
+or backend session when the CLI is unavailable — never for an explore or quick session
+(contract 2): a hand-written `INDEX.md` row marks it finalized, and
+`qualiow session level --write` then refuses it. Leave it unindexed until the CLI is back.
 
 Append to `output/sessions/INDEX.md` (columns `| Date | Kind | Target | Bugs | Duration | Status | Report |`):
 
