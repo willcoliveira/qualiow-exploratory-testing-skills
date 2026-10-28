@@ -1,0 +1,254 @@
+name: Release
+
+# Pushing an annotated vX.Y.Z tag that points at a commit on main publishes that
+# version to npm with provenance, then cuts the GitHub release. The order and the
+# one-time npm/GitHub settings it relies on are in docs/ARCHITECTURE-DECISIONS.md
+# (ADR-017).
+on:
+  push:
+    tags: ['v*.*.*']
+
+# Nothing by default; each job asks for what it needs.
+permissions: {}
+
+# One release at a time, and never cancel one that has started publishing.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    name: verify tag · build · test · pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sbom: ${{ steps.pack.outputs.sbom }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    defaults:
+      run:
+        # Checked out under the package's own name: `npm sbom` names the root
+        # component after the directory, not after package.json.
+        working-directory: qualiow-exploratory-testing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: qualiow-exploratory-testing
+          fetch-depth: 0 # the annotated tag object and origin/main
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false # a release build restores nothing
+
+      - name: Tag is annotated, on main, and matches the manifests and the changelog
+        id: tag
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag '$TAG' is not vX.Y.Z; pre-release tags are not published by this workflow"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+
+          if [ "$(git cat-file -t "refs/tags/$TAG")" != tag ]; then
+            echo "::error::$TAG is a lightweight tag; push an annotated one (git tag -a $TAG -m $TAG)"
+            exit 1
+          fi
+          TAG_COMMIT="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if [ "$(git rev-parse HEAD)" != "$TAG_COMMIT" ]; then
+            echo "::error::checked-out commit $(git rev-parse HEAD) is not $TAG's commit $TAG_COMMIT"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "::error::$TAG ($TAG_COMMIT) is not on origin/main; merge first, then tag"
+            exit 1
+          fi
+
+          node scripts/sync-version.mjs --check "$VERSION"
+
+          OUT="$RUNNER_TEMP/release"
+          mkdir -p "$OUT"
+          if ! awk -v want="## [$VERSION]" '
+                index($0, "## [") == 1 { if (found) exit; if (index($0, want) == 1) { found = 1; next } }
+                found { print }
+                END { if (!found) exit 1 }
+              ' CHANGELOG.md > "$OUT/release-notes.md"; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' entry"
+            exit 1
+          fi
+          if ! grep -q '[^[:space:]]' "$OUT/release-notes.md"; then
+            echo "::error::CHANGELOG.md's '## [$VERSION]' entry is empty"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # No dependency runs an install script: the only ones with a script (esbuild,
+      # fsevents) are dev-only, and tsup builds without it.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck (src + tests)
+        run: npm run lint
+
+      - name: Build (syncs the skills/agents mirror first)
+        run: npm run build
+
+      - name: Mirror committed, tree clean
+        run: |
+          npm run check:mirror
+          git diff --exit-code -- skills agents
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::the build left the tree dirty"
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Validate data (targets, domains, knowledge base)
+        run: npm run validate
+
+      - name: Knowledge-base manifest in sync
+        run: npm run kb:check
+
+      - name: Tarball contents
+        run: npm run check:pack
+
+      - name: Tree still clean before packing
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "::error::a check left files behind; they would ship in the tarball"
+            exit 1
+          fi
+
+      - name: SBOM and tarball
+        id: pack
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/release"
+          NAME="$(node -p "require('./package.json').name")"
+          TARBALL="$NAME-$VERSION.tgz"
+          SBOM="$NAME-$VERSION.cdx.json"
+
+          # The whole installed tree. npm marks each development-only component
+          # with the property cdx:npm:package:development=true. `--omit dev` is not
+          # used: it also drops a runtime dependency that a dev dependency shares
+          # (yaml, here).
+          npm sbom --sbom-format cyclonedx > "$OUT/$SBOM"
+
+          npm pack --ignore-scripts --pack-destination "$OUT"
+          test -f "$OUT/$TARBALL"
+          SHA256="$(sha256sum "$OUT/$TARBALL" | cut -d' ' -f1)"
+          echo "$SHA256  $TARBALL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo "tarball=$TARBALL"
+            echo "sbom=$SBOM"
+            echo "sha256=$SHA256"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: publish to npm (trusted publishing, provenance)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Required reviewer and a v* tag rule live on this environment; the npm
+    # trusted publisher names it, so no other job can publish.
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+
+      # Node 24 >= 24.5.0 bundles npm >= 11.5.1, the first npm that exchanges the
+      # OIDC token for a publish token. No registry-url: npm's default registry is
+      # npmjs.org, and nothing here needs a token in an .npmrc.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: npm is new enough for trusted publishing (>= 11.5.1)
+        run: |
+          NPM_VERSION="$(npm --version)"
+          echo "npm $NPM_VERSION"
+          if ! node -e 'const [a, b, c] = process.argv[1].split(".").map(Number);
+                        process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1)' "$NPM_VERSION"; then
+            echo "::error::npm $NPM_VERSION cannot use trusted publishing; it needs 11.5.1 or later"
+            exit 1
+          fi
+
+      - name: Tarball is the one verify built
+        env:
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+          SHA256: ${{ needs.verify.outputs.sha256 }}
+        run: |
+          cd "$RUNNER_TEMP/release"
+          echo "$SHA256  $TARBALL" | sha256sum -c -
+
+      - name: Publish
+        env:
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+        run: |
+          cd "$RUNNER_TEMP/release"
+          npm publish "./$TARBALL" --provenance --access public --ignore-scripts
+
+  github-release:
+    name: GitHub release
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+
+      - name: Tarball is the one verify built
+        env:
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+          SHA256: ${{ needs.verify.outputs.sha256 }}
+        run: |
+          cd "$RUNNER_TEMP/release"
+          echo "$SHA256  $TARBALL" | sha256sum -c -
+
+      - name: Create the release with the tarball and the SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+          SBOM: ${{ needs.verify.outputs.sbom }}
+        run: |
+          cd "$RUNNER_TEMP/release"
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            "$TARBALL" "$SBOM"
