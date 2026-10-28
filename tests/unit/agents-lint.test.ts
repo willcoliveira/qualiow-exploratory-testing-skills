@@ -112,10 +112,10 @@ describe.each(agentFiles)('agent: %s', (file) => {
   });
 
   it('every Bash(<prefix>:*) entry in tools is a plain command prefix', () => {
-    // A prefix may span several words (`git show:*`, `npx playwright-cli:*`) — grants are
-    // deliberately narrow, see qa-explore/references/security-rules.md.
+    // A prefix may span several words (`git show:*`, `npx playwright-cli:*`, `git -C:*`) —
+    // grants are deliberately narrow, see qa-explore/references/security-rules.md.
     const bad = extractBashEntries(frontmatter?.tools).filter(
-      (entry) => !/^[a-z0-9][a-z0-9._/-]*( [a-z0-9-][a-z0-9._/=-]*)*:\*$/.test(entry),
+      (entry) => !/^[a-z0-9][a-z0-9._/-]*( [A-Za-z0-9-][A-Za-z0-9._/=-]*)*:\*$/.test(entry),
     );
     expect(bad, `${file}: malformed Bash tool entries: ${bad.join(', ')}`).toEqual([]);
   });
@@ -130,6 +130,9 @@ const EXACT_BASH_GRANTS: Record<string, string[]> = {
     'npx -y -p qualiow-exploratory-testing qualiow session finalize:*',
     'wc:*',
   ],
+  // The repository under review is rarely the working directory: both reach it by `git -C`.
+  'qa-diff-indexer-agent': ['git -C:*', 'git diff:*', 'git show:*', 'wc:*'],
+  'qa-gather-agent': ['git -C:*', 'git diff:*', 'git log:*', 'git show:*', 'wc:*'],
 };
 
 describe.each(Object.entries(EXACT_BASH_GRANTS))('Bash grants of %s', (name, expected) => {

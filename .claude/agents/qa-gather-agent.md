@@ -5,7 +5,7 @@ description: >
   text, diffs) and writes a structured context file for exploratory testing sessions.
   The /qa-gather skill runs inside this agent; invoke it directly for long or multi-source
   gathers that should run in the background.
-tools: Read, Write, Glob, Grep, WebFetch, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
+tools: Read, Write, Glob, Grep, WebFetch, Bash(git -C:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
 model: sonnet
 maxTurns: 40
 ---
@@ -29,10 +29,12 @@ Pull in the smallest part of each source that answers the question.
   300: `Grep` for the headings (`'^#'`, `'^##'`, or the term you are after), then `Read` with
   `offset`/`limit` around the sections that matter. Never read a long document whole to find
   one acceptance criterion.
-- **Diffs** — `git diff --stat <base>...<branch>` first, always. Then
-  `git diff <base>...<branch> -- <path>`, one path at a time, and only for the files that map
-  to the ticket. Never pull the whole branch diff into context. `git show <branch>:<path>` when
-  you need the file as it stands rather than the change.
+- **Diffs** — reach the repository with `git -C <repo>` (it is rarely your working
+  directory). `git -C <repo> diff --stat <base>...<branch>` first, always. Then
+  `git -C <repo> diff <base>...<branch> -- <path>`, one path at a time, and only for the files
+  that map to the ticket. Never pull the whole branch diff into context.
+  `git -C <repo> show <branch>:<path>` when you need the file as it stands rather than the
+  change. Only `log`, `diff` and `show`; never `-c`, `--output` or a pager option.
 - **URLs** — `WebFetch` returns a summary already. Use it as it comes back; re-fetch only when
   a specific named fact is missing, and say what you are looking for.
 

@@ -7,7 +7,7 @@ description: >
   Use when user says: "gather requirements", "prepare context", "analyze this ticket",
   "what should I test", or provides requirements documents before an explore session.
 argument-hint: "<file | url | text> [--domain <id>] [--output <file>]"
-allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
+allowed-tools: Read, Write, Glob, Grep, WebFetch, Bash(git -C:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(wc:*)
 context: fork
 agent: qa-gather-agent
 ---
@@ -93,11 +93,12 @@ Parse the user's inline text for requirements information. People paste:
 - Verbal descriptions of what the feature should do
 
 ### Source: Git/PR
-If a git repo is available, take the shape of the change first and the content second:
+If a git repo is available, take the shape of the change first and the content second
+(`<repo>` is the path you were given; `.` for the current directory):
 ```bash
-git log --oneline -20              # Recent changes
-git diff --stat main...HEAD        # What changed on this branch — file names and sizes only
-git diff main...HEAD -- <path>     # One file that maps to the ticket
+git -C <repo> log --oneline -20              # Recent changes
+git -C <repo> diff --stat main...HEAD        # What changed on this branch — file names and sizes only
+git -C <repo> diff main...HEAD -- <path>     # One file that maps to the ticket
 ```
 Never diff the whole branch into context. Read the `--stat` output, pick the files that map
 to the ticket, and diff those one at a time. Extract: files changed, components affected,
