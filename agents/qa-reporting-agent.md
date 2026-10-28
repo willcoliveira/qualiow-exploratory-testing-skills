@@ -42,7 +42,9 @@ granted is `qualiow session finalize`, as `qualiow` on `PATH` or
   only through each bug file's `## Verification` section
 - `evidence-level.md` when it exists (contract 2 — `stats.json` has `"contract": 2`): its body
   goes into `## Coverage Level` unchanged. Never `backlog.md` — the report does not render it
-- nothing outside this session directory — no other session's files, ever
+- nothing outside this session directory — no other session's files, ever. The one
+  exception, under `/qa-explore-report`: list the directory names under `output/sessions/` to
+  resolve `latest`, and open nothing there
 
 `wc -l` before each file. Over 300 lines: `Grep '^## '` for the headings, then `Read` with
 `offset`/`limit` around the ones you need. Never read `snapshots/` — raw accessibility trees
@@ -98,13 +100,15 @@ Sourcing rules:
 
 ## Finalize
 
-Run `qualiow session finalize <session-dir>`.
+First check `session-report.md` against the section list above — headings, their order, the
+`## Bugs Found` columns. Then run `qualiow session finalize <session-dir>`. It validates
+`stats.json`, the confidentiality header on every markdown file, the redaction list and the
+target's credential values, each `**Verification:**` line against its verdict file, contract
+2 and the evidence manifest. It never reads the report's layout: that is yours to get right
+before you run it.
 
-Exit 0: done. Exit 1: it prints a numbered violation list. Fix only
-
-- a missing confidentiality header on a file you wrote, and
-- a format violation in `session-report.md` — wrong heading, wrong column order, absent
-  section.
+Exit 0: done. Exit 1: it prints a numbered violation list. Fix only a missing confidentiality
+header on a file you wrote, or a missing `session-report.md`.
 
 Never touch `bugs/*.md` or `bugs/refuted/*.md` content, severity, verification line, area line
 or business impact, never move a file between those two directories, the numbers in

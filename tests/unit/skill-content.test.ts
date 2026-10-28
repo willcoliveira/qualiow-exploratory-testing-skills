@@ -69,6 +69,25 @@ describe('qa-bug-judge keeps quoted text off the field lines', () => {
   });
 });
 
+describe('qa-reporting-agent and /qa-explore-report agree with what finalize checks', () => {
+  const agent = readFileSync(join(REPO_ROOT, '.claude', 'agents', 'qa-reporting-agent.md'), 'utf-8');
+  const report = skillFile('qa-explore-report', 'SKILL.md');
+
+  it('the agent does not count on finalize to catch report layout', () => {
+    expect(agent).not.toContain('a format violation in `session-report.md`');
+    expect(agent).toContain('It never reads the report\'s layout');
+  });
+
+  it('--format summary is copied from phase-7-notes.md, never composed', () => {
+    expect(report).not.toMatch(/top 3\s+findings; key recommendation/);
+    expect(report).toMatch(/\*\*summary\*\*: copied, never composed/);
+  });
+
+  it('the forked skill opens nothing outside the chosen session', () => {
+    expect(report).not.toContain('Cross-check with `output/sessions/INDEX.md`');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

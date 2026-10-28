@@ -34,8 +34,9 @@ severity or a verdict.
 
 `latest` = the alphabetically last directory under `output/sessions/` matching
 `<YYYY-MM-DD-HHmm>-<kind>-<slug>` (the scheme in `paths.md`; date-first means last = newest).
-Cross-check with `output/sessions/INDEX.md`. A name given by the user must match exactly one
-directory; list the candidates if it is ambiguous.
+List the directory names only; open no file outside the chosen session — not `INDEX.md`, not
+another session. A name given by the user must match exactly one directory; list the
+candidates if it is ambiguous.
 
 ### 2. Read Session Data
 
@@ -65,8 +66,10 @@ for a session with a `verification/` directory, the `Verification` column in Bug
 `qa-reporting-agent` defines them). Never run `qualiow session level` from here: the level belongs
 to the session that computed it, and the command refuses a finalized session.
 
-**summary**: a brief executive summary: target, date, duration; bug count by severity; top 3
-findings; key recommendation.
+**summary**: copied, never composed — target, date and duration from `stats.json`; the bug
+count by severity from its `severity_counts`; `## Executive Summary` and `## Recommendations`
+verbatim from `phase-7-notes.md` (`_Missing from phase-7-notes.md_` when absent); and the
+three highest-severity rows of `## Bugs Found`, as the bug files spell them.
 
 **bugs-only**: all bugs sorted by severity, one line each with a link to `bugs/BUG-NNN.md`.
 
@@ -92,9 +95,11 @@ qualiow session finalize output/sessions/<session-dir> --check
 ```
 
 `--check` writes nothing; it validates `stats.json`, the confidentiality header on every
-artefact and the redaction list, and on exit 1 prints a numbered list of violations naming
-each file. Fix header and format violations and run it again; report anything you did not
-fix. Resolve the `qualiow` prefix per
+artefact, the redaction list and the credential values, the verdict cross-check and contract
+2, and on exit 1 prints a numbered list of violations naming each file. It does not read the
+report's layout — check that against the section list before you run it. Fix a missing
+header on a file you wrote and run it again; report anything you did not fix. Resolve the
+`qualiow` prefix per
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`.
 
 Present the result to the user.
