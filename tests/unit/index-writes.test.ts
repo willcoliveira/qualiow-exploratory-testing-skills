@@ -105,3 +105,25 @@ describe('index rows — a CRLF index keeps its line ends', () => {
     expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(toCrlf(`${INDEX_MD_HEADER}${OTHER_ROW}\n${second}\n`));
   });
 });
+
+describe('delete — the dry run counts exactly the rows --yes removes', () => {
+  const NOTES =
+    '\n## Notes kept by hand\n\n| Note | Report |\n|---|---|\n' + `| reviewed by the team | ${C2_NAME}/session-report.md |\n`;
+
+  /** An INDEX.md whose row for the session points at another file in it, and a later table that mentions it. */
+  function project() {
+    const { cwd } = copySession(registry);
+    const row = `| 2026-10-05 | explore | example-shop | 3 | 45 min | complete | ${C2_NAME}/session-summary.md |`;
+    writeFileSync(indexPathOf(cwd), `${INDEX_MD_HEADER}${OTHER_ROW}\n${row}\n${NOTES}`);
+    return cwd;
+  }
+
+  it('removes the row the dry run counted, and nothing outside the index table', () => {
+    const cwd = project();
+    const dry = runSessionDelete(C2_NAME, {}, { cwd, log: silentLog });
+    expect(dry.indexRows).toBe(1);
+    const done = runSessionDelete(C2_NAME, { yes: true }, { cwd, log: silentLog });
+    expect(done.indexRows).toBe(1);
+    expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(`${INDEX_MD_HEADER}${OTHER_ROW}\n${NOTES}`);
+  });
+});

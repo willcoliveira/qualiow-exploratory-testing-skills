@@ -1631,9 +1631,11 @@ export function runSessionDelete(
   const indexPath = join(sessionsDir, 'INDEX.md');
   const allBugsPath = resolve(cwd, 'output', 'bugs', 'all-bugs.md');
   // Counted by reference rather than by column name, so the numbers hold on an
-  // index whose header predates the current column set.
-  const indexRows = tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`));
-  const bugRows = tableRowsReferencing(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`));
+  // index whose header predates the current column set — and with the matchers
+  // performDelete removes by, so the dry run names exactly what --yes removes.
+  const rows = sessionRowMatchers(dirName);
+  const indexRows = tableRowsReferencing(indexPath, rows.index);
+  const bugRows = tableRowsReferencing(allBugsPath, rows.bugs);
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — would delete ${dirName}`));
@@ -1671,19 +1673,32 @@ function performDelete(cwd: string, sessionDir: string): void {
   rmSync(sessionDir, { recursive: true, force: true });
   const indexPath = join(cwd, 'output', 'sessions', 'INDEX.md');
   const allBugsPath = join(cwd, 'output', 'bugs', 'all-bugs.md');
-  removeTableRows(indexPath, referenceMatcher(indexPath, (ref) => ref === `${dirName}/session-report.md`));
-  removeTableRows(allBugsPath, referenceMatcher(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`)));
+  const rows = sessionRowMatchers(dirName);
+  removeTableRows(indexPath, rows.index);
+  removeTableRows(allBugsPath, rows.bugs);
 }
 
-function removeTableRows(filePath: string, matches: (line: string) => boolean): void {
+/** Which index rows belong to a session: its INDEX.md row and its all-bugs.md rows, by Report path. */
+function sessionRowMatchers(dirName: string): { index: (ref: string) => boolean; bugs: (ref: string) => boolean } {
+  return {
+    index: (ref) => ref.startsWith(`${dirName}/`),
+    bugs: (ref) => ref.startsWith(`${dirName}/bugs/`),
+  };
+}
+
+/**
+ * Removes the data rows `tableRowsReferencing` would report for `matches` — the same
+ * rows of the same table, in every block — and nothing else: a second table under a
+ * later heading is never touched.
+ */
+function removeTableRows(filePath: string, matches: (ref: string) => boolean): void {
   if (!existsSync(filePath)) return;
   const content = readFileSync(filePath, 'utf-8');
   const lines = splitLines(content);
-  const sepIdx = lines.findIndex((l) => /^\|(\s*:?-{2,}\s*\|)+\s*$/.test(l.trim()));
-  if (sepIdx === -1) return;
-  const head = lines.slice(0, sepIdx + 1);
-  const rest = lines.slice(sepIdx + 1).filter((l) => !matches(l));
-  writeFileSync(filePath, [...head, ...rest].join(detectEol(content)));
+  const isMatch = referenceMatcher(filePath, matches);
+  const drop = new Set(tableRowLines(lines).filter((r) => isMatch(r.text)).map((r) => r.index));
+  if (drop.size === 0) return;
+  writeFileSync(filePath, lines.filter((_, i) => !drop.has(i)).join(detectEol(content)));
 }
 
 function dirStats(dir: string): { fileCount: number; totalBytes: number } {
