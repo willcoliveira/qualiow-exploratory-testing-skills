@@ -1572,8 +1572,11 @@ export function runSessionArchive(
   if (options.remove) {
     rmSync(sessionDir, { recursive: true, force: true });
     setIndexRowStatus(join(sessionsDir, 'INDEX.md'), dirName, 'archived');
+    // The bug reports these rows link to left with the directory; the INDEX.md row
+    // stays, marked archived, and names the session the archive holds.
+    removeTableRows(resolve(cwd, 'output', 'bugs', 'all-bugs.md'), sessionRowMatchers(dirName).bugs);
     removed = true;
-    log(chalk.green(`  ✓ Removed ${dirName} (INDEX.md row marked archived)`));
+    log(chalk.green(`  ✓ Removed ${dirName} (INDEX.md row marked archived, all-bugs.md rows removed)`));
   }
 
   return { ok: true, sessionDir, tarPath, removed };

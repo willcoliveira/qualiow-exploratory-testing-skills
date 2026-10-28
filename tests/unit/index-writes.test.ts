@@ -127,3 +127,26 @@ describe('delete — the dry run counts exactly the rows --yes removes', () => {
     expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(`${INDEX_MD_HEADER}${OTHER_ROW}\n${NOTES}`);
   });
 });
+
+describe.skipIf(process.platform === 'win32')('archive --remove', () => {
+  it('drops the session’s all-bugs.md rows, whose reports went with the directory', async () => {
+    const { cwd } = copySession(registry);
+    mkdirSync(join(cwd, 'output', 'bugs'), { recursive: true });
+    writeFileSync(allBugsPathOf(cwd), `${ALL_BUGS_MD_HEADER}${OTHER_BUG_ROW}\n`);
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    expect(readFileSync(allBugsPathOf(cwd), 'utf-8')).toContain(`${C2_NAME}/bugs/BUG-001.md`);
+
+    const result = runSessionArchive(C2_NAME, { remove: true }, { cwd, log: silentLog });
+    expect(result.removed).toBe(true);
+    expect(readFileSync(allBugsPathOf(cwd), 'utf-8')).toBe(`${ALL_BUGS_MD_HEADER}${OTHER_BUG_ROW}\n`);
+    expect(readFileSync(indexPathOf(cwd), 'utf-8')).toContain(`| archived | ${C2_NAME}/session-report.md |`);
+  });
+
+  it('without --remove leaves every row in place', async () => {
+    const { cwd } = copySession(registry);
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    const before = readFileSync(allBugsPathOf(cwd), 'utf-8');
+    runSessionArchive(C2_NAME, {}, { cwd, log: silentLog });
+    expect(readFileSync(allBugsPathOf(cwd), 'utf-8')).toBe(before);
+  });
+});
