@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(process.cwd());
@@ -62,6 +64,76 @@ describe('bash-guard.mjs — playwright-cli run-code', () => {
     `echo "run-code is confirmed by the guard"`,
   ])('lets %s through', (command) => {
     expect(runGuard(bash(command))).toBeNull();
+  });
+});
+
+describe('bash-guard.mjs — playwright-cli upload and state-save', () => {
+  const FIXTURE = 'output/sessions/2026-10-28-1200-explore-x/evidence/fixtures/avatar.png';
+
+  it.each([
+    'playwright-cli -s=x upload qa/.env',
+    `playwright-cli -s=x upload ${join(REPO_ROOT, '.auth', 'parabank.json')}`,
+    'playwright-cli -s=x upload output/sessions/s/evidence/fixtures/../../../../../qa/.env',
+    `playwright-cli -s=x upload ${FIXTURE} qa/.env`,
+    'playwright-cli -s=x upload output/sessions/s/screenshots/A1-cart.png',
+    'playwright-cli -s=x upload output/sessions/s/evidence/fixtures',
+    'playwright-cli -s=x upload',
+    'playwright-cli -s x upload qa/.env',
+    'playwright-cli --raw upload qa/.env',
+    'npx playwright-cli -s=x upload qa/.env',
+    'npx -y @playwright/cli upload .auth/parabank.json',
+    `cd /tmp && playwright-cli -s=x upload ${FIXTURE}`,
+    'playwright-cli -s=x upload output/sessions/s/evidence/fixtures/$F',
+    'playwright-cli -s=x upload ~/.aws/credentials',
+  ])('asks before %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).toContain('upload');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
+  });
+
+  it.each([
+    'playwright-cli -s=x state-save qa/hooks/bash-guard.mjs',
+    'playwright-cli -s=x state-save output/sessions/s/evidence/state.json',
+    'playwright-cli -s=x state-save',
+    'playwright-cli -s=x state-save .auth/../qa/x.json',
+    'npx playwright-cli -s=x state-save storage.json',
+  ])('asks before %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).toContain('state-save');
+  });
+
+  it.each([
+    `playwright-cli -s=x upload ${FIXTURE}`,
+    `playwright-cli -s=x upload ${join(REPO_ROOT, FIXTURE)}`,
+    `playwright-cli -s=x upload ${FIXTURE} output/sessions/2026-10-28-1200-explore-x/evidence/fixtures/big.csv`,
+    'playwright-cli -s=x upload Output/Sessions/x/Evidence/Fixtures/a.png',
+    'npx playwright-cli -s=x upload output/sessions/x/evidence/fixtures/a.png',
+    'playwright-cli -s=x state-save .auth/parabank.json',
+    `playwright-cli -s=x state-save ${join(REPO_ROOT, '.auth', 'parabank.json')}`,
+    'npx playwright-cli state-save .auth/saucedemo.json',
+    'playwright-cli -s=x state-load .auth/parabank.json',
+    'playwright-cli -s=x fill e3 upload',
+  ])('lets %s through', (command) => {
+    expect(runGuard(bash(command))).toBeNull();
+  });
+
+  it('follows a symlink out of the fixtures directory', () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'qualiow-bash-guard-'));
+    try {
+      const fixtures = join(cwd, 'output', 'sessions', 's', 'evidence', 'fixtures');
+      mkdirSync(fixtures, { recursive: true });
+      mkdirSync(join(cwd, 'qa'));
+      writeFileSync(join(cwd, 'qa', '.env'), 'QA_PASS=x\n');
+      writeFileSync(join(fixtures, 'real.txt'), 'synthetic\n');
+      symlinkSync(join(cwd, 'qa', '.env'), join(fixtures, 'notes.txt'));
+      const run = (command: string) => runGuard({ ...bash(command), cwd })?.permissionDecision ?? null;
+      expect(run('playwright-cli -s=x upload output/sessions/s/evidence/fixtures/notes.txt')).toBe('ask');
+      expect(run('playwright-cli -s=x upload output/sessions/s/evidence/fixtures/real.txt')).toBeNull();
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });
 

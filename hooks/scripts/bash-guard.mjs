@@ -10,6 +10,11 @@
  *   JavaScript in the Playwright node process, not in the browser sandbox —
  *   the `vm` context holding `page` is escapable to the host `process`. It is
  *   used legitimately, so the decision is `ask`: the user confirms every call.
+ * - `playwright-cli upload <files…>` sends local files to the site under test,
+ *   and `state-save <file>` writes the browser's cookies to any path. Upload
+ *   goes through only when every file resolves (after `..` and symlinks) under
+ *   `<cwd>/output/sessions/<session>/evidence/fixtures/`, state-save only under
+ *   `<cwd>/.auth/`; anything else is `ask`.
  * - `npx -c/--call <shell>`, and `npx -y`/`-p` of a package outside a short
  *   allowlist, install or run arbitrary code. The decision is `deny`.
  * - `git -c <key>=<value>`, `--config-env`, `--upload-pack`, `--receive-pack`,
@@ -35,7 +40,8 @@
  * here lets the command through (exit 0, no stdout) to the normal permission
  * check rather than breaking the caller because of a hook bug.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { basename as pathBasename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const NPX_ALLOWED_PACKAGES = new Set(['playwright-cli', '@playwright/cli', 'qualiow-exploratory-testing']);
 const PLAYWRIGHT_CLI_NAMES = new Set(['playwright-cli', '@playwright/cli']);
@@ -166,6 +172,86 @@ function packageName(spec) {
 
 function runCodeIn(words) {
   return words.includes('run-code');
+}
+
+const UPLOAD_SCOPE = /^output\/sessions\/[^/]+\/evidence\/fixtures\/[^/]/i;
+const STATE_SAVE_SCOPE = /^\.auth\/[^/]/i;
+// A path word the shell would still expand cannot be resolved here.
+const SHELL_EXPANDED_PATH = /[$`*?[{~]/;
+
+const ASK_UPLOAD =
+  'ask:playwright-cli upload sends a local file to the site under test; without a prompt it may only send ' +
+  'synthetic fixtures under output/sessions/<session>/evidence/fixtures/. Confirm the file is a test fixture ' +
+  'and holds nothing from qa/.env, .auth/ or the project.';
+const ASK_STATE_SAVE =
+  'ask:playwright-cli state-save writes the browser cookies and storage to a file; outside .auth/ (gitignored) ' +
+  'it can land in session output or overwrite a project file. Confirm the path.';
+
+/** `abs` relative to `root` with forward slashes, or null when it is not inside `root`. */
+function inside(root, abs) {
+  const rel = relative(root, abs);
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
+  return rel.split(sep).join('/');
+}
+
+/** The real path of `abs`: symlinks resolved on the deepest ancestor that exists. */
+function realPath(abs) {
+  const missing = [];
+  for (let head = abs; ; ) {
+    try {
+      return join(realpathSync(head), ...missing);
+    } catch {
+      const up = dirname(head);
+      if (up === head) return abs;
+      missing.unshift(pathBasename(head));
+      head = up;
+    }
+  }
+}
+
+/** True when a path argument resolves, lexically and through symlinks, inside `<cwd>/<scope>`. */
+function resolvesUnder(arg, ctx, scope) {
+  if (SHELL_EXPANDED_PATH.test(arg)) return false;
+  // A `cd` earlier in the command line moves the base a relative path is read from.
+  if (ctx.dirChanged && !isAbsolute(arg)) return false;
+  const abs = resolve(ctx.cwd, arg);
+  const lexical = inside(ctx.cwd, abs);
+  if (lexical === null || !scope.test(lexical)) return false;
+  const real = inside(realPath(ctx.cwd), realPath(abs));
+  return real !== null && scope.test(real);
+}
+
+/**
+ * Every word that could be the playwright-cli subcommand. Its argv parser lets an
+ * option without `=` take the next word as its value (`-s judge upload …`), so the
+ * first word after such an option and the word after that are both candidates.
+ */
+function subcommandCandidates(args) {
+  const out = [];
+  for (let k = 0; k < args.length; k++) {
+    const w = args[k];
+    if (w === '--') {
+      if (k + 1 < args.length) out.push(k + 1);
+      break;
+    }
+    if (w.startsWith('-')) continue;
+    out.push(k);
+    const prev = args[k - 1];
+    if (prev === undefined || !prev.startsWith('-') || prev.includes('=')) break;
+  }
+  return out;
+}
+
+/** 'ask:<reason>' or null for the words after `playwright-cli`. */
+function checkPlaywrightCli(args, ctx) {
+  if (runCodeIn(args)) return ASK_RUN_CODE;
+  for (const k of subcommandCandidates(args)) {
+    const operands = args.slice(k + 1).filter((w) => !w.startsWith('-'));
+    const allUnder = (scope) => operands.length > 0 && operands.every((p) => resolvesUnder(p, ctx, scope));
+    if (args[k] === 'upload' && !allUnder(UPLOAD_SCOPE)) return ASK_UPLOAD;
+    if (args[k] === 'state-save' && !allUnder(STATE_SAVE_SCOPE)) return ASK_STATE_SAVE;
+  }
+  return null;
 }
 
 /**
@@ -305,7 +391,7 @@ function checkWords(words, ctx, depth) {
   }
   if (program === 'eval') return checkCommand(rest.join(' '), ctx, depth + 1);
 
-  if (program === 'playwright-cli') return runCodeIn(rest) ? ASK_RUN_CODE : null;
+  if (program === 'playwright-cli') return checkPlaywrightCli(rest, ctx);
 
   if (program === 'git') return checkGit(rest, assigned || ctx.envChanged);
 
@@ -342,7 +428,7 @@ function checkWords(words, ctx, depth) {
   }
   if (command.length) {
     const bin = PLAYWRIGHT_CLI_NAMES.has(packageName(command[0])) ? 'playwright-cli' : basename(command[0]);
-    if (bin === 'playwright-cli' && runCodeIn(command.slice(1))) return ASK_RUN_CODE;
+    if (bin === 'playwright-cli') return checkPlaywrightCli(command.slice(1), ctx);
   }
   return null;
 }
@@ -351,7 +437,11 @@ function checkWords(words, ctx, depth) {
 function checkCommand(command, ctx, depth = 0) {
   if (typeof command !== 'string' || depth > MAX_DEPTH) return null;
   const { segs, nested } = parse(command);
-  const inner = { ...ctx, envChanged: ctx.envChanged || segs.some(changesEnv) };
+  const inner = {
+    ...ctx,
+    envChanged: ctx.envChanged || segs.some(changesEnv),
+    dirChanged: ctx.dirChanged || segs.some((w) => w[0] === 'cd' || w[0] === 'pushd' || w[0] === 'popd'),
+  };
   let ask = null;
   const bodies = [...new Set([...nested, ...substitutions(command)])];
   const results = [...bodies.map((s) => checkCommand(s, inner, depth + 1)), ...segs.map((w) => checkWords(w, inner, depth))];
@@ -381,7 +471,7 @@ try {
   if (!command || typeof command !== 'string') process.exit(0);
 
   const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
-  const result = checkCommand(command, { cwd, envChanged: false });
+  const result = checkCommand(command, { cwd, envChanged: false, dirChanged: false });
   if (result && result.startsWith('deny:')) decide('deny', result.slice('deny:'.length));
   else if (result && result.startsWith('ask:')) decide('ask', result.slice('ask:'.length));
   process.exit(0);
