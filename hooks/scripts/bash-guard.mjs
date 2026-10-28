@@ -15,8 +15,12 @@
  *   goes through only when every file resolves (after `..` and symlinks) under
  *   `<cwd>/output/sessions/<session>/evidence/fixtures/`, state-save only under
  *   `<cwd>/.auth/`; anything else is `ask`.
- * - `npx -c/--call <shell>`, and `npx -y`/`-p` of a package outside a short
- *   allowlist, install or run arbitrary code. The decision is `deny`.
+ * - `npx -c/--call <shell>`, and `npx` of a package outside a short allowlist,
+ *   install or run arbitrary code — with or without `-y`, since npm assumes
+ *   `--yes` when there is no TTY. An allowlisted name is trusted only as a
+ *   plain registry spec, `name` or `name@<semver|dist-tag>`: an `npm:` alias,
+ *   a git host, `file:`, a URL, a tarball or a path installs other code under
+ *   the trusted name. The decision is `deny`.
  * - `git -c <key>=<value>`, `--config-env`, `--upload-pack`, `--receive-pack`,
  *   `--exec`, `--exec-path=`, `--ext-diff`, `--output` and `-O` /
  *   `--open-files-in-pager` (bundled after other short flags or abbreviated, as
@@ -43,7 +47,11 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { basename as pathBasename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
-const NPX_ALLOWED_PACKAGES = new Set(['playwright-cli', '@playwright/cli', 'qualiow-exploratory-testing']);
+// `playwright` is the Playwright Test runner the skills reach through `npx playwright
+// trace|test|init-agents|run-test-mcp-server`.
+const NPX_ALLOWED_PACKAGES = new Set(['playwright-cli', '@playwright/cli', 'qualiow-exploratory-testing', 'playwright']);
+const NPM_NAME = /^(@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/;
+const NPM_VERSION = /^(([~^]|[<>]=?|=)?v?\d+(\.(\d+|x)){0,2}(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?|[A-Za-z][A-Za-z0-9._-]*)$/;
 const PLAYWRIGHT_CLI_NAMES = new Set(['playwright-cli', '@playwright/cli']);
 const WRAPPERS = new Set(['env', 'command', 'exec', 'time', 'nohup']);
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash']);
@@ -171,6 +179,15 @@ function basename(word) {
 function packageName(spec) {
   const at = spec.lastIndexOf('@');
   return at > 0 ? spec.slice(0, at) : spec;
+}
+
+/** The package name of a plain registry spec (`name`, `name@<semver|dist-tag>`), or null for anything else. */
+function registryName(spec) {
+  const at = spec.lastIndexOf('@');
+  const name = at > 0 ? spec.slice(0, at) : spec;
+  if (!NPM_NAME.test(name) || /\.(tgz|tar|tar\.gz)$/i.test(name)) return null;
+  if (at > 0 && !NPM_VERSION.test(spec.slice(at + 1))) return null;
+  return name;
 }
 
 function runCodeIn(words) {
@@ -415,7 +432,6 @@ function checkWords(words, ctx, depth) {
 
   if (program !== 'npx') return null;
 
-  let yes = false;
   const packages = [];
   let j = 0;
   for (; j < rest.length; j++) {
@@ -428,19 +444,26 @@ function checkWords(words, ctx, depth) {
     if (w === '-c' || w === '--call' || w.startsWith('--call=')) {
       return 'deny:npx -c/--call runs an arbitrary shell string; call the tool directly instead. Set QUALIOW_HOOKS=off to disable.';
     }
-    if (w === '-y' || w === '--yes' || w.startsWith('--yes=')) yes = true;
-    else if (w === '-p' || w === '--package') {
+    if (w === '-p' || w === '--package') {
       if (rest[j + 1] != null) packages.push(rest[++j]);
     } else if (w.startsWith('--package=')) packages.push(w.slice('--package='.length));
   }
   const command = rest.slice(j);
-  const candidates = packages.length ? packages : command.length ? [command[0]] : [];
-  if (packages.length || yes) {
-    const unknown = candidates.map(packageName).filter((p) => !NPX_ALLOWED_PACKAGES.has(p));
-    if (unknown.length) {
+  // With -p the command word is a bin of those packages; without it, it is the package spec.
+  for (const spec of packages.length ? packages : command.slice(0, 1)) {
+    const name = registryName(spec);
+    if (name === null) {
       return (
-        `deny:npx would install and run ${unknown.join(', ')}, which is not on the qualiow allowlist ` +
-        `(${[...NPX_ALLOWED_PACKAGES].join(', ')}). Install it deliberately instead. Set QUALIOW_HOOKS=off to disable.`
+        `deny:npx ${spec} is not a plain registry package (name or name@<version>); npm: aliases, git hosts, ` +
+        'file:, URLs, tarballs and paths install code from elsewhere. Use the plain package name.'
+      );
+    }
+    if (!NPX_ALLOWED_PACKAGES.has(name)) {
+      return (
+        `deny:npx would install and run ${name}, which is not on the qualiow allowlist ` +
+        `(${[...NPX_ALLOWED_PACKAGES].join(', ')}); without a TTY npm installs a missing package without asking. ` +
+        "Run the project's own script (npm run …) or install the package deliberately instead. " +
+        'Set QUALIOW_HOOKS=off to disable.'
       );
     }
   }
