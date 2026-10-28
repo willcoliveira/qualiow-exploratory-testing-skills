@@ -83,3 +83,15 @@ describe('mergeGitignore', () => {
     expect(merged.startsWith('node_modules/\n')).toBe(true);
   });
 });
+
+describe('consumer .gitignore block: generated artefacts', () => {
+  it.each(['output/sessions/*.tar.gz', 'output/metrics.jsonl', 'output/*.html'])('ignores %s', (entry) => {
+    expect(QUALIOW_GITIGNORE_ENTRIES).toContain(entry);
+  });
+
+  it('does not ignore qa/target.yml (no secrets; teams may share it)', () => {
+    const merged = mergeGitignore('') as string;
+    expect(merged).not.toContain('target.yml');
+    expect(merged.split('\n')).not.toContain('qa/');
+  });
+});

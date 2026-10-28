@@ -7,7 +7,12 @@ coverage/
 
 # Session data (user-generated)
 output/sessions/*/
+output/sessions/*.tar.gz
 output/bugs/*.md
+# `qualiow report -o <file>` exports land directly under output/
+output/*.html
+output/*.csv
+output/*.json
 !output/sessions/INDEX.md
 !output/bugs/all-bugs.md
 
@@ -17,7 +22,10 @@ output/bugs/*.md
 # for a real account. Ignore everything under .auth/ and keep the placeholder.
 .auth/*
 !.auth/.gitkeep
-.env
+.env*
+!.env.example
+.npmrc
+*.tgz
 
 # Playwright
 .playwright-cli/
@@ -38,8 +46,8 @@ output/context/*.md
 !output/context/.gitkeep
 
 # Project-local config (consumer projects; kept out of this repo too)
-qa/.env
-qa/bin/
+# (this is the dev repo: the dogfood config under qa/ stays local)
+qa/
 output/metrics.jsonl
 
 # Local evaluation output (never shipped, never committed)
