@@ -117,6 +117,93 @@ describe('bash-guard.mjs — git', () => {
   ])('lets %s through', (command) => {
     expect(runGuard(bash(command))).toBeNull();
   });
+
+  // `git grep -O<cmd>` runs <cmd> on every matching file; git accepts the option bundled
+  // after other short flags and the long form abbreviated.
+  it.each([
+    'git -C ../service grep -Osh TODO',
+    `git -C ../service grep --open-files-in-pager='echo x' TODO`,
+    'git -C ../service grep -nOecho TODO',
+    'git -C ../service grep -iO TODO',
+    'git -C ../service grep --open=echo TODO',
+    'git -C ../service grep --op=echo TODO',
+    'git grep -Osh TODO',
+    'git -C ../service diff -Oorderfile main...feature',
+    'git --exec-path=/tmp/x -C ../service status',
+  ])('asks before the pager/exec option in %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
+  });
+
+  it.each([
+    `GIT_PAGER='sh -c x' git -C ../service log`,
+    'PAGER=evil git -C ../service log',
+    'GIT_EXTERNAL_DIFF=/tmp/x git -C ../service diff main...feature',
+    'LESSOPEN=x EDITOR=y git log --oneline',
+    'env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=sh git -C ../service log',
+    'export GIT_PAGER=evil; git -C ../service log',
+    'set -a; GIT_PAGER=evil; git -C ../service log',
+    'PATH=/tmp/evil:$PATH; git -C ../service log',
+    `bash -c 'GIT_PAGER=evil git -C ../service log'`,
+  ])('asks before git run with an environment assignment: %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).toContain('environment');
+  });
+
+  it.each([
+    'git -C ../service config core.pager sh',
+    'git -C ../service checkout -- .',
+    'git -C ../service --no-pager reset --hard',
+    'git -C ../service fetch',
+    `git -C ../service difftool -x 'sh -c x'`,
+    'git -C ../service branch',
+    'git -C ../service branch new-branch',
+    'git -C ../service branch -a -D main',
+    'git -C ../service tag v9.9.9',
+    'git -C ../service tag -l -d v1',
+    'git -C ../service remote',
+    'git -C ../service remote add x https://example.test/x.git',
+    'git -C ../service remote -v add x https://example.test/x.git',
+  ])('asks before a git -C subcommand outside the read-only list: %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).toContain('read-only');
+  });
+
+  it.each([
+    'git -C ../service diff main...feature -- src/',
+    'git -C ../service --no-pager show HEAD:src/a.ts',
+    'git -C ../service log --oneline -5',
+    'git -C ../service log HEAD..@{u} --oneline',
+    'git -C ../service rev-parse --verify feature',
+    'git -C ../service status -sb',
+    'git -C ../service grep -n TODO',
+    'git -C ../service ls-files',
+    'git -C ../service ls-tree -r HEAD',
+    'git -C ../service cat-file -p HEAD',
+    'git -C ../service blame src/a.ts',
+    'git -C ../service describe --tags',
+    'git -C ../service for-each-ref refs/heads',
+    'git -C ../service rev-list --count HEAD',
+    'git -C ../service shortlog -sn',
+    'git -C ../service name-rev HEAD',
+    'git -C ../service branch --list',
+    'git -C ../service branch -a',
+    'git -C ../service branch -r -v',
+    'git -C ../service branch --show-current',
+    'git -C ../service branch --contains abc123',
+    'git -C ../service tag -l',
+    `git -C ../service tag --list 'v2*'`,
+    'git -C ../service remote -v',
+    'git -C ../service remote get-url origin',
+    'SHA=$(git -C ../service rev-parse HEAD)',
+    'set -e; git -C ../service status -sb',
+    'git -C ../service log $(git -C ../service merge-base main feature)..feature',
+  ])('lets the read-only %s through', (command) => {
+    expect(runGuard(bash(command))).toBeNull();
+  });
 });
 
 describe('bash-guard.mjs — switches and failure modes', () => {
