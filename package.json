@@ -46,7 +46,7 @@
     "kb:check": "node dist/cli/index.js kb check",
     "check:mirror": "diff -rq .claude/skills skills && diff -rq .claude/agents agents",
     "check:pack": "node scripts/check-pack.mjs",
-    "check:clean": "test -z \"$(git status --porcelain)\"",
+    "check:clean": "test -z \"$(git status --porcelain -- . ':(exclude)output')\"",
     "lint": "tsc --noEmit",
     "version": "node scripts/sync-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json",
     "prepublishOnly": "npm run check:clean && npm run build && npm run check:clean && npm run lint && npm run check:mirror && npm test && npm run validate && npm run kb:check && npm run check:pack"
