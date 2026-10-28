@@ -122,6 +122,11 @@ export interface ParsedVerdict {
   reproResult?: string;
   reasoning?: string;
   falsePositivePattern?: string;
+  /**
+   * `REPRO_COMMANDS:` (live-repro only): the commands the judge ran, one per line, in
+   * order — the replay of a confirmed bug. Absent when the block has no such field.
+   */
+  reproCommands?: string[];
 }
 
 // ─── Evidence ────────────────────────────────────────────────────────

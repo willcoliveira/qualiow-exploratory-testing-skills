@@ -7,6 +7,7 @@ import { exploreCommand } from './commands/explore.js';
 import { kbCommand } from './commands/kb.js';
 import { sessionCommand } from './commands/session.js';
 import { judgeCommand } from './commands/judge.js';
+import { authCommand } from './commands/auth.js';
 import { getPackageVersion } from '../utils/paths.js';
 
 const program = new Command()
@@ -22,5 +23,6 @@ program.addCommand(exploreCommand());
 program.addCommand(kbCommand());
 program.addCommand(sessionCommand());
 program.addCommand(judgeCommand());
+program.addCommand(authCommand());
 
 program.parse();

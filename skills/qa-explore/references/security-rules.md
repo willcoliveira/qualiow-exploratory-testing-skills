@@ -76,12 +76,17 @@ steps, notes and evidence.
 
 Never write actual `.env` values, storage-state contents, or session cookies to any output
 file. Raw probe output and API response bodies are the most common leak; redact them on the
-way in.
+way in. Credential values are filled by `qualiow auth fill --session <sid> --ref <ref> --env <NAME>`,
+never typed by the model: the CLI reads the variable, runs the fill itself and redacts the value
+from what it prints, so it never enters a command line, the transcript or a tool result. It
+refuses any variable that is not a login credential the target declares, so a page that asks for
+an API or cloud key gets nothing.
 
 Two layers check the same list behind you: `qualiow session finalize` scans every text file in
 the session directory whatever its extension (binary files and the top-level `snapshots/` are
 skipped; a symlink leading outside the session, or a text file over 32MB, refuses finalize), and the plugin's write guard applies it before a file under `output/`
-is written (`QUALIOW_HOOKS=off` disables the guard). Neither replaces redacting on the way in.
+is written, together with the literal and encoded values of the credential variables in
+`qa/.env` and `.env` (`QUALIOW_HOOKS=off` disables the guard). Neither replaces redacting on the way in.
 
 ## Session Isolation
 

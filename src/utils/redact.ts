@@ -13,6 +13,8 @@
  * fails open, so no unbounded quantifier may restart at every offset of a run.
  */
 
+import { type SecretValue, secretValueVariants } from './secret-values.js';
+
 interface RedactionRule {
   name: string;
   pattern: RegExp;
@@ -240,7 +242,13 @@ const EMAIL_RULE: RedactionRule = {
 export interface RedactOptions {
   // Redact email addresses (default true); example.* and localhost addresses are kept.
   emails?: boolean;
+  // Known credential values (from `collectSecretValues`), replaced literally and in
+  // their common encodings before the pattern rules run. A plain password has no
+  // shape the patterns could catch.
+  values?: ReadonlyArray<SecretValue>;
 }
+
+export const CREDENTIAL_VALUE_CATEGORY = 'Credential value';
 
 /** Redacts secrets, returning the cleaned text and which categories fired. */
 export function redact(
@@ -249,6 +257,14 @@ export function redact(
 ): { text: string; redactions: string[] } {
   const redactions = new Set<string>();
   let result = text;
+
+  for (const { value } of opts.values ?? []) {
+    for (const variant of secretValueVariants(value)) {
+      if (!result.includes(variant)) continue;
+      result = result.split(variant).join('[REDACTED]');
+      redactions.add(CREDENTIAL_VALUE_CATEGORY);
+    }
+  }
 
   const rules = RULES.slice();
   if (opts.emails !== false) rules.push(EMAIL_RULE);
@@ -272,8 +288,8 @@ export function redact(
 }
 
 /** True when the text contains any detectable secret. */
-export function containsSecrets(text: string): boolean {
-  return redact(text).redactions.length > 0;
+export function containsSecrets(text: string, opts: RedactOptions = {}): boolean {
+  return redact(text, opts).redactions.length > 0;
 }
 
 export const REDACTION_CATEGORIES = [...new Set(RULES.map((r) => r.name).concat('Email'))];

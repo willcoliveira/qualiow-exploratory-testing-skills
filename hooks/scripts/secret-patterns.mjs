@@ -226,3 +226,56 @@ export function findSecretCategories(text) {
   }
   return [...found];
 }
+
+// ─── Known values ────────────────────────────────────────────────────
+//
+// The patterns above catch secret-shaped text. A plain password typed into a form
+// has no shape, so the write guard also looks for the literal values of the
+// credential env vars. Same variants and the same minimum length as
+// `src/utils/secret-values.ts` (`tests/unit/write-guard.test.ts` compares them).
+
+/** Shorter values are skipped: matching every `1234` in a report would make it unwritable. */
+export const MIN_SECRET_VALUE_LENGTH = 6;
+
+/**
+ * The forms a value takes on disk: literal, URL-encoded (encodeURIComponent and both form
+ * encodings), JSON-escaped, and base64 (standard and URL-safe, padded or not). Longest first.
+ */
+export function secretValueVariants(value) {
+  const b64 = Buffer.from(value, 'utf-8').toString('base64');
+  const b64url = Buffer.from(value, 'utf-8').toString('base64url');
+  const variants = new Set([
+    value,
+    encodeURIComponent(value),
+    encodeURIComponent(value).replace(/%20/g, '+'),
+    new URLSearchParams({ v: value }).toString().slice(2),
+    JSON.stringify(value).slice(1, -1),
+    b64,
+    b64.replace(/=+$/, ''),
+    b64url,
+  ]);
+  return [...variants]
+    .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH)
+    .sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Occurrences of each known value (any variant) in `text`, keyed by the env var NAME.
+ * `values` is `[{ name, value }]`; the result never carries a value.
+ */
+export function countSecretValues(text, values) {
+  const counts = new Map();
+  if (!text) return counts;
+  for (const { name, value } of values) {
+    let n = 0;
+    for (const variant of secretValueVariants(value)) {
+      let at = text.indexOf(variant);
+      while (at !== -1) {
+        n += 1;
+        at = text.indexOf(variant, at + variant.length);
+      }
+    }
+    if (n > 0) counts.set(name, (counts.get(name) || 0) + n);
+  }
+  return counts;
+}

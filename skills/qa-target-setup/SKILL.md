@@ -5,7 +5,7 @@ description: >
   walks through login flow creation, auto-detects scope, and saves target config.
   Use when user says: "setup target", "add target", "configure app", "new target".
 argument-hint: "<url> [--name <id>] [--shared]"
-allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Read, Write, Glob, Grep
+allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx playwright:*), Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Read, Write, Glob, Grep
 ---
 
 # Target Application Setup
@@ -55,13 +55,20 @@ From the snapshot, detect:
 
 **Option A: Storage State (recommended)**
 1. Ask the user for the env var **names** for username and password (values go in `qa/.env`).
-2. Log in via playwright-cli, reading the values from `qa/.env` (never echo them):
+2. Log in via playwright-cli. The username may be filled as a literal; the password is filled
+   by `qualiow auth fill`, which reads the variable itself so the value never passes through
+   you. `--session` takes the `setup-<HHmm>-<name>` id without `-s=`; write `qualiow` as the
+   prefix resolved from `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md` (CLI):
    ```bash
    playwright-cli snapshot  # find form fields
    playwright-cli fill <email_ref> "<username value>"
-   playwright-cli fill <password_ref> "<password value>"
+   qualiow auth fill --session <sid> --ref <password_ref> --env <the password env var NAME> --target <name>
    playwright-cli click <submit_ref>
    ```
+   `auth fill` types only a login credential the target declares. With names other than
+   `QA_USER`/`QA_PASS`, write the target file's `auth.credentials` block (step 5) before logging
+   in. Exit 2 means the variable is not set in `qa/.env` yet: ask the user to add it there, never
+   to paste the value into the conversation.
    If the identity provider needs MFA, reopen headed (`playwright-cli open <login_url> --headed`) and let the user complete it by hand; never automate an MFA challenge.
 3. Verify login succeeded (snapshot shows dashboard/profile).
 4. Save state: `playwright-cli state-save .auth/<name>.json`

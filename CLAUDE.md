@@ -61,6 +61,7 @@ Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc
 `qualiow` — `init`, `explore` (pre-flight only), `validate`, `list <sessions|knowledge|targets|domains>`,
 `report`, `kb <sync|check|digest>`,
 `session <finalize|level|continue-check|list|archive|delete|prune>`,
+`auth fill --session <sid> --ref <ref> --env <NAME> [--target <id>]`,
 `judge triage <claim-file>` (opt-in, advisory decision-model triage of one claim card — off
 unless the target sets `verification.mode: triage-shadow`; exit 2 = not enabled, nothing sent;
 3 = unavailable).
@@ -70,8 +71,18 @@ The fixed-contract work belongs to the CLI, not to the model:
 - `kb digest [--for explore|backend|mobile] [--domain <id>] [--tag <t>…] [--entry <id>]
   [--data <dir>] [--max-lines <n>]` — what a session loads at setup, instead of reading
   `manifest.yml` and the entry files whole. `--entry <id>` prints one entry in full.
+- `auth fill --session <sid> --ref <ref> --env <NAME> [--target <id>]` — type the value of an env
+  var (environment → `qa/.env` → `.env`) into a page field through `playwright-cli`, so a password
+  never passes through the model; its output is redacted. Only a login credential the target
+  declares (`auth.credentials`, `auth.token`, or `QA_USER`/`QA_PASS`/`QA_TOKEN`) is accepted —
+  never an API or cloud key. Exit 2 = variable not set (named,
+  never a value). Mobile (`mcli fill`) still types through the model.
 - `session finalize <dir|latest> [--check] [--redact]` — validate a finished session, append
-  the index rows, record the metrics line. Idempotent. A contract-2 session (`"contract": 2`
+  the index rows, record the metrics line, write `evidence-manifest.json`. Idempotent. Besides
+  the redaction list it scans for the literal values (and encodings) of the target's credential
+  variables, and refuses a `Verified` bug whose verdict file is not CONFIRMED or
+  CONFIRMED-ADJUSTED (unless `judge overruled`), a `bugs/refuted/` file whose verdict disagrees,
+  and a verdict file that does not parse. A contract-2 session (`"contract": 2`
   in `stats.json`, written by `/qa-explore` and `/qa-explore-quick`) is refused while an area,
   its evidence or a bug's `**Area:**` fails the checks, or the level is missing or stale
   ("re-run `qualiow session level <dir> --write`"). Contract-1 sessions are checked as before.
@@ -191,6 +202,12 @@ every bug, and at least one `screenshots/A<N>-<slug>.png` per area reported `tes
 `evidence/` (never `snapshots/`). `qualiow session level <dir> --write` then adds the
 CLI-written `evidence-level.md` and `backlog.md`, never hand-written. Mobile and backend stay
 on contract 1.
+
+Every passing `finalize`, of any kind, writes `evidence-manifest.json`: each file under
+`screenshots/`, `videos/`, `traces/`, `logs/` and `evidence/` with its size, SHA-256 and
+`scan` (`text-clean` | `binary-not-scanned`). CLI-written, never by hand. A judge verdict from a
+live re-run ends with `REPRO_COMMANDS:` (the judge's own commands, `-s=<sid>`, no credential),
+and the shipped bug's `## Verification` points at it with a `Replay:` line.
 
 The row in `output/sessions/INDEX.md`
 (`| Date | Kind | Target | Bugs | Duration | Status | Report |`), the entries in

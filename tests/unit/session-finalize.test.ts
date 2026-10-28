@@ -546,7 +546,10 @@ describe('runSessionFinalize — contract 2', () => {
     writeFileSync(bug, readFileSync(bug, 'utf-8').replace('**Verification:** Unverified (not judged — budget)', '**Verification:** Verified'));
     const result = await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog });
     expect(result.ok).toBe(false);
+    // Promoting the bug by hand also contradicts the verdict on file (step 4).
     expect(result.violations).toEqual([
+      'bugs/BUG-002.md says Verified, but verification/VERDICT-002.md is UNVERIFIED — ship it as Unverified (<reason>), ' +
+        'move it to bugs/refuted/, or write Verified (judge overruled: <reason>)',
       `stats.json coverage_level is stale (its inputs changed since it was written) — ${RERUN}`,
       `evidence-level.md is stale or edited by hand — ${RERUN}`,
     ]);

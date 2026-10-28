@@ -106,9 +106,11 @@ Exit 0: done. Exit 1: it prints a numbered violation list. Fix only
 
 Never touch `bugs/*.md` or `bugs/refuted/*.md` content, severity, verification line, area line
 or business impact, never move a file between those two directories, the numbers in
-`stats.json`, `evidence-level.md`, `backlog.md`, or any phase file. A contract-2 violation
-(an area, its evidence, a bug's area, or a level that is missing or stale) is the session's to
-fix: list it in your return. Re-run finalize once. If violations remain, stop and list them.
+`stats.json`, `evidence-level.md`, `backlog.md`, `evidence-manifest.json` (finalize writes it),
+anything under `verification/`, or any phase file. A contract-2 violation (an area, its
+evidence, a bug's area, or a level that is missing or stale), a `**Verification:**` line that
+disagrees with its verdict file, and a credential variable's value found in a file are the
+session's to fix: list them in your return. Re-run finalize once. If violations remain, stop and list them.
 
 ## Return
 

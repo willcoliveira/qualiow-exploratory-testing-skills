@@ -87,6 +87,18 @@ Based on what's on the page, apply relevant heuristics:
 - Responsive mobile: `playwright-cli resize 375 667`
 - Ambiguous element in a repro step: `playwright-cli generate-locator <ref>` for a stable locator
 
+**Before you write a bug, rule these out** — a quick session has no judge, so this check is the
+only one (full entries: `## UI False Positive Patterns` in the knowledge base's
+`learned-patterns.md`):
+
+- a link that "does nothing" — `playwright-cli tab-list`: it may have opened a new tab;
+- a label "missing" or "cut short" — an inline link splits it into separate nodes;
+- list items "missing" — scroll the infinite-scroll sentinel into view and wait;
+- images "broken" — lazy images below the fold load only once scrolled into view;
+- a "dead" page — a development server compiling the route on its first request; reload;
+- data that "changed on its own" — another session on the same account;
+- an "error page" — a firewall, bot-challenge or rate-limit interstitial in front of the app.
+
 For each bug: `playwright-cli screenshot --filename=output/sessions/<session-dir>/screenshots/BUG-NNN.png` and document immediately.
 
 When you are done with an area — fully tested or only partly — capture it under its charter ID
@@ -149,9 +161,12 @@ qualiow session finalize output/sessions/<session-dir>
 ```
 
 It validates `stats.json`, checks the confidentiality header on every artefact and scans them
-against the redaction list, re-checks contract 2 (a level that is missing or stale after a later
+against the redaction list and for the literal values of the target's credential variables,
+re-checks contract 2 (a level that is missing or stale after a later
 edit: re-run `qualiow session level <dir> --write`), then appends the session row to `output/sessions/INDEX.md` and one
-row per bug to `output/bugs/all-bugs.md` and records the metrics. On exit 1 it names each
+row per bug to `output/bugs/all-bugs.md`, records the metrics and writes
+`evidence-manifest.json` (every evidence file with its size and SHA-256; never write or edit
+it by hand). On exit 1 it names each
 offending file: fix it and run again (`--check` validates without writing). Resolve the
 `qualiow` prefix per `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`.
 
