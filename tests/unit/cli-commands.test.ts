@@ -14,6 +14,7 @@ import { resolveSessionDir, runReport } from '../../src/cli/commands/report.js';
 import { runExplore, parseTimeBox } from '../../src/cli/commands/explore.js';
 import { readSessionIndex, runList } from '../../src/cli/commands/list.js';
 import { runValidate } from '../../src/cli/commands/validate.js';
+import { runSessionFinalize } from '../../src/cli/commands/session.js';
 import { SESSION_DIR_RE, parseSessionDirName } from '../../src/utils/session-dir.js';
 
 const REPO_ROOT = resolve(process.cwd());
@@ -239,18 +240,31 @@ describe('runReport — jira format (CSV formula-injection guard)', () => {
   });
 });
 
-describe('runReport — metrics are appended once', () => {
-  it('does not duplicate the metrics.jsonl entry across two runs', async () => {
+describe('runReport — records no metrics', () => {
+  it('leaves metrics.jsonl to finalize: no file after two report runs', async () => {
     const { cwd } = makeTmpSessionCwd();
     await runReport({ session: 'latest', format: 'md', stdout: false }, { cwd, log: silentLog });
-    await runReport({ session: 'latest', format: 'md', stdout: false }, { cwd, log: silentLog });
+    await runReport({ session: 'latest', format: 'json', stdout: false }, { cwd, log: silentLog });
 
-    const metricsPath = join(cwd, 'output', 'metrics.jsonl');
-    expect(existsSync(metricsPath)).toBe(true);
-    const lines = readFileSync(metricsPath, 'utf-8').trim().split('\n');
+    expect(existsSync(join(cwd, 'output', 'metrics.jsonl'))).toBe(false);
+  });
+
+  it('a report run before finalize does not pre-empt finalize’s metrics line', async () => {
+    // A contract-2 session: finalize's line carries the per-tier counts a report run cannot know.
+    const cwd = makeTmpCwd();
+    const name = '2026-10-05-1000-explore-c2';
+    cpSync(join(REPO_ROOT, 'tests', 'fixtures', 'contract2-session', name), join(cwd, 'output', 'sessions', name), {
+      recursive: true,
+    });
+    await runReport({ session: 'latest', format: 'md', stdout: false }, { cwd, log: silentLog });
+    const finalized = await runSessionFinalize('latest', {}, { cwd, log: silentLog });
+    expect(finalized.ok).toBe(true);
+
+    const lines = readFileSync(join(cwd, 'output', 'metrics.jsonl'), 'utf-8').trim().split('\n');
     expect(lines).toHaveLength(1);
-    const parsed = JSON.parse(lines[0]);
-    expect(parsed.session_id).toBe('2026-09-08-1813-explore-example');
+    const record = JSON.parse(lines[0]);
+    expect(record.session_id).toBe(name);
+    expect(record.coverage.areas.by_tier).toBeDefined();
   });
 });
 

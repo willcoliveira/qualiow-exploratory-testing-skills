@@ -5,7 +5,6 @@ import {
   lstatSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
@@ -15,8 +14,6 @@ import { generateJsonReport } from '../../formatters/json-report.js';
 import { generateJiraExport } from '../../formatters/jira-export.js';
 import { generateMarkdownSummary } from '../../formatters/markdown-summary.js';
 import { SESSION_DIR_RE } from '../../utils/session-dir.js';
-import { SessionMetricsSchema } from '../../schemas/session-metrics.schema.js';
-import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 
 export interface ReportOptions {
   session: string;
@@ -95,19 +92,8 @@ export async function runReport(
   writeFileSync(outputPath, content);
   log(chalk.cyan(`\nSession: ${sessionName}`));
   log(chalk.green(`  ${format.toUpperCase()} written: ${relative(cwd, outputPath)}`));
-
-  // Record metrics once per session when the skill produced a valid stats.json.
-  const statsPath = join(sessionDir, 'stats.json');
-  if (existsSync(statsPath)) {
-    try {
-      const stats = SessionMetricsSchema.parse(JSON.parse(readFileSync(statsPath, 'utf-8')));
-      if (appendSessionMetricsDeduped(resolve(cwd, 'output'), stats)) {
-        log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
-      }
-    } catch {
-      log(chalk.yellow('  ⚠ stats.json present but not in the expected shape — metrics not recorded'));
-    }
-  }
+  // No metrics here: `session finalize` is the only writer of metrics.jsonl. A line
+  // recorded from an unvalidated session would win its dedupe over finalize's own.
   log('');
 
   return { outputPath, content };
