@@ -246,6 +246,9 @@ export interface RedactOptions {
   // their common encodings before the pattern rules run. A plain password has no
   // shape the patterns could catch.
   values?: ReadonlyArray<SecretValue>;
+  // Apply the pattern rules (default true). `false` replaces the known values only — for
+  // raw page trees, whose text is full of shapes the rules would flag.
+  patterns?: boolean;
 }
 
 export const CREDENTIAL_VALUE_CATEGORY = 'Credential value';
@@ -266,8 +269,8 @@ export function redact(
     }
   }
 
-  const rules = RULES.slice();
-  if (opts.emails !== false) rules.push(EMAIL_RULE);
+  const rules = opts.patterns === false ? [] : RULES.slice();
+  if (opts.patterns !== false && opts.emails !== false) rules.push(EMAIL_RULE);
 
   for (const rule of rules) {
     rule.pattern.lastIndex = 0;

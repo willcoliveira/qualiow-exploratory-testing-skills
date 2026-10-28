@@ -317,21 +317,28 @@ export async function runSessionFinalize(
     }
   }
 
-  // 3. no secrets in any text file, whatever its extension, except under the
-  // session's own top-level snapshots/ (raw page trees, never shipped). Text is told
-  // from binary by content, so renaming a file does not take it out of the scan.
-  // evidence-manifest.json is finalize's own output — paths and hashes, where a 13-digit
-  // timestamp in a file name reads as a card number — and is held to the exact content
-  // finalize would write instead (step 6).
+  // 3. no secrets in any text file, whatever its extension. Under the session's own
+  // top-level snapshots/ (raw page trees, never shipped) only the credential values are
+  // looked for, not the patterns: a snapshot taken while a password field is filled
+  // carries the typed value, while the page text around it is full of shapes the rules
+  // would flag. Text is told from binary by content, so renaming a file does not take it
+  // out of the scan. evidence-manifest.json is finalize's own output — paths and hashes,
+  // where a 13-digit timestamp in a file name reads as a card number — and is held to the
+  // exact content finalize would write instead (step 6).
   const textFiles = new Set<string>();
   for (const { path: file, rel } of walk.files) {
-    if (rel.split(sep)[0] === 'snapshots') continue;
+    const snapshot = rel.split(sep)[0] === 'snapshots';
+    if (snapshot && secretValues.length === 0) continue;
     if (rel === EVIDENCE_MANIFEST_FILE) continue;
     const size = statSync(file).size;
     const encoding = sniffTextEncoding(file);
     if (encoding === null) continue;
-    textFiles.add(file);
+    if (!snapshot) textFiles.add(file);
     if (size > MAX_SCAN_BYTES) {
+      if (snapshot) {
+        log(chalk.yellow(`  ⚠ ${rel} is over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — not scanned for credential values`));
+        continue;
+      }
       violations.push(
         `${rel} is a ${formatBytes(size)} text file, over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — ` +
           'not scanned; remove it, split it, or move it under snapshots/',
@@ -340,9 +347,10 @@ export async function runSessionFinalize(
     }
     const raw = readFileSync(file);
     const content = decodeText(raw, encoding);
-    if (!containsSecrets(content, { values: secretValues })) continue;
+    const scan = snapshot ? { values: secretValues, patterns: false } : { values: secretValues };
+    if (!containsSecrets(content, scan)) continue;
 
-    const { text, redactions } = redact(content, { values: secretValues });
+    const { text, redactions } = redact(content, scan);
     if (options.redact) {
       writeFileSync(file, encodeText(text, encoding, raw));
       redactedFiles.push({ file: rel, categories: redactions });

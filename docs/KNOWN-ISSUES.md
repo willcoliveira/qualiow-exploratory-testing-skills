@@ -179,6 +179,17 @@ The web token strategy (`auth.strategy: token`, `cookie-set` / `localstorage-set
 `qa-explore/phases/01-auth.md`) is the same gap on the web side: `auth fill` covers form fields
 only, so the token value is still read and typed by the model.
 
+**The value comes back through the snapshot.** Playwright's accessibility tree carries the
+`value` of a filled `type=password` input, so the first `playwright-cli snapshot` after
+`auth fill` — the one a failed or multi-step login needs — prints `textbox "Password": <value>`
+into the transcript, and `click` writes the same tree to `.playwright-cli/page-*.yml`. `auth
+fill` keeps the value out of the command line the model writes; it cannot keep it out of a
+snapshot the model takes afterwards. `finalize` now (unreleased) scans the top-level
+`snapshots/` directory for the credential values too (the pattern rules still skip it), so a
+raw tree saved there with the password in it is refused and `finalize --redact` rewrites it;
+what the model already read is not undone. Fix: clear the field (or submit) before any
+snapshot on a failed login, or an `auth fill --submit <ref>` that fills and submits in one call.
+
 ---
 
 ## Hardening after 2.4.1 (unreleased, ADR-016): what it closes and what it leaves

@@ -4,7 +4,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { runSessionFinalize } from '../../src/cli/commands/session.js';
@@ -73,7 +73,56 @@ describe('finalize — a target that does not resolve fails closed', () => {
     expect((await checkWithLog(cwd)).result.ok).toBe(true);
   });
 
-  it('a target that resolves keeps to the names it declares, and prints no warning', async () => {
+});
+
+describe('finalize — snapshots/ is scanned for credential values', () => {
+  // An aria snapshot taken while the password field is filled prints the typed value.
+  const FAKE_PASS = 'Fake-Snapshot-Pass-2026';
+  const AWS_SHAPED = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('');
+  const snapshotYml = `- textbox "Password" [active] [ref=e6]: ${FAKE_PASS}\n- text: key ${AWS_SHAPED}\n`;
+
+  it('refuses a snapshot holding the QA_PASS value, naming the file and category only', async () => {
+    vi.stubEnv('QA_PASS', FAKE_PASS);
+    const { cwd, sessionDir } = copyC2();
+    mkdirSync(join(sessionDir, 'snapshots'), { recursive: true });
+    writeFileSync(join(sessionDir, 'snapshots', 'login.yml'), snapshotYml);
+
+    const { result } = await checkWithLog(cwd);
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([
+      `${join('snapshots', 'login.yml')} contains a secret: Credential value (run with --redact to fix)`,
+    ]);
+    expect(result.violations.join('\n')).not.toContain(FAKE_PASS);
+  });
+
+  it('--redact removes the value from the snapshot and leaves its page text alone', async () => {
+    vi.stubEnv('QA_PASS', FAKE_PASS);
+    const { cwd, sessionDir } = copyC2();
+    mkdirSync(join(sessionDir, 'snapshots'), { recursive: true });
+    const file = join(sessionDir, 'snapshots', 'login.yml');
+    writeFileSync(file, snapshotYml);
+
+    const fixed = await runSessionFinalize(C2_NAME, { redact: true }, { cwd, log: () => {} });
+    expect(fixed.ok).toBe(true);
+    expect(fixed.redactedFiles).toEqual([{ file: join('snapshots', 'login.yml'), categories: ['Credential value'] }]);
+    const after = readFileSync(file, 'utf-8');
+    expect(after).not.toContain(FAKE_PASS);
+    expect(after).toContain('[ref=e6]: [REDACTED]');
+    // The pattern rules still do not apply under snapshots/.
+    expect(after).toContain(AWS_SHAPED);
+  });
+
+  it('a snapshot with no credential value in it passes, page text and all', async () => {
+    vi.stubEnv('QA_PASS', FAKE_PASS);
+    const { cwd, sessionDir } = copyC2();
+    mkdirSync(join(sessionDir, 'snapshots'), { recursive: true });
+    writeFileSync(join(sessionDir, 'snapshots', 'home.yml'), `- text: key ${AWS_SHAPED}\n`);
+    expect((await checkWithLog(cwd)).result.ok).toBe(true);
+  });
+});
+
+describe('finalize — a resolved target', () => {
+  it('keeps to the names it declares, and prints no warning', async () => {
     const { cwd, sessionDir } = copyC2();
     mkdirSync(join(cwd, 'data', 'targets'), { recursive: true });
     writeFileSync(join(cwd, 'data', 'targets', 'example-shop.yml'), 'id: example-shop\nauth:\n  strategy: none\n');
