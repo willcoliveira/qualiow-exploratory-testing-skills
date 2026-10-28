@@ -5,7 +5,7 @@ description: >
   Use when user says: "show report", "generate report", "reformat bugs", "session summary",
   or wants to review past session findings.
 argument-hint: "[<session-dir> | latest] [--format markdown|summary|bugs-only|coverage-map] [--overwrite]"
-allowed-tools: Read, Write, Glob, Grep, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(wc:*)
+allowed-tools: Read, Write, Glob, Grep, Bash(qualiow session finalize:*), Bash(npx -y -p qualiow-exploratory-testing qualiow session finalize:*), Bash(wc:*)
 context: fork
 agent: qa-reporting-agent
 ---

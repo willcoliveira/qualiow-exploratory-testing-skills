@@ -121,6 +121,24 @@ describe.each(agentFiles)('agent: %s', (file) => {
   });
 });
 
+// The exact Bash grants of the agents whose reach matters most: each reads text the system
+// under test wrote (page text quoted in bugs, tickets, diffs), so a grant is what that text
+// could get run. A change here is a security decision, not a convenience.
+const EXACT_BASH_GRANTS: Record<string, string[]> = {
+  'qa-reporting-agent': [
+    'qualiow session finalize:*',
+    'npx -y -p qualiow-exploratory-testing qualiow session finalize:*',
+    'wc:*',
+  ],
+};
+
+describe.each(Object.entries(EXACT_BASH_GRANTS))('Bash grants of %s', (name, expected) => {
+  it('are exactly the expected prefixes', () => {
+    const content = readFileSync(join(AGENTS_DIR, `${name}.md`), 'utf-8');
+    expect(extractBashEntries(parseFrontmatter(content)?.tools)).toEqual(expected);
+  });
+});
+
 describe('forbidden strings are absent from every agent file', () => {
   const violations: string[] = [];
 

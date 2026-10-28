@@ -6,7 +6,7 @@ description: >
   `qualiow session finalize` to append the index rows. Use it once a session has written its
   bugs, its stats and its phase-7 notes. It copies the judgement already recorded in the
   notes — it never grades a bug and never writes a summary of its own.
-tools: Read, Write, Glob, Grep, Bash(qualiow:*), Bash(npx -y -p qualiow-exploratory-testing qualiow:*), Bash(wc:*)
+tools: Read, Write, Glob, Grep, Bash(qualiow session finalize:*), Bash(npx -y -p qualiow-exploratory-testing qualiow session finalize:*), Bash(wc:*)
 model: sonnet
 effort: low
 maxTurns: 30
@@ -25,7 +25,9 @@ The session directory (`output/sessions/<YYYY-MM-DD-HHmm>-<kind>-<slug>/`) and i
 Resolve the `qualiow` prefix once, in the order `skills/qa-explore/references/paths.md` gives
 (or `.claude/skills/qa-explore/references/paths.md` in a project), then write that resolved
 prefix literally as the first token of every command. The npm package is
-`qualiow-exploratory-testing`; never shorten its npx spelling.
+`qualiow-exploratory-testing`; never shorten its npx spelling. The one command you are
+granted is `qualiow session finalize`, as `qualiow` on `PATH` or
+`npx -y -p qualiow-exploratory-testing qualiow` — if neither runs, say so in your return.
 
 ## Read
 
