@@ -81,7 +81,9 @@ from the session report's coverage table.
 - `coverage-map` → `coverage-map.md`
 
 All in `output/sessions/<session-dir>/`, confidentiality header first, redacted. Never modify
-`bugs/BUG-*.md` from this skill; `/qa-explore-feedback` owns severity changes.
+`bugs/BUG-*.md` from this skill. A reviewer's severity change lives in the session's
+`feedback.md` (`/qa-explore-feedback`), never in the bug files: the report keeps the
+severities the bugs carry.
 
 Then check what you wrote:
 

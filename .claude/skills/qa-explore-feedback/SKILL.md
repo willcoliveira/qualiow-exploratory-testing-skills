@@ -32,19 +32,34 @@ every claim the user is reviewing. A `session-report.md` over 300 lines is read 
 `Grep '^## '` for the headings, then `Read` with `offset`/`limit` on Coverage Map, Bugs Found,
 Observations and Reflection.
 
+**Finalized?** A session is finalized once `output/sessions/INDEX.md` has its row
+(`Grep '<session-dir>/' output/sessions/INDEX.md`) — `qualiow session finalize` wrote it.
+Its files are then fixed: `finalize --check` and `--continue` re-verify the bugs,
+`stats.json`, the coverage level and `evidence-manifest.json`, and the level cannot be
+recomputed after finalize, so an edit there breaks the session for good. Never edit
+`bugs/*.md`, `stats.json` or any other file of a finalized session. Every correction goes
+into `<session-dir>/feedback.md` (step 6) instead.
+
 ### 2. Review Bugs with User
 
 For each bug found, ask the user:
 - **Valid bug?** Keep as-is
-- **False positive?** Mark as false positive, ask WHY (the pattern that triggered it incorrectly)
-- **Severity wrong?** Adjust the `**Severity:**` line in `bugs/BUG-NNN.md` and the row in `output/bugs/all-bugs.md`
+- **False positive?** Record it, and ask WHY (the pattern that triggered it incorrectly)
+- **Severity wrong?** Record `BUG-NNN: <old> → <new> — <the user's reason>`
+
+Recorded means `feedback.md` — never the bug file, and never the Severity cell of
+`output/bugs/all-bugs.md`, which must keep matching the file it points at. Only a session
+that is **not finalized yet** is corrected in place: change the bug's `**Severity:**` line
+and `stats.json` `severity_counts` together, then tell the user to re-run
+`qualiow session level <dir> --write` (explore and quick: severity is an input to the level)
+before `qualiow session finalize <dir>`.
 
 ### 3. Capture Missed Bugs
 
 Ask: "Did you find any bugs manually that the session missed?"
 
 For each missed bug:
-- Record it as an additional finding
+- Record it in `feedback.md` — never as a new `bugs/BUG-NNN.md` in a finalized session
 - Extract the PATTERN: What should have been checked? Which heuristic would have caught it?
 
 ### 4. Rate Session Quality
@@ -80,14 +95,41 @@ sessions, so the lead-in is the pattern and the rest is grepped when it looks re
 - **[NEW] <short insight>** — <what this session taught about the domain>
 ```
 
-### 6. Update Session Index
+### 6. Write `feedback.md` and Update the Index
 
-Set the session's `Status` column in `output/sessions/INDEX.md` to `reviewed`, and set
-`Status` to `false-positive` or `closed` in `output/bugs/all-bugs.md` for bugs the user
-rejected.
+Write `<session-dir>/feedback.md` at the session root — never under `screenshots/`,
+`videos/`, `traces/`, `logs/` or `evidence/`, which the evidence manifest covers. It is held
+to the same header and redaction checks as every session file:
+
+```markdown
+> CONFIDENTIAL: This report may contain internal URLs, security vulnerabilities,
+> and application details. Do not share outside your organization without review.
+
+# Feedback — <session-dir>
+
+**Reviewed:** <YYYY-MM-DD>
+
+## Severity Changes
+- BUG-NNN: <old> → <new> — <reason>
+
+## False Positives
+- BUG-NNN — <why it is not a bug; the pattern that produced it>
+
+## Missed Bugs
+- <what was missed, where, and the check that would have caught it>
+
+## Session Rating
+Coverage <1-5> · Detection accuracy <1-5> · Report quality <1-5>
+```
+
+Leave out a section with nothing in it; a later review appends its own `**Reviewed:**` block.
+
+Then set the session's `Status` cell in `output/sessions/INDEX.md` to `reviewed`, and the
+`Status` cell in `output/bugs/all-bugs.md` to `false-positive` or `closed` for bugs the user
+rejected. Change no other cell.
 
 ### 7. Summary
 
 Present to user:
-- Changes made (false positives removed, patterns added)
+- What `feedback.md` records and which patterns were added
 - How this will improve future sessions
