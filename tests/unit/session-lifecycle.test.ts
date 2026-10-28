@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { runSessionFinalize } from '../../src/cli/commands/session.js';
 import { compareBugIds } from '../../src/utils/parse-session.js';
 import {
+  C2_NAME,
   CANONICAL_FIXTURE,
   CANONICAL_NAME,
   cleanup,
@@ -63,5 +64,65 @@ describe('finalize — bug id order', () => {
       .filter((l) => l.startsWith('| BUG-'))
       .map((l) => l.split('|')[1].trim());
     expect(ids).toEqual(['BUG-001', 'BUG-002', 'BUG-010', 'BUG-999', 'BUG-1000']);
+  });
+});
+
+describe('finalize — stats.json against the bug files', () => {
+  const collect = () => {
+    const lines: string[] = [];
+    return { lines, log: (line: string) => void lines.push(line) };
+  };
+
+  it('contract 2: a bugs_found that disagrees with bugs/ is a violation', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    editStats(sessionDir, (s) => void (s.bugs_found = 4));
+    const result = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([
+      'stats.json bugs_found is 4, but bugs/ holds 3 bug file(s) — count the shipped bugs only (bugs/refuted/ is not counted)',
+    ]);
+  });
+
+  it('contract 2: severity_counts that disagree with the bugs’ **Severity:** lines are a violation', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    editStats(sessionDir, (s) => void (s.severity_counts = { critical: 1, high: 0, medium: 1, low: 1 }));
+    const result = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([
+      'stats.json severity_counts (critical 1, high 0, medium 1, low 1) do not match the bug files ' +
+        '(critical 0, high 1, medium 1, low 1)',
+    ]);
+  });
+
+  it('contract 1: the same disagreement is a warning, and the session still finalizes', async () => {
+    const { cwd, sessionDir } = canonicalCopy();
+    editStats(sessionDir, (s) => void (s.bugs_found = 5));
+    const out = collect();
+    const result = await runSessionFinalize(CANONICAL_NAME, { redact: true }, { cwd, log: out.log });
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toEqual([
+      'stats.json bugs_found is 5, but bugs/ holds 2 bug file(s) — count the shipped bugs only (bugs/refuted/ is not counted)',
+    ]);
+    expect(out.lines.some((l) => l.includes('bugs_found is 5'))).toBe(true);
+  });
+
+  it('a session_id that is not the directory name is a warning', async () => {
+    const { cwd, sessionDir } = copySession(registry);
+    editStats(sessionDir, (s) => void (s.session_id = '2026-01-01-0000-explore-other'));
+    const result = await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog });
+    expect(result.ok).toBe(true);
+    expect(result.warnings).toEqual([
+      `stats.json session_id is "2026-01-01-0000-explore-other", not the directory name "${C2_NAME}" — ` +
+        'metrics.jsonl dedupes on it, so a copied stats.json can hide this session’s metrics line',
+    ]);
+  });
+
+  it('logs when the metrics line is skipped because session_id is already recorded', async () => {
+    const { cwd } = copySession(registry);
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    const out = collect();
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: out.log })).ok).toBe(true);
+    expect(out.lines.some((l) => l.includes(`metrics.jsonl already has a line for session_id "${C2_NAME}"`))).toBe(true);
+    expect(readFileSync(join(cwd, 'output', 'metrics.jsonl'), 'utf-8').trim().split('\n')).toHaveLength(1);
   });
 });

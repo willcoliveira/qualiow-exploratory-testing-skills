@@ -40,7 +40,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import chalk from 'chalk';
 import { resolveSessionDir } from './report.js';
 import { runList } from './list.js';
-import { compareBugIds, parseSession } from '../../utils/parse-session.js';
+import { compareBugIds, parseSession, type ParsedBug, type ParsedSession } from '../../utils/parse-session.js';
 import { SessionMetricsSchema } from '../../schemas/session-metrics.schema.js';
 import {
   SESSION_DIR_RE,
@@ -240,6 +240,8 @@ export interface SessionFinalizeResult {
   bugRowsAdded?: string[];
   /** True when `evidence-manifest.json` was written (a passing, non-`--check` run). */
   evidenceManifestWritten?: boolean;
+  /** What finalize reports without refusing — logged too, on a passing run and a failing one. */
+  warnings?: string[];
 }
 
 export async function runSessionFinalize(
@@ -364,8 +366,28 @@ export async function runSessionFinalize(
     violations.push(`${EVIDENCE_MANIFEST_FILE} is not a regular file — remove it; finalize writes it`);
   }
 
+  // 7. stats.json against the session it describes: its counts go into INDEX.md and
+  // metrics.jsonl as written, and session_id is the metrics dedupe key. A contract-2
+  // session is held to the counts; an older one is told. The bug files are read only
+  // once the walk found nothing to refuse, so no link out of the session is followed.
+  const warnings: string[] = [];
+  let parsedSession: ParsedSession | undefined;
+  if (stats && walk.violations.length === 0) {
+    parsedSession = await parseSession(sessionDir);
+    const mismatches = statsCountMismatches(stats, parsedSession.bugs);
+    if (raw?.contract === 2) violations.push(...mismatches);
+    else warnings.push(...mismatches);
+  }
+  if (stats && stats.session_id !== dirName) {
+    warnings.push(
+      `stats.json session_id is "${stats.session_id}", not the directory name "${dirName}" — ` +
+        'metrics.jsonl dedupes on it, so a copied stats.json can hide this session’s metrics line',
+    );
+  }
+  for (const w of warnings) log(chalk.yellow(`  ○ ${w}`));
+
   if (violations.length > 0) {
-    return { ok: false, violations, sessionDir, redactedFiles };
+    return { ok: false, violations, sessionDir, redactedFiles, warnings };
   }
 
   // The secret scan has passed, so every text file in it is clean.
@@ -381,10 +403,11 @@ export async function runSessionFinalize(
         ],
         sessionDir,
         redactedFiles,
+        warnings,
       };
     }
     log(chalk.green(`  ✓ ${dirName} passes finalize checks (--check — nothing written)`));
-    return { ok: true, violations: [], sessionDir, redactedFiles };
+    return { ok: true, violations: [], sessionDir, redactedFiles, warnings };
   }
 
   // Written before any index row, so a refused write leaves the indexes untouched.
@@ -416,8 +439,7 @@ export async function runSessionFinalize(
     indexRowAdded = true;
   }
 
-  const parsedSession = await parseSession(sessionDir);
-  const bugs = [...parsedSession.bugs].sort((a, b) => compareBugIds(a.id, b.id));
+  const bugs = [...(parsedSession ?? (await parseSession(sessionDir))).bugs].sort((a, b) => compareBugIds(a.id, b.id));
   const existingBugRows = readAllBugsRows(allBugsPath);
   const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
   const bugRowsAdded: string[] = [];
@@ -445,6 +467,12 @@ export async function runSessionFinalize(
 
   if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats, { areaTiers })) {
     log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
+  } else {
+    log(
+      chalk.yellow(
+        `  ○ metrics.jsonl already has a line for session_id "${finalStats.session_id}" — not appended again`,
+      ),
+    );
   }
 
   const progressPath = join(sessionDir, 'progress.json');
@@ -470,7 +498,35 @@ export async function runSessionFinalize(
     indexRowAdded,
     bugRowsAdded,
     evidenceManifestWritten: true,
+    warnings,
   };
+}
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
+
+/**
+ * Where stats.json disagrees with the bug files beside it: the shipped-bug count, and
+ * the tally of their `**Severity:**` lines. Only `bugs/BUG-*.md` counts —
+ * `bugs/refuted/` is excluded from both, as the output contract says.
+ */
+function statsCountMismatches(stats: SessionMetrics, bugs: ParsedBug[]): string[] {
+  const out: string[] = [];
+  if (stats.bugs_found !== bugs.length) {
+    out.push(
+      `stats.json bugs_found is ${stats.bugs_found}, but bugs/ holds ${bugs.length} bug file(s) — ` +
+        'count the shipped bugs only (bugs/refuted/ is not counted)',
+    );
+  }
+  const tally: Record<(typeof SEVERITIES)[number], number> = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const bug of bugs) tally[bug.severity]++;
+  if (SEVERITIES.some((k) => stats.severity_counts[k] !== tally[k])) {
+    const show = (counts: Record<(typeof SEVERITIES)[number], number>) =>
+      SEVERITIES.map((k) => `${k} ${counts[k]}`).join(', ');
+    out.push(
+      `stats.json severity_counts (${show(stats.severity_counts)}) do not match the bug files (${show(tally)})`,
+    );
+  }
+  return out;
 }
 
 /** `absent`, a regular single-link `file`, or `other` (a link, a directory, a hard link). */
