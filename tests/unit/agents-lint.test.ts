@@ -133,6 +133,8 @@ const EXACT_BASH_GRANTS: Record<string, string[]> = {
   // The repository under review is rarely the working directory: both reach it by `git -C`.
   'qa-diff-indexer-agent': ['git -C:*', 'git diff:*', 'git show:*', 'wc:*'],
   'qa-gather-agent': ['git -C:*', 'git diff:*', 'git log:*', 'git show:*', 'wc:*'],
+  // Web only: mobile verification is deferred (ADR-013), so no mobile driver.
+  'qa-bug-judge': ['playwright-cli:*', 'npx playwright-cli:*'],
 };
 
 describe.each(Object.entries(EXACT_BASH_GRANTS))('Bash grants of %s', (name, expected) => {

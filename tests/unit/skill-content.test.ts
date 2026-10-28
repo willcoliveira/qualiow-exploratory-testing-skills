@@ -46,6 +46,19 @@ describe('/qa-explore-feedback learned-pattern templates', () => {
   });
 });
 
+describe('mobile runs no bug judge (ADR-013)', () => {
+  it('mobile phase 7 runs qa-explore phase 7 in off mode', () => {
+    const phase7 = skillFile('qa-explore-mobile', 'phases', '07-reporting.md');
+    expect(phase7).toContain('## Verification is off on mobile (ADR-013)');
+    expect(phase7).toMatch(/skip \*\*Verify Bugs\*\* and \*\*Finalize Bug Reports\*\*/);
+  });
+
+  it('the judge has no mobile branch', () => {
+    const judge = readFileSync(join(REPO_ROOT, '.claude', 'agents', 'qa-bug-judge.md'), 'utf-8');
+    expect(judge).not.toMatch(/mcli|--state/);
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
