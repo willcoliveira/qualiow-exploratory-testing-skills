@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Let a release age before it is proposed; majors wait longer.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     # tsup's dts build needs the TypeScript compiler API, which TS 7 does not ship.
     ignore:
       - dependency-name: typescript
@@ -11,7 +15,21 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+      runtime-dependencies:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+  # The pinned claude CLI that CI uses to validate the plugin manifest.
+  - package-ecosystem: npm
+    directory: /ci/tools
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
