@@ -38,3 +38,23 @@ describe('runExplore — an existing session directory', () => {
     expect(existsSync(join(first.sessionDir, 'charter.md'))).toBe(true);
   });
 });
+
+describe('runExplore — charter date', () => {
+  it.skipIf(process.platform === 'win32')('is the local date the directory name carries, not the UTC one', async () => {
+    const previous = process.env.TZ;
+    // UTC+14: 01:00 local on the 8th is still the 7th in UTC.
+    process.env.TZ = 'Pacific/Kiritimati';
+    try {
+      const cwd = makeTmpCwd();
+      const now = new Date(2026, 8, 8, 1, 0);
+      const { sessionDir } = await runExplore('https://example.com', { timeBox: '45m', dryRun: false }, { cwd, now, log: silentLog });
+      const name = sessionDir.split(/[\\/]/).pop()!;
+      expect(name.startsWith('2026-09-08-0100-')).toBe(true);
+      const charter = readFileSync(join(sessionDir, 'charter.md'), 'utf-8');
+      expect(charter).toContain('**Date:** 2026-09-08');
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
+  });
+});

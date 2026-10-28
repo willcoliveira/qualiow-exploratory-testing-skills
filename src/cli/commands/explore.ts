@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import chalk from 'chalk';
 import { validateTargetConfig } from '../../utils/validate.js';
 import { resolveTargetPath } from '../../utils/paths.js';
-import { sessionDirName, slugify } from '../../utils/session-dir.js';
+import { sessionDirName, sessionTimestamp, slugify } from '../../utils/session-dir.js';
 import { CONFIDENTIALITY_HEADER_MD } from '../../utils/confidentiality.js';
 
 export interface ExploreOptions {
@@ -130,7 +130,8 @@ export async function runExplore(
     mkdirSync(join(sessionDir, sub), { recursive: true });
   }
 
-  const date = now.toISOString().slice(0, 10);
+  // Local time, from the same formatter as the directory name, so the two never disagree.
+  const date = sessionTimestamp(now).slice(0, 10);
   writeFileSync(
     join(sessionDir, 'charter.md'),
     `${CONFIDENTIALITY_HEADER_MD}
