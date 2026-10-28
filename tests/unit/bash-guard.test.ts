@@ -67,6 +67,55 @@ describe('bash-guard.mjs — playwright-cli run-code', () => {
   });
 });
 
+describe('bash-guard.mjs — shell expansion hiding the subcommand or the program', () => {
+  it.each([
+    `playwright-cli $'run-code' "async page => 1"`,
+    `playwright-cli $'\\x72un-code' "async page => 1"`,
+    `c=run-code; playwright-cli $c "async page => 1"`,
+    `playwright-cli \${X:-run-code} "async page => 1"`,
+    'playwright-cli `echo run-code` "async page => 1"',
+    `playwright-cli -s=x $(printf run-code) "async page => 1"`,
+    `playwright-cli run-cod? "async page => 1"`,
+    `playwright-cli [r]un-code "async page => 1"`,
+    `playwright-cli -s=x {run-code,} "async page => 1"`,
+    'playwright-cli -s=x u*load qa/.env',
+    'npx playwright-cli -s=x $c "async page => 1"',
+  ])('asks when the playwright-cli subcommand is expanded: %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
+  });
+
+  it.each([
+    `$(which playwright-cli) run-code "async page => 1"`,
+    '`which playwright-cli` run-code "async page => 1"',
+    `$PW run-code "async page => 1"`,
+    `\${PW:-playwright-cli} -s=x snapshot`,
+    `"$HOME/bin/playwright-cli" -s=x snapshot`,
+    // paths.md: resolve the prefix once and write it literally — a variable here never matched a grant.
+    `\${CLAUDE_PLUGIN_ROOT}/bin/qualiow session finalize latest`,
+    `eval "$CMD"`,
+    `bash -c "$CMD"`,
+  ])('asks when the program itself is a variable or substitution: %s', (command) => {
+    const d = runGuard(bash(command));
+    expect(d?.permissionDecision).toBe('ask');
+    expect(d?.permissionDecisionReason).toContain('expansion');
+  });
+
+  it.each([
+    `playwright-cli -s=x fill e5 "a*b?[c]"`,
+    `playwright-cli -s=x eval "document.querySelectorAll('[data-x]').length"`,
+    'playwright-cli -s=$SID snapshot',
+    'echo $HOME',
+    'ls output/sessions/*/bugs',
+    `wc -l $(ls output/sessions/x/bugs/*.md)`,
+    '[ -f qa/target.yml ] && echo yes',
+    '{ playwright-cli -s=x snapshot; playwright-cli -s=x console; }',
+  ])('lets %s through', (command) => {
+    expect(runGuard(bash(command))).toBeNull();
+  });
+});
+
 describe('bash-guard.mjs — playwright-cli upload and state-save', () => {
   const FIXTURE = 'output/sessions/2026-10-28-1200-explore-x/evidence/fixtures/avatar.png';
 

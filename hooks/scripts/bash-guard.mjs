@@ -85,9 +85,10 @@ function skipBalanced(s, start, open, close) {
 /**
  * Splits a command line into segments of words. Honours single and double
  * quotes and backslash escapes; splits on unquoted && || ; | & and newlines.
- * `$(…)`, `<(…)`, `>(…)`, `${…}` and backtick spans stay inside the word they
- * appear in (so `X=$(git …)` is one assignment word); the bodies of the
- * command substitutions are returned in `nested`, to be checked on their own.
+ * `$(…)`, `<(…)`, `>(…)`, `${…}`, backtick and `{a,b}` spans stay inside the
+ * word they appear in (so `X=$(git …)` is one assignment word and an expanded
+ * word is still recognisable as one); the bodies of the command substitutions
+ * are returned in `nested`, to be checked on their own.
  */
 function parse(command) {
   const segs = [];
@@ -103,6 +104,8 @@ function parse(command) {
   };
   const endSegment = () => {
     endWord();
+    // `{ …; }` grouping: the braces are words of their own, not part of a command.
+    words = words.filter((w) => w !== '{' && w !== '}');
     if (words.length) segs.push(words);
     words = [];
   };
@@ -140,7 +143,7 @@ function parse(command) {
       inWord = true;
     } else if (c === ';' || c === '|' || c === '&' || c === '\n') {
       endSegment();
-    } else if (c === ' ' || c === '\t' || c === '(' || c === ')' || c === '{' || c === '}') {
+    } else if (c === ' ' || c === '\t' || c === '(' || c === ')') {
       endWord();
     } else {
       word += c;
@@ -242,10 +245,23 @@ function subcommandCandidates(args) {
   return out;
 }
 
+// A word the shell rewrites before the program sees it: parameter expansion, command
+// substitution, ANSI-C quoting ($'…'), globs and brace expansion.
+const SHELL_EXPANDED_WORD = /[$`*?[{]/;
+
+const ASK_EXPANDED_SUBCOMMAND =
+  'ask:the playwright-cli subcommand comes from a shell expansion ($, backtick, glob or brace), so the guard ' +
+  'cannot tell whether it is run-code or upload; write the subcommand literally or confirm it.';
+const ASK_EXPANDED_PROGRAM =
+  'ask:the command name comes from a shell expansion (a variable, a command substitution or a glob), so the ' +
+  'guard cannot tell what runs; write the command literally or confirm it.';
+
 /** 'ask:<reason>' or null for the words after `playwright-cli`. */
 function checkPlaywrightCli(args, ctx) {
+  const candidates = subcommandCandidates(args);
+  if (candidates.some((k) => SHELL_EXPANDED_WORD.test(args[k]))) return ASK_EXPANDED_SUBCOMMAND;
   if (runCodeIn(args)) return ASK_RUN_CODE;
-  for (const k of subcommandCandidates(args)) {
+  for (const k of candidates) {
     const operands = args.slice(k + 1).filter((w) => !w.startsWith('-'));
     const allUnder = (scope) => operands.length > 0 && operands.every((p) => resolvesUnder(p, ctx, scope));
     if (args[k] === 'upload' && !allUnder(UPLOAD_SCOPE)) return ASK_UPLOAD;
@@ -381,6 +397,8 @@ function checkWords(words, ctx, depth) {
     }
   }
   if (i >= words.length) return null;
+  // `[ … ]` / `[[ … ]]` is the test builtin, not a glob.
+  if (words[i] !== '[' && words[i] !== '[[' && SHELL_EXPANDED_WORD.test(words[i])) return ASK_EXPANDED_PROGRAM;
   const program = basename(words[i]);
   const rest = words.slice(i + 1);
 
