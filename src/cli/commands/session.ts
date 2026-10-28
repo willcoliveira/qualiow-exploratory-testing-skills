@@ -60,7 +60,7 @@ import {
   missingColumns,
 } from '../../utils/index-files.js';
 import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../utils/markdown-table.js';
-import { splitLines } from '../../utils/text-lines.js';
+import { detectEol, splitLines } from '../../utils/text-lines.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
@@ -1236,7 +1236,9 @@ function insertTableRow(path: string, row: string): void {
     return;
   }
   const content = readFileSync(path, 'utf-8');
-  const lines = content.split('\n');
+  // Written with the line end the file already uses, so a CRLF index stays CRLF.
+  const eol = detectEol(content);
+  const lines = splitLines(content);
   const { headerIdx, endIdx } = tableBounds(lines);
   let last = -1;
   for (let i = headerIdx === -1 ? 0 : headerIdx; i < endIdx; i++) {
@@ -1244,14 +1246,14 @@ function insertTableRow(path: string, row: string): void {
   }
   if (last === -1) {
     // Appended to a file that does not end in a newline, the row would join its last line.
-    const lead = content === '' || content.endsWith('\n') ? '' : '\n';
-    appendFileSync(path, `${lead}${row}\n`);
+    const lead = content === '' || content.endsWith('\n') ? '' : eol;
+    appendFileSync(path, `${lead}${row}${eol}`);
     return;
   }
   lines.splice(last + 1, 0, row);
   // A table that ran to the end of a file with no final newline: the row is now last, so end it.
   if (last + 1 === lines.length - 1) lines.push('');
-  writeFileSync(path, lines.join('\n'));
+  writeFileSync(path, lines.join(eol));
 }
 
 // ─── split tables ───────────────────────────────────────────────────
@@ -1374,7 +1376,7 @@ export function runSessionRepairIndex(
     }
 
     const drop = new Set(report.blankLines);
-    writeFileSync(path, content.split('\n').filter((_, i) => !drop.has(i)).join('\n'));
+    writeFileSync(path, splitLines(content).filter((_, i) => !drop.has(i)).join(detectEol(content)));
     log(
       chalk.green(
         `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
@@ -1585,7 +1587,8 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
   const statusIdx = headers.findIndex((h) => h.trim().toLowerCase() === 'status');
   if (statusIdx === -1) return;
   const isRow = referenceMatcher(indexPath, (ref) => ref.startsWith(`${dirName}/`));
-  const lines = readFileSync(indexPath, 'utf-8').split('\n');
+  const content = readFileSync(indexPath, 'utf-8');
+  const lines = splitLines(content);
   const updated = lines.map((line) => {
     if (!isRow(line)) return line;
     // Cells kept escaped, so a pipe inside one is written back as it was.
@@ -1594,7 +1597,7 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
     inner[statusIdx] = status;
     return `| ${inner.join(' | ')} |`;
   });
-  writeFileSync(indexPath, updated.join('\n'));
+  writeFileSync(indexPath, updated.join(detectEol(content)));
 }
 
 // ─── delete ─────────────────────────────────────────────────────────
@@ -1674,12 +1677,13 @@ function performDelete(cwd: string, sessionDir: string): void {
 
 function removeTableRows(filePath: string, matches: (line: string) => boolean): void {
   if (!existsSync(filePath)) return;
-  const lines = readFileSync(filePath, 'utf-8').split('\n');
+  const content = readFileSync(filePath, 'utf-8');
+  const lines = splitLines(content);
   const sepIdx = lines.findIndex((l) => /^\|(\s*:?-{2,}\s*\|)+\s*$/.test(l.trim()));
   if (sepIdx === -1) return;
   const head = lines.slice(0, sepIdx + 1);
   const rest = lines.slice(sepIdx + 1).filter((l) => !matches(l));
-  writeFileSync(filePath, [...head, ...rest].join('\n'));
+  writeFileSync(filePath, [...head, ...rest].join(detectEol(content)));
 }
 
 function dirStats(dir: string): { fileCount: number; totalBytes: number } {

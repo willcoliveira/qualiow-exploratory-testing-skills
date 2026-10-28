@@ -3,10 +3,15 @@
  * output/bugs/all-bugs.md and output/metrics.jsonl.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runSessionFinalize } from '../../src/cli/commands/session.js';
-import { INDEX_MD_HEADER } from '../../src/utils/index-files.js';
+import {
+  runSessionArchive,
+  runSessionDelete,
+  runSessionFinalize,
+  runSessionRepairIndex,
+} from '../../src/cli/commands/session.js';
+import { ALL_BUGS_MD_HEADER, INDEX_MD_HEADER } from '../../src/utils/index-files.js';
 import { C2_NAME, cleanup, copySession, silentLog } from './contract2-helpers.js';
 
 const registry: string[] = [];
@@ -35,5 +40,68 @@ describe('index rows — a file without a trailing newline', () => {
       OTHER_ROW,
       expect.stringContaining(`${C2_NAME}/session-report.md`),
     ]);
+  });
+});
+
+const toCrlf = (text: string): string => text.replace(/\r?\n/g, '\r\n');
+const allBugsPathOf = (cwd: string) => join(cwd, 'output', 'bugs', 'all-bugs.md');
+const OTHER_BUG_ROW = '| BUG-001 | 2026-10-01-0900-explore-other | [X] y | Low | open | 2026-10-01-0900-explore-other/bugs/BUG-001.md |';
+
+/** Every line break in `text` is CRLF — none is a bare LF. */
+function expectOnlyCrlf(text: string): void {
+  expect(text).toContain('\r\n');
+  expect(text.replace(/\r\n/g, '')).not.toContain('\n');
+}
+
+/** A copied contract-2 session beside a CRLF INDEX.md and all-bugs.md that already hold another session. */
+function crlfProject() {
+  const project = copySession(registry);
+  mkdirSync(join(project.cwd, 'output', 'bugs'), { recursive: true });
+  writeFileSync(indexPathOf(project.cwd), toCrlf(`${INDEX_MD_HEADER}${OTHER_ROW}\n`));
+  writeFileSync(allBugsPathOf(project.cwd), toCrlf(`${ALL_BUGS_MD_HEADER}${OTHER_BUG_ROW}\n`));
+  return project;
+}
+
+describe('index rows — a CRLF index keeps its line ends', () => {
+  it('finalize writes its rows with CRLF, and a second run adds nothing', async () => {
+    const { cwd } = crlfProject();
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    const index = readFileSync(indexPathOf(cwd), 'utf-8');
+    const bugs = readFileSync(allBugsPathOf(cwd), 'utf-8');
+    expectOnlyCrlf(index);
+    expectOnlyCrlf(bugs);
+    expect(index.split('\r\n').filter((l) => l.startsWith('| 2026-'))).toHaveLength(2);
+    expect(bugs.split('\r\n').filter((l) => l.startsWith('| BUG-'))).toHaveLength(4);
+
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(index);
+    expect(readFileSync(allBugsPathOf(cwd), 'utf-8')).toBe(bugs);
+  });
+
+  it.skipIf(process.platform === 'win32')('archive --remove keeps CRLF', async () => {
+    const { cwd } = crlfProject();
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    runSessionArchive(C2_NAME, { remove: true }, { cwd, log: silentLog });
+    const index = readFileSync(indexPathOf(cwd), 'utf-8');
+    expectOnlyCrlf(index);
+    expect(index).toContain('| archived |');
+    expectOnlyCrlf(readFileSync(allBugsPathOf(cwd), 'utf-8'));
+  });
+
+  it('delete keeps CRLF', async () => {
+    const { cwd } = crlfProject();
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    runSessionDelete(C2_NAME, { yes: true }, { cwd, log: silentLog });
+    expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(toCrlf(`${INDEX_MD_HEADER}${OTHER_ROW}\n`));
+    expect(readFileSync(allBugsPathOf(cwd), 'utf-8')).toBe(toCrlf(`${ALL_BUGS_MD_HEADER}${OTHER_BUG_ROW}\n`));
+  });
+
+  it('repair-index keeps CRLF', () => {
+    const { cwd } = crlfProject();
+    const second = OTHER_ROW.replace('2026-10-01-0900-explore-other', '2026-10-02-0900-explore-other');
+    writeFileSync(indexPathOf(cwd), toCrlf(`${INDEX_MD_HEADER}${OTHER_ROW}\n\n${second}\n`));
+    const result = runSessionRepairIndex({ yes: true }, { cwd, log: silentLog });
+    expect(result.files.find((f) => f.file === 'INDEX.md')?.repaired).toBe(true);
+    expect(readFileSync(indexPathOf(cwd), 'utf-8')).toBe(toCrlf(`${INDEX_MD_HEADER}${OTHER_ROW}\n${second}\n`));
   });
 });
