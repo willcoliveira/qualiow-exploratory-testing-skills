@@ -177,6 +177,11 @@ export function collectSecretValues(cwd: string, targetId: string | undefined): 
   return resolveSecretValues(cwd, targetId).values;
 }
 
+/** The NAMES of the values that occur in `text` in any form `secretValueVariants` knows — never a value. */
+export function findSecretValueNames(text: string, values: ReadonlyArray<SecretValue>): string[] {
+  return values.filter(({ value }) => secretValueVariants(value).some((v) => text.includes(v))).map((v) => v.name);
+}
+
 /**
  * The forms a value takes on disk: literal, URL-encoded (encodeURIComponent and both form
  * encodings), JSON-escaped, and base64 (standard and URL-safe, padded or not).
