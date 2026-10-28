@@ -57,25 +57,27 @@ Ask user to rate (1-5):
 ### 5. Update Learned Patterns
 
 Append to `$PWD/data/knowledge/learned-patterns.md` (create it from the shipped copy under
-`<data>/knowledge/` if the project has none; never write into a plugin directory):
+`<data>/knowledge/` if the project has none; never write into a plugin directory). Every
+bullet opens with a bold lead-in: `qualiow kb digest` carries only the lead-ins into later
+sessions, so the lead-in is the pattern and the rest is grepped when it looks relevant.
 
 **False positives → add to skip list:**
 ```markdown
 ## False Positive Patterns (skip these)
-- [NEW] <description of what was incorrectly flagged and why>
+- **[NEW] <short pattern>** — <what was incorrectly flagged, why, and the disqualifier>
 ```
 
 **Missed bugs → add to must-check list:**
 ```markdown
 ## Missed Bug Patterns (always check these)
-- [NEW] <description of what was missed and the pattern to always check>
+- **[NEW] <short pattern>** — <what was missed and the check that would have caught it>
 ```
 
 **Domain insights → add to domain section:**
 ```markdown
 ## Domain-Specific Insights
 ### <domain>
-- [NEW] <insight learned from this session>
+- **[NEW] <short insight>** — <what this session taught about the domain>
 ```
 
 ### 6. Update Session Index
