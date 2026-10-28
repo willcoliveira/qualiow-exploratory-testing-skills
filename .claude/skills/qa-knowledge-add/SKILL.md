@@ -40,7 +40,9 @@ Determine the best type:
 - **technique**: A specific testing technique with steps (e.g., Boundary Value Analysis)
 - **checklist**: A list of items to verify (e.g., WCAG checklist)
 - **reference**: A pointer to external documentation with key takeaways (e.g., OWASP Top 10)
-- **pattern**: A learned pattern from real-world testing (e.g., "login forms often miss autocomplete")
+
+A pattern learned in a session ("login forms often miss autocomplete") is not an entry: it
+goes into `learned-patterns.md` through `/qa-explore-feedback`.
 
 ### 3. Structure as YAML
 
@@ -49,7 +51,7 @@ Create entry following the schema:
 ```yaml
 id: <type>-<slug>
 version: "<current_version>"
-type: <heuristic|technique|checklist|reference|pattern>
+type: <heuristic|technique|checklist|reference>
 name: "<Name>"
 description: "<One-line description>"
 author: "<Author if known>"
@@ -85,9 +87,18 @@ Default: add to current release unless user specifies otherwise.
 
 ### 6. Write Files
 
-1. Write the YAML entry:
-   - inside this repository: `data/knowledge/releases/<version>/entries/<id>.yml`, and add its id to that release's `release.yml` `entries:` list (bump `entry_count`)
-   - in a consumer project: `$PWD/data/knowledge/custom/<id>.yml`
+**In a consumer project** write `$PWD/data/knowledge/custom/<id>.yml` and nothing else. A
+custom entry needs no manifest: `kb digest` and `list knowledge` read `custom/` directly, so
+every session loads it under `## Custom entries`. Never add a custom id to `loading_strategy`
+(the digest refuses an id that is not a release entry). Run `qualiow kb sync` only when
+`$PWD/data/knowledge/manifest.yml` exists; without one (a plugin install) skip it and tell
+the user why — there is no local manifest to sync. Verify with `qualiow kb digest --for explore`:
+the entry must appear under `## Custom entries` (the digest holds each one to the entry schema).
+
+**Inside this repository:**
+
+1. Write `data/knowledge/releases/<version>/entries/<id>.yml`, and add its id to that release's
+   `release.yml` `entries:` list (bump `entry_count`).
 2. Update `data/knowledge/manifest.yml`: run `qualiow kb sync` (regenerates the `entries:`
    registry and `stats` from the release files); if the CLI is unavailable, add the entry to
    `entries:` by hand with `id`, `file`, `type`, `priority`, `tags`, `domains` and bump `stats`.

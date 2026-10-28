@@ -7,7 +7,7 @@
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, basename } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -91,6 +91,9 @@ export function resolveTargetPath(
  * An explicit directory is returned as given even when it does not exist, so a
  * typo surfaces as a "not found" naming the path the caller asked for instead
  * of silently falling back to the package data.
+ *
+ * Custom entries and learned patterns are the exception: they are read from
+ * `<cwd>/data/knowledge/` whatever this returns (`resolveCustomEntryFiles`).
  */
 export function resolveDataDir(
   cwd: string,
@@ -111,6 +114,37 @@ export function resolveDataDir(
   }
 
   return resolve(pkgRoot, 'data');
+}
+
+/**
+ * The custom knowledge entries (`custom/*.yml`) a project carries, sorted by id.
+ * Read from `<cwd>/data/knowledge/custom` whether or not `<cwd>/data` has a
+ * manifest — `/qa-knowledge-add` writes there under a plugin install too — and
+ * from `<dataDir>/knowledge/custom` when that is a different directory. The id
+ * is the file name without `.yml`; on a clash the project's file wins.
+ */
+export function resolveCustomEntryFiles(
+  cwd: string,
+  dataDir: string,
+): { id: string; file: string }[] {
+  const dirs = [
+    ...new Set([
+      resolve(cwd, 'data', 'knowledge', 'custom'),
+      resolve(dataDir, 'knowledge', 'custom'),
+    ]),
+  ];
+  const byId = new Map<string, string>();
+  for (const dir of dirs) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith('.yml')) continue;
+      const id = name.slice(0, -'.yml'.length);
+      if (!byId.has(id)) byId.set(id, join(dir, name));
+    }
+  }
+  return [...byId.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, file]) => ({ id, file }));
 }
 
 /** Resolve a domain config, trying `<id>.yml` then `_<id>.yml`. */

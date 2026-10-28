@@ -21,14 +21,20 @@ written by `/qa-target-setup`, and is the right place for anything with internal
 
 ## Data directory (`<data>`)
 
-First existing of: `$PWD/data` → `${CLAUDE_PLUGIN_ROOT}/data` →
-`${CLAUDE_SKILL_DIR}/../../data` → `${CLAUDE_SKILL_DIR}/../../../data`. The `qualiow` CLI
-resolves the same order — an explicit `--data <dir>`, then `$PWD/data`, then
-`$CLAUDE_PLUGIN_ROOT/data`, then the data shipped inside the package.
+Resolved per file, the same way the `qualiow` CLI does:
+
+- **Custom entries and learned patterns** come from the project whatever else resolves:
+  `$PWD/data/knowledge/custom/*.yml`, and `$PWD/data/knowledge/learned-patterns.md` (the
+  shipped copy under `<data>` when the project has none).
+- **Everything else** comes from `<data>`: `$PWD/data` only when it is a full data tree
+  (`$PWD/data/knowledge/manifest.yml` exists, as after `qualiow init`), else the first
+  existing of `${CLAUDE_PLUGIN_ROOT}/data` → `${CLAUDE_SKILL_DIR}/../../data` →
+  `${CLAUDE_SKILL_DIR}/../../../data`. The CLI: an explicit `--data <dir>`, then `$PWD/data`
+  with a manifest, then `$CLAUDE_PLUGIN_ROOT/data`, then the data shipped inside the package.
 
 Read from `<data>`: `domains/<domain>.yml`, `knowledge/manifest.yml`,
-`knowledge/releases/<version>/entries/*.yml`, `knowledge/learned-patterns.md`,
-`templates/*.md`, `security/SECURITY-POLICY.md`.
+`knowledge/releases/<version>/entries/*.yml`, `templates/*.md`, `security/SECURITY-POLICY.md`.
+A `$PWD/data/` holding only `knowledge/custom/` or `learned-patterns.md` is not a data tree.
 
 **Writes** (learned patterns from `/qa-explore-feedback`, custom entries from
 `/qa-knowledge-add`) always go to `$PWD/data/…`; create the directory if it is missing.

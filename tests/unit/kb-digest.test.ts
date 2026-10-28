@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseDocument } from 'yaml';
 import { runKbDigest, learnedPatternLeadIns } from '../../src/cli/commands/kb.js';
+import { runList } from '../../src/cli/commands/list.js';
 
 const REPO_ROOT = resolve(process.cwd());
 const REPO_DATA_DIR = join(REPO_ROOT, 'data');
@@ -256,6 +257,85 @@ describe('runKbDigest — custom entries', () => {
   it('omits the section when the custom directory holds no entries', () => {
     const digest = runKbDigest({ for: 'explore' }, REPO_ROOT);
     expect(digest).not.toContain('## Custom entries');
+  });
+});
+
+/** A valid custom entry, as /qa-knowledge-add writes it. */
+function customEntryYaml(id: string, tags = '[local]'): string {
+  return [
+    `id: ${id}`,
+    'version: "0.1.0"',
+    'type: technique',
+    'name: "House style"',
+    'description: "A project-local technique."',
+    `tags: ${tags}`,
+    'domains: [all]',
+    'priority: medium',
+    'added: "2026-10-28"',
+    '',
+    'content:',
+    '  summary: "Check the things this project always gets wrong."',
+    '',
+  ].join('\n');
+}
+
+/** A plugin-install project: data/knowledge/custom/ only, no local manifest. */
+function makePluginProject(files: Record<string, string>): string {
+  delete process.env[ENV_KEY];
+  const cwd = makeTmpDir();
+  const customDir = join(cwd, 'data', 'knowledge', 'custom');
+  mkdirSync(customDir, { recursive: true });
+  for (const [name, body] of Object.entries(files)) writeFileSync(join(customDir, name), body);
+  return cwd;
+}
+
+describe('custom entries in a project with no local manifest (plugin install)', () => {
+  it('kb digest renders them from $PWD/data/knowledge/custom', () => {
+    const cwd = makePluginProject({ 'technique-house-style.yml': customEntryYaml('technique-house-style') });
+    const digest = runKbDigest({ for: 'explore' }, cwd);
+    for (const id of ALWAYS_IDS) expect(digest).toContain(`- ${id} [`);
+    expect(digest).toContain('## Custom entries');
+    expect(digest).toContain('- technique-house-style [technique/medium] [custom] tags: local');
+  });
+
+  it('kb digest --entry prints one of them verbatim', () => {
+    const body = customEntryYaml('technique-house-style');
+    const cwd = makePluginProject({ 'technique-house-style.yml': body });
+    expect(runKbDigest({ entry: 'technique-house-style' }, cwd)).toBe(body.trimEnd());
+  });
+
+  it('kb digest refuses one that does not match the entry schema, naming the file', () => {
+    const cwd = makePluginProject({ 'pattern-x.yml': customEntryYaml('pattern-x').replace('type: technique', 'type: pattern') });
+    expect(() => runKbDigest({ for: 'explore' }, cwd)).toThrow(/Custom entry .*pattern-x\.yml does not match the knowledge-entry schema: type/);
+  });
+
+  it('the project file wins over a data-directory file with the same id', () => {
+    const dataDir = makeTmpDataCopy();
+    writeFileSync(join(dataDir, 'knowledge', 'custom', 'technique-house-style.yml'), customEntryYaml('technique-house-style', '[shipped]'));
+    const cwd = makePluginProject({ 'technique-house-style.yml': customEntryYaml('technique-house-style', '[project]') });
+    const digest = runKbDigest({ for: 'explore', data: dataDir }, cwd);
+    expect(digest).toContain('[custom] tags: project');
+    expect(digest).not.toContain('tags: shipped');
+  });
+
+  it('list knowledge lists them, filtered like registry entries', async () => {
+    const cwd = makePluginProject({ 'technique-house-style.yml': customEntryYaml('technique-house-style') });
+    const all: string[] = [];
+    await runList('knowledge', cwd, {}, (line) => all.push(line));
+    expect(all.join('\n')).toMatch(/Custom entries \(1\):\n.*technique-house-style/);
+
+    const filtered: string[] = [];
+    await runList('knowledge', cwd, { tag: 'local' }, (line) => filtered.push(line));
+    expect(filtered.join('\n')).toContain('technique-house-style');
+    expect(filtered.join('\n')).not.toContain('No entries match that filter.');
+  });
+
+  it('list knowledge --entry prints one of them', async () => {
+    const body = customEntryYaml('technique-house-style');
+    const cwd = makePluginProject({ 'technique-house-style.yml': body });
+    const out: string[] = [];
+    await runList('knowledge', cwd, { entry: 'technique-house-style' }, (line) => out.push(line));
+    expect(out.join('\n')).toBe(body.trimEnd());
   });
 });
 
