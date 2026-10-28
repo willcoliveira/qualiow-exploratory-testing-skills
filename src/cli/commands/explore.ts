@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { resolve, join, relative } from 'node:path';
+import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import chalk from 'chalk';
 import { validateTargetConfig } from '../../utils/validate.js';
@@ -97,10 +97,17 @@ export async function runExplore(
 
   const sessionName = sessionDirName('explore', targetLabel, now);
   const sessionDir = resolve(cwd, 'output', 'sessions', sessionName);
+  // The name carries the minute, not a counter: a second run in the same minute would
+  // land on the same directory and overwrite a charter a session may already be filling in.
+  const alreadyThere = existsSync(sessionDir);
+  const existsMessage =
+    `Session directory ${relative(cwd, sessionDir)} already exists — refusing to overwrite it. ` +
+    `Continue that session with --session output/sessions/${sessionName}, or start a new one in the next minute.`;
 
   if (options.dryRun) {
     log('');
     log(chalk.cyan.bold('Dry run — no files created'));
+    if (alreadyThere) log(chalk.yellow(`  ⚠ ${existsMessage}`));
     log(chalk.white(`  Session directory: ${relative(cwd, sessionDir)}`));
     log(chalk.white(`  URL:       ${url ?? '(none — /qa-explore will ask)'}`));
     log(chalk.white(`  Target:    ${options.target ?? relative(cwd, targetPath)}`));
@@ -109,7 +116,17 @@ export async function runExplore(
     return { sessionDir };
   }
 
-  for (const sub of ['', 'screenshots', 'bugs', 'videos', 'snapshots']) {
+  if (alreadyThere) throw new Error(existsMessage);
+  // The session directory itself is created non-recursively, so a run that raced this
+  // one to the same name fails here rather than sharing the directory.
+  mkdirSync(dirname(sessionDir), { recursive: true });
+  try {
+    mkdirSync(sessionDir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(existsMessage);
+    throw err;
+  }
+  for (const sub of ['screenshots', 'bugs', 'videos', 'snapshots']) {
     mkdirSync(join(sessionDir, sub), { recursive: true });
   }
 
