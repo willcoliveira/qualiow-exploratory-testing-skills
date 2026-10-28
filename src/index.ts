@@ -234,6 +234,16 @@ export {
   EXIT_UNAVAILABLE,
 } from './cli/commands/judge.js';
 export type { JudgeTriageOptions, JudgeTriageResult } from './cli/commands/judge.js';
+export {
+  runAuthFill,
+  authCommand,
+  resolvePlaywrightCli,
+  redactFilledValue,
+  AuthFillUsageError,
+  AuthFillMissingVarError,
+  EXIT_VAR_MISSING,
+} from './cli/commands/auth.js';
+export type { AuthFillOptions, AuthFillResult, AuthFillContext, Spawner, SpawnResult } from './cli/commands/auth.js';
 
 // Decision-model triage (opt-in, advisory)
 export {

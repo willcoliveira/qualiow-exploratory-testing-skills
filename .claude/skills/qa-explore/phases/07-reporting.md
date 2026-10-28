@@ -69,6 +69,22 @@ A screenshot remains sufficient for Medium / Low.
 
 ## Write Bug Drafts
 
+**Before you draft a claim, rule these out.** Each one reads as a defect in a snapshot or a
+single screenshot and is not one; the full entries, with their disqualifiers, are under
+`## UI False Positive Patterns` in `<data>/knowledge/learned-patterns.md`. While the browser
+is still open:
+
+- a link that "does nothing" — `tab-list`: it may have opened a new tab;
+- a label "missing" or "cut short" — an inline link splits it into separate nodes;
+- list items "missing" — scroll the infinite-scroll sentinel into view and wait;
+- images "broken" — lazy images below the fold load only once scrolled into view;
+- a "dead" page — a development server compiling the route on its first request; reload;
+- data that "changed on its own" — another session on the same account;
+- an "error page" — a firewall, bot-challenge or rate-limit interstitial in front of the app.
+
+A candidate that falls to one of these is not drafted; note it in `session-log.md` as
+`[<timestamp>] [RULED-OUT] <one line> — <pattern>`. The judge is a second check, not the first.
+
 One file per candidate bug, `verification/drafts/BUG-NNN.md`, in exactly the format of
 `${CLAUDE_SKILL_DIR}/references/output-contract.md` (the template
 `<data>/templates/bug-report.md` is the same format with guidance) — everything a shipped bug
@@ -208,7 +224,10 @@ under a plugin install) with exactly this prompt:
 ### 4. Record the verdicts
 
 Copy the returned fenced block VERBATIM — confidentiality header first, then the block — to
-`verification/VERDICT-NNN.md`. Do not edit or summarise it. If the judge fails, times out or
+`verification/VERDICT-NNN.md`. Do not edit or summarise it, and do not reorder its fields: the
+judge writes its reasoning before its verdict, and a live re-run ends with a
+`REPRO_COMMANDS:` list (one command per line, indented two spaces) that stays in the file
+exactly as returned. If the judge fails, times out or
 returns no parseable block, write the file yourself with
 `VERDICT: UNVERIFIED (judge unavailable: <reason>)`. **Fail open, flagged, never silent** —
 the bug still ships, marked Unverified.
@@ -232,8 +251,11 @@ severity, the business impact and the priority are yours:
   `**Verification:** Verified` (or `Verified (severity adjusted from <X>)`, or
   `Unverified (<reason>)`) directly after `**Reproduction rate:**`, and a `## Verification`
   section after `## Recommended Fix Priority`: verdict with method and confidence, the judge's
-  repro result in one line, the severity change if any, and
-  `Full verdict: ../verification/VERDICT-NNN.md`. Accept an adjusted severity unless you can
+  repro result in one line, the severity change if any,
+  `Full verdict: ../verification/VERDICT-NNN.md`, and — only when the verdict carries a
+  `REPRO_COMMANDS:` list — `Replay: ../verification/VERDICT-NNN.md (REPRO_COMMANDS)`, so a
+  developer can find the judge's own commands. The commands stay in the verdict file; never
+  copy them into the bug. Accept an adjusted severity unless you can
   say why not; when you keep yours, write `Verified (severity kept at X; judge proposed Y)`
   and the reason.
 - **Under `triage-shadow`**, after the verdict is in: in every shipped bug whose triage file
@@ -245,6 +267,16 @@ severity, the business impact and the priority are yours:
   `## Bugs Found`; they appear only in `## Refuted Findings`. You may overrule a refutation
   you can disprove — ship it as `Verified (judge overruled: <reason>)` and say so in
   `## Verification`.
+
+`qualiow session finalize` cross-checks every line above against its verdict file and refuses
+the session when they disagree: a `Verified` bug whose `VERDICT-NNN.md` is missing or is not
+CONFIRMED or CONFIRMED-ADJUSTED (unless the line says `judge overruled`), a bug under
+`bugs/refuted/` whose verdict is not the REFUTED or UNREPRODUCIBLE its line says, a `Verified`
+line in a session with no `verification/` directory, and a verdict file that does not parse
+to a known verdict, `METHOD` or `CONFIDENCE`. `Unverified (…)` bugs are not cross-checked. The
+fix is the bug's line or its directory, never a verdict edited to match; a verdict file that
+does not parse is the judge returning no parseable block — rewrite it as step 4 says
+(`VERDICT: UNVERIFIED (judge unavailable: …)`) and ship that bug `Unverified`.
 
 Leave `verification/drafts/` in place once every draft is sorted: it is a working directory,
 header-checked and secret-scanned like the rest, and nothing reads it for the report. Every
@@ -351,10 +383,16 @@ Recommendations, Reflection and Refuted Findings verbatim, adding the `Verificat
 column to `## Bugs Found` from each bug file, and copying the body of `evidence-level.md`
 verbatim into `## Coverage Level` — and then runs `qualiow session finalize`, which
 validates `stats.json` against the strict schema, checks the confidentiality header on every
-artefact, scans the directory against the redaction list, re-checks a contract-2 session and
+artefact, scans the directory against the redaction list and for the literal values of the
+target's credential variables (named by variable, never by value), cross-checks each bug's
+`**Verification:**` line against its verdict file, re-checks a contract-2 session and
 refuses it while anything is missing or the level is stale, appends the session row to
 `output/sessions/INDEX.md` and one row per bug to `output/bugs/all-bugs.md`, records the
-session metrics and sets `progress.json` to `complete`. It is idempotent.
+session metrics, writes `evidence-manifest.json` and sets `progress.json` to `complete`. It is
+idempotent. `evidence-manifest.json` lists every file under `screenshots/`, `videos/`,
+`traces/`, `logs/` and `evidence/` with its size, SHA-256 and scan result (`text-clean` or
+`binary-not-scanned` — nobody has vouched for the pixels of a screenshot or the contents of a
+trace). The CLI writes it on every passing finalize; never write or edit it by hand.
 
 Read its return (at most 8 lines). If it reports a missing notes section or a violation it
 could not fix, fix that yourself and re-run the check:
