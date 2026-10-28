@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readEnvVar } from '../../src/utils/paths.js';
+import { readEnvVar, resolveTargetPath } from '../../src/utils/paths.js';
 
 // Obviously fake names, unique enough that no real environment sets them.
 const NAME = 'QUALIOW_TEST_PATHS_PASS';
@@ -33,5 +33,19 @@ describe('readEnvVar — .env files', () => {
     const cwd = makeTmpDir();
     writeFileSync(join(cwd, '.env'), `﻿${NAME}=${VALUE}\n`);
     expect(readEnvVar(cwd, NAME)).toBe(VALUE);
+  });
+});
+
+describe('resolveTargetPath — target ids', () => {
+  it.each(['../x', '../../qa/target', 'a/b', 'a\\b', '/etc/hosts', '.hidden', '..', 'a..b', '-rf', 'a b', 'x.yml/..'])(
+    'refuses %j',
+    (name) => {
+      expect(() => resolveTargetPath(makeTmpDir(), name)).toThrow(/target id/);
+    },
+  );
+
+  it.each(['parabank', '_default', '_example-backend', 'my.target-1', 'Shop_2'])('accepts %j', (name) => {
+    const path = resolveTargetPath(makeTmpDir(), name);
+    expect(path.endsWith(join('data', 'targets', `${name}.yml`))).toBe(true);
   });
 });

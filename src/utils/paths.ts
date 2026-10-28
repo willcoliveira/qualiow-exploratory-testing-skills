@@ -53,11 +53,24 @@ export function resolveSkillsSource(pkgRoot: string): string | null {
 }
 
 /**
+ * A target id is a file name under `data/targets/`: letters, digits, `.`, `_`
+ * and `-`, not starting with `.` or `-`, and never containing `..`. Anything
+ * else could name a YAML outside `data/targets/` — one that declares any env
+ * var as its login credential.
+ */
+const TARGET_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+
+export function isValidTargetId(name: string): boolean {
+  return TARGET_ID_RE.test(name) && !name.includes('..');
+}
+
+/**
  * Resolve a target config path. With a name: `data/targets/<name>.yml` under
  * cwd, else under the package root. Without a name: a project-local
  * `qa/target.yml`, else `data/targets/_default.yml`. Returns the first path
  * that exists, or the most-specific candidate when none exist (so callers can
- * report a useful "not found").
+ * report a useful "not found"). Throws on a name that is not a valid target id
+ * (`isValidTargetId`); the message does not echo it.
  */
 export function resolveTargetPath(
   cwd: string,
@@ -65,6 +78,12 @@ export function resolveTargetPath(
   pkgRoot: string = getPackageRoot(),
 ): string {
   if (name) {
+    if (!isValidTargetId(name)) {
+      throw new Error(
+        'invalid target id — use the file name of a config under data/targets/ ' +
+          '(letters, digits, . _ -; no path separators, no "..")',
+      );
+    }
     const candidates = [
       resolve(cwd, 'data', 'targets', `${name}.yml`),
       resolve(pkgRoot, 'data', 'targets', `${name}.yml`),

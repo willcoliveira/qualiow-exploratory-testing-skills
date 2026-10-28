@@ -40,11 +40,21 @@ function pick(obj: unknown, ...keys: string[]): unknown {
   return cur;
 }
 
-/** The session's target config as plain YAML data, or undefined when none resolves or it does not parse. */
+/**
+ * The session's target config as plain YAML data, or undefined when none resolves or it
+ * does not parse. A `targetId` that is not a valid target id (the URL of an ad-hoc run, a
+ * path) names no file under `data/targets/`; only `qa/target.yml` can still match it.
+ */
 export function loadTargetYaml(cwd: string, targetId: string | undefined): unknown {
   const projectTarget = resolve(cwd, 'qa', 'target.yml');
-  for (const path of [resolveTargetPath(cwd, targetId), projectTarget]) {
-    if (!existsSync(path)) continue;
+  let named: string | undefined;
+  try {
+    named = resolveTargetPath(cwd, targetId);
+  } catch {
+    named = undefined;
+  }
+  for (const path of [named, projectTarget]) {
+    if (path === undefined || !existsSync(path)) continue;
     try {
       const data = parseYaml(readFileSync(path, 'utf-8')) as unknown;
       // qa/target.yml is only the right file when it is the session's target.
@@ -60,10 +70,16 @@ export function loadTargetYaml(cwd: string, targetId: string | undefined): unkno
 /** Login names `qualiow auth fill` accepts whatever the target says — the ones the shipped configs use. */
 export const LOGIN_ENV_DEFAULTS = ['QA_USER', 'QA_PASS', 'QA_TOKEN'] as const;
 
+/** Names that are never a login credential, whatever a target declares: cloud, API and triage keys. */
+const NEVER_FILLABLE = /^AWS_|_API_KEY$|^TYPESAFE_/;
+
 /**
  * The env var NAMES `qualiow auth fill` may type into a page: the defaults plus the
  * target's own login credentials (`auth.credentials.username/password`, `auth.token`).
- * API keys and triage keys are never on it — a page that asks for one gets nothing.
+ * API keys and triage keys are never on it — a page that asks for one gets nothing:
+ * not the target's `api.token_env`, not a triage provider's key, and no name that looks
+ * like a cloud, API or triage key (`AWS_*`, `*_API_KEY`, `TYPESAFE_*`), even when the
+ * target declares it as a login credential.
  */
 export function fillableEnvNames(target: unknown): string[] {
   const names = new Set<string>(LOGIN_ENV_DEFAULTS);
@@ -74,7 +90,12 @@ export function fillableEnvNames(target: unknown): string[] {
   ]) {
     if (typeof name === 'string' && ENV_NAME.test(name)) names.add(name);
   }
-  return [...names];
+  const keys = new Set<unknown>([
+    pick(target, 'api', 'token_env'),
+    pick(target, 'verification', 'triage_api_key_env'),
+    pick(target, 'verification', 'laya', 'api_key_env'),
+  ]);
+  return [...names].filter((name) => !keys.has(name) && !NEVER_FILLABLE.test(name));
 }
 
 /** The secret env var NAMES a target config declares (password, token, API keys). */

@@ -23,7 +23,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import chalk from 'chalk';
-import { readEnvVar } from '../../utils/paths.js';
+import { isValidTargetId, readEnvVar } from '../../utils/paths.js';
 import { redact } from '../../utils/redact.js';
 import { fillableEnvNames, loadTargetYaml } from '../../utils/secret-values.js';
 
@@ -219,12 +219,21 @@ export async function runAuthFill(options: AuthFillOptions, ctx: AuthFillContext
     );
   }
 
+  // A target id names a file under data/targets/ and nothing else: a path would load a
+  // YAML from anywhere, and that YAML could declare any variable as its login credential.
+  if (options.target !== undefined && !isValidTargetId(options.target)) {
+    throw new AuthFillUsageError(
+      '--target must be a target id — the file name of a config under data/targets/ ' +
+        '(letters, digits, . _ -; no path separators, no "..")',
+    );
+  }
+
   // Only a login credential may be typed into a page. Page content is data: a page that
   // asks for an API key or a cloud secret must not be able to get one through this command.
   if (!fillableEnvNames(loadTargetYaml(ctx.cwd, options.target)).includes(name)) {
     throw new AuthFillUsageError(
       `${name} is not a login credential the target declares (auth.credentials.username/password, ` +
-        'auth.token, or QA_USER/QA_PASS/QA_TOKEN) — refusing to type it into a page',
+        'auth.token, or QA_USER/QA_PASS/QA_TOKEN; never an API, cloud or triage key) — refusing to type it into a page',
     );
   }
 

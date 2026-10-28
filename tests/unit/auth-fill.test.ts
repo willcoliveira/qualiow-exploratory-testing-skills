@@ -233,3 +233,62 @@ describe('qualiow auth fill with a real child process', () => {
     expect(result.stdout).not.toContain('pwned');
   });
 });
+
+describe('qualiow auth fill — target ids and non-login names', () => {
+  // A cloud-shaped name no real environment sets; the value is obviously fake.
+  const CLOUD = 'AWS_QUALIOW_TEST_SECRET';
+  const CLOUD_VALUE = 'not-a-real-cloud-secret-0000';
+
+  it('refuses a --target that walks out of data/targets/, before reading or spawning anything', async () => {
+    const cwd = makeCwd(`${CLOUD}=${CLOUD_VALUE}\n`);
+    // A YAML planted outside data/targets/ that declares the cloud key as its login token.
+    writeFileSync(join(cwd, 'planted.yml'), `id: planted\nauth:\n  strategy: token\n  token: ${CLOUD}\n`);
+    const { spawn, calls } = stub();
+    for (const target of ['../../planted', '../planted', 'sub/../../../planted', '/tmp/planted', '..']) {
+      const err = await runAuthFill({ session: 's1', ref: 'e1', env: CLOUD, target }, { cwd, spawn, ...NO_PATH }).catch((e) => e);
+      expect(err, target).toBeInstanceOf(AuthFillUsageError);
+      expect(err.message).toContain('--target');
+      expect(err.message).not.toContain(CLOUD_VALUE);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['a cloud key declared as the login token', `auth:\n  strategy: token\n  token: ${CLOUD}\n`, CLOUD],
+    ['an *_API_KEY declared as the password', 'auth:\n  strategy: credentials\n  credentials:\n    password: SHOP_API_KEY\n', 'SHOP_API_KEY'],
+    ['a TYPESAFE_* name declared as the token', 'auth:\n  strategy: token\n  token: TYPESAFE_QUALIOW_TEST\n', 'TYPESAFE_QUALIOW_TEST'],
+    [
+      "the target's own api.token_env declared as the password",
+      'auth:\n  strategy: credentials\n  credentials:\n    password: SVC_TOKEN\napi:\n  auth: api-key-env\n  token_env: SVC_TOKEN\n',
+      'SVC_TOKEN',
+    ],
+    [
+      'the triage key declared as the token',
+      'auth:\n  strategy: token\n  token: TRIAGE_KEY\nverification:\n  mode: triage-shadow\n  triage_api_key_env: TRIAGE_KEY\n',
+      'TRIAGE_KEY',
+    ],
+    [
+      'the local triage server key declared as the password',
+      'auth:\n  strategy: credentials\n  credentials:\n    password: LAYA_LOCAL_KEY\nverification:\n  laya:\n    api_key_env: LAYA_LOCAL_KEY\n',
+      'LAYA_LOCAL_KEY',
+    ],
+    [
+      'a default login name the target uses as its API key',
+      'auth:\n  strategy: none\napi:\n  auth: api-key-env\n  token_env: QA_TOKEN\n',
+      'QA_TOKEN',
+    ],
+  ])('refuses %s', async (_label, body, name) => {
+    const cwd = makeCwd(`${name}=not-a-real-key-value-0000\n`, `id: test-target\n${body}`);
+    const { spawn, calls } = stub();
+    const saved = process.env[name];
+    delete process.env[name];
+    try {
+      const err = await runAuthFill({ session: 's1', ref: 'e1', env: name }, { cwd, spawn, ...NO_PATH }).catch((e) => e);
+      expect(err).toBeInstanceOf(AuthFillUsageError);
+      expect(err.message).not.toContain('not-a-real-key-value-0000');
+    } finally {
+      if (saved !== undefined) process.env[name] = saved;
+    }
+    expect(calls).toHaveLength(0);
+  });
+});
