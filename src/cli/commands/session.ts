@@ -71,7 +71,7 @@ import {
   buildEvidenceManifest,
   renderEvidenceManifest,
 } from '../../session/evidence-manifest.js';
-import { collectSecretValues } from '../../utils/secret-values.js';
+import { resolveSecretValues } from '../../utils/secret-values.js';
 import type { CoverageLevel, RiskTier, SessionMetrics } from '../../types/index.js';
 
 type Log = (line: string) => void;
@@ -291,9 +291,20 @@ export async function runSessionFinalize(
 
   // The target's own credential values, resolved once from the env var NAMES its config
   // declares. A typed password has no shape the pattern rules could catch. Values stay
-  // in memory: a violation names the category, never the variable or the value.
+  // in memory: a violation names the category, never the variable or the value. A
+  // target that does not resolve (the URL of an ad-hoc run) fails closed: every
+  // secret-named .env variable is scanned for. The target itself is never echoed.
   const targetId = stats?.target ?? (typeof raw?.target === 'string' ? raw.target : undefined);
-  const secretValues = collectSecretValues(cwd, targetId);
+  const secretScan = resolveSecretValues(cwd, targetId);
+  const secretValues = secretScan.values;
+  if (!secretScan.targetResolved) {
+    log(
+      chalk.yellow(
+        '  ⚠ stats.json target does not resolve to a target config — scanning for the value of every ' +
+          'secret-named variable in qa/.env and .env (…PASS, …PASSWORD, …TOKEN, …SECRET, …API_KEY, …_KEY)',
+      ),
+    );
+  }
 
   // 2. every *.md under the session dir must start with the confidentiality header.
   const walk = walkSession(sessionDir);

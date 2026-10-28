@@ -8,10 +8,10 @@
  * the literal value and its common encodings instead. Values are returned to the
  * caller only — never logged, never part of an error message.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { readEnvVar, resolveTargetPath } from './paths.js';
+import { envFilePaths, parseEnvFile, readEnvVar, resolveTargetPath } from './paths.js';
 
 export interface SecretValue {
   /** The env var NAME the value came from — safe to print. */
@@ -119,20 +119,62 @@ export function secretEnvNames(target: unknown): string[] {
 }
 
 /**
+ * The name rule the write guard applies to `.env` (`hooks/scripts/write-guard.mjs`): a
+ * variable whose NAME ends in PASS, PASSWORD, TOKEN, SECRET, API_KEY or _KEY.
+ */
+export const SECRET_ENV_NAME = /(PASS|PASSWORD|TOKEN|SECRET|API_KEY|_KEY)$/;
+const MAX_ENV_FILE_BYTES = 256 * 1024;
+
+/** The NAMES in `qa/.env` and `.env` that the write guard's name rule calls secret. */
+export function envFileSecretNames(cwd: string): string[] {
+  const names = new Set<string>();
+  for (const file of envFilePaths(cwd)) {
+    let parsed: NodeJS.Dict<string>;
+    try {
+      if (statSync(file).size > MAX_ENV_FILE_BYTES) continue;
+      parsed = parseEnvFile(file);
+    } catch {
+      continue;
+    }
+    for (const name of Object.keys(parsed)) if (SECRET_ENV_NAME.test(name)) names.add(name);
+  }
+  return [...names];
+}
+
+export interface SecretValueScan {
+  values: SecretValue[];
+  /**
+   * False when no target config resolved for the session (the URL of an ad-hoc run, an
+   * id with no file behind it). The scan then fails closed: the values are those of
+   * every secret-named variable in `qa/.env` and `.env` as well as the default names.
+   */
+  targetResolved: boolean;
+}
+
+/**
  * Resolve the secret values for a session's target: the process environment, then
  * `qa/.env`, then `.env` (the order `paths.md` defines). Unset and too-short values
- * are dropped. A missing or unreadable target still yields the default names.
+ * are dropped. A target that does not resolve yields the default names plus every
+ * `.env` variable under the write guard's name rule — never fewer names than that.
  */
-export function collectSecretValues(cwd: string, targetId: string | undefined): SecretValue[] {
-  const out: SecretValue[] = [];
+export function resolveSecretValues(cwd: string, targetId: string | undefined): SecretValueScan {
+  const target = loadTargetYaml(cwd, targetId);
+  const names = new Set(secretEnvNames(target));
+  if (target === undefined) for (const name of envFileSecretNames(cwd)) names.add(name);
+  const values: SecretValue[] = [];
   const seen = new Set<string>();
-  for (const name of secretEnvNames(loadTargetYaml(cwd, targetId))) {
+  for (const name of names) {
     const value = readEnvVar(cwd, name);
     if (!value || value.length < MIN_SECRET_VALUE_LENGTH || seen.has(value)) continue;
     seen.add(value);
-    out.push({ name, value });
+    values.push({ name, value });
   }
-  return out;
+  return { values, targetResolved: target !== undefined };
+}
+
+/** `resolveSecretValues(cwd, targetId).values`. */
+export function collectSecretValues(cwd: string, targetId: string | undefined): SecretValue[] {
+  return resolveSecretValues(cwd, targetId).values;
 }
 
 /**
