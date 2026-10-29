@@ -227,10 +227,14 @@ const RULES: RedactionRule[] = [
     replace: redactKeyValue,
   },
   {
-    // With an identifier suffix (`password_confirmation`, `passwordConfirmation`), bounded and
-    // anchored on the literal so a long run of letters is scanned once.
+    // With a credential suffix only (`password_confirmation`, `passwordConfirmation`,
+    // `password_new`, `pwd_hash`, `password2`): a setting about passwords
+    // (`password_min_length`, `passwordStrength`) is not a password.
     name: 'Password',
-    pattern: kv(String.raw`(?:password|passwd|passcode|passphrase|pwd)[A-Za-z0-9_-]{0,40}`, LOOSE),
+    pattern: kv(
+      String.raw`(?:password|passwd|passcode|passphrase|pwd)(?:[_-]?(?:confirmation|confirm|again|repeat|new|old|current|hash)|[0-9]{1,8})?`,
+      LOOSE,
+    ),
     replace: redactKeyValue,
   },
   {

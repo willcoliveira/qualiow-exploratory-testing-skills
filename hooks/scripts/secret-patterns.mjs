@@ -182,7 +182,10 @@ export const SECRET_PATTERNS = [
   },
   {
     category: 'Password',
-    re: kv(String.raw`(?:password|passwd|passcode|passphrase|pwd)[A-Za-z0-9_-]{0,40}`, LOOSE),
+    re: kv(
+      String.raw`(?:password|passwd|passcode|passphrase|pwd)(?:[_-]?(?:confirmation|confirm|again|repeat|new|old|current|hash)|[0-9]{1,8})?`,
+      LOOSE,
+    ),
     filter: keyValueFilter,
   },
   {
