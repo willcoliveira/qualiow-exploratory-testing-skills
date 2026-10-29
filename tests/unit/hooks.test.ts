@@ -1,10 +1,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { containsSecrets } from '../../src/utils/redact.js';
 import { findSecretCategories } from '../../hooks/scripts/secret-patterns.mjs';
+import { QUALIOW_HOOK_ENTRIES } from '../../src/utils/settings-merge.js';
 
 const REPO_ROOT = resolve(process.cwd());
 const HOOKS_JSON = join(REPO_ROOT, 'hooks', 'hooks.json');
@@ -106,9 +107,13 @@ describe('hooks/hooks.json', () => {
     hooks: { PreToolUse: { matcher: string; hooks: { type: string; command: string }[] }[] };
   };
 
-  it('registers a Read guard, a Write|Edit|MultiEdit|NotebookEdit guard and a Bash guard', () => {
+  it('registers a Read|Grep|Glob guard, a Write|Edit|MultiEdit|NotebookEdit guard and a Bash guard', () => {
     const matchers = manifest.hooks.PreToolUse.map((e) => e.matcher);
-    expect(matchers).toEqual(['Read', 'Write|Edit|MultiEdit|NotebookEdit', 'Bash']);
+    expect(matchers).toEqual(['Read|Grep|Glob', 'Write|Edit|MultiEdit|NotebookEdit', 'Bash']);
+  });
+
+  it('registers the same matchers as `qualiow init --hooks`', () => {
+    expect(manifest.hooks.PreToolUse.map((e) => e.matcher)).toEqual(QUALIOW_HOOK_ENTRIES.map((e) => e.matcher));
   });
 
   it('every command points at a script that exists under hooks/scripts/', () => {
@@ -179,6 +184,118 @@ describe('read-guard.mjs', () => {
     expect(runHook(READ_GUARD, readPayload(cwd, 'data/knowledge/releases/v9/entries/missing.yml'))).toBeNull();
     expect(runHook(READ_GUARD, '{not json')).toBeNull();
     expect(runHook(READ_GUARD, '')).toBeNull();
+  });
+});
+
+describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence', () => {
+  const S = 'output/sessions/2026-10-28-1200-explore-x';
+  const PRIVATE = [
+    `${S}/session-log.md`,
+    `${S}/charter.md`,
+    `${S}/progress.json`,
+    `${S}/phase-3-discovery.md`,
+    `${S}/phase-7-notes.md`,
+    `${S}/bugs/BUG-001.md`,
+    `${S}/bugs/refuted/BUG-002.md`,
+    `${S}/verification/drafts/BUG-001.md`,
+    `${S}/verification/VERDICT-002.md`,
+    `${S}/verification/JEV-001.json`,
+    `${S}/verification/LAYA-001.md`,
+    'output/bugs/all-bugs.md',
+    '.auth/parabank.json',
+    'qa/.env',
+    'qa/.env.local',
+    '.env',
+  ];
+  const READABLE = [
+    `${S}/verification/claims/CLAIM-001.md`,
+    `${S}/verification/CLAIM-001.md`,
+    `${S}/screenshots/A1-cart.png`,
+    `${S}/videos/session.webm`,
+    `${S}/traces/trace.zip`,
+    `${S}/logs/console.txt`,
+    `${S}/evidence/network.txt`,
+    `${S}/stats.json`,
+  ];
+
+  function seedSession(): string {
+    const cwd = makeTmpCwd();
+    for (const rel of [...PRIVATE, ...READABLE]) writeLines(join(cwd, rel), 3);
+    return cwd;
+  }
+
+  const judge = (cwd: string, tool_name: string, tool_input: Record<string, unknown>, agent_type = 'qa-bug-judge') =>
+    runHook(READ_GUARD, { session_id: 't', cwd, hook_event_name: 'PreToolUse', tool_name, tool_input, agent_type });
+
+  it.each(['qa-bug-judge', 'qualiow:qa-bug-judge'])('denies %s a Read of the finder files and credentials', (agent) => {
+    const cwd = seedSession();
+    for (const rel of PRIVATE) {
+      for (const input of [{ file_path: rel }, { file_path: join(cwd, rel) }, { file_path: rel, offset: 1, limit: 2 }]) {
+        const d = judge(cwd, 'Read', input, agent);
+        expect(d?.permissionDecision, rel).toBe('deny');
+        expect(d?.permissionDecisionReason).toContain('claim card');
+      }
+    }
+    expect(judge(cwd, 'Read', { file_path: `${S}/verification/claims/../drafts/BUG-001.md` }, agent)?.permissionDecision).toBe('deny');
+  });
+
+  it('lets the judge read its claim card, the evidence directories and other session files', () => {
+    const cwd = seedSession();
+    for (const rel of READABLE) expect(judge(cwd, 'Read', { file_path: rel }), rel).toBeNull();
+  });
+
+  it('denies a Read through a symlink that leads to a private file', () => {
+    const cwd = seedSession();
+    symlinkSync(join(cwd, S, 'session-log.md'), join(cwd, S, 'evidence', 'notes.txt'));
+    expect(judge(cwd, 'Read', { file_path: `${S}/evidence/notes.txt` })?.permissionDecision).toBe('deny');
+  });
+
+  it.each([
+    ['Grep', { pattern: 'expected' }],
+    ['Grep', { pattern: 'x', path: S }],
+    ['Grep', { pattern: 'x', path: 'output/sessions' }],
+    ['Grep', { pattern: 'x', path: `${S}/bugs` }],
+    ['Grep', { pattern: 'x', path: `${S}/session-log.md` }],
+    ['Grep', { pattern: 'x', path: `${S}/screenshots/..` }],
+    ['Grep', { pattern: 'x', path: '/' }],
+    ['Grep', { pattern: 'x', path: 'qa' }],
+    ['Glob', { pattern: '**/*.md' }],
+    ['Glob', { pattern: '**/*.md', path: S }],
+    ['Glob', { pattern: `${S}/*.md` }],
+    ['Glob', { pattern: 'bugs/*', path: S }],
+    ['Glob', { pattern: '../**/*.md', path: `${S}/logs` }],
+    ['Glob', { pattern: '.auth/*' }],
+  ])('denies the judge a %s search that reaches the finder files: %j', (tool, input) => {
+    const cwd = seedSession();
+    const d = judge(cwd, tool, input);
+    expect(d?.permissionDecision).toBe('deny');
+    expect(d?.permissionDecisionReason).toContain('claim card');
+  });
+
+  it('denies an absolute Glob pattern into the session', () => {
+    const cwd = seedSession();
+    expect(judge(cwd, 'Glob', { pattern: join(cwd, S, 'bugs', '*.md') })?.permissionDecision).toBe('deny');
+  });
+
+  it.each([
+    ['Grep', { pattern: 'TypeError', path: `${S}/logs` }],
+    ['Grep', { pattern: 'TypeError', path: `${S}/logs/console.txt` }],
+    ['Grep', { pattern: '500', path: `${S}/evidence` }],
+    ['Grep', { pattern: 'Expected', path: `${S}/verification/claims/CLAIM-001.md` }],
+    ['Glob', { pattern: '*.png', path: `${S}/screenshots` }],
+    ['Glob', { pattern: `${S}/screenshots/*.png` }],
+    ['Glob', { pattern: 'logs/*.txt', path: S }],
+  ])('lets the judge %s inside its evidence: %j', (tool, input) => {
+    const cwd = seedSession();
+    expect(judge(cwd, tool, input)).toBeNull();
+  });
+
+  it('leaves other agents and the main session alone', () => {
+    const cwd = seedSession();
+    expect(judge(cwd, 'Read', { file_path: `${S}/session-log.md` }, 'qa-reporting-agent')).toBeNull();
+    expect(judge(cwd, 'Grep', { pattern: 'x' }, 'qa-reporting-agent')).toBeNull();
+    expect(runHook(READ_GUARD, { cwd, tool_name: 'Read', tool_input: { file_path: `${S}/bugs/BUG-001.md` } })).toBeNull();
+    expect(runHook(READ_GUARD, { cwd, tool_name: 'Glob', tool_input: { pattern: '**/*.md' } })).toBeNull();
   });
 });
 
