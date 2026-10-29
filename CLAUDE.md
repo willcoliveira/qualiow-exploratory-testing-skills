@@ -5,7 +5,7 @@ surfaces: web applications, mobile apps on a simulator/emulator, and backend/API
 acceptance criteria that never reach a screen. It explores, finds bugs, and writes
 structured reports.
 
-Package: `qualiow-exploratory-testing` (npm) · plugin name `qualiow` · MIT · Node >= 22.4.
+Package: `qualiow-exploratory-testing` (npm) · plugin name `qualiow` · MIT · Node >= 22.12.
 
 ## How It Works
 
@@ -60,7 +60,7 @@ Under a plugin install the same skills are namespaced: `/qualiow:qa-explore` etc
 
 `qualiow` — `init`, `explore` (pre-flight only), `validate`, `list <sessions|knowledge|targets|domains>`,
 `report`, `kb <sync|check|digest>`,
-`session <finalize|level|continue-check|list|archive|delete|prune>`,
+`session <finalize|level|continue-check|list|archive|delete|prune|repair-index>`,
 `auth fill --session <sid> --ref <ref> --env <NAME> [--target <id>]`,
 `judge triage <claim-file>` (opt-in, advisory decision-model triage of one claim card — off
 unless the target sets `verification.mode: triage-shadow`; exit 2 = not enabled, nothing sent;

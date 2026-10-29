@@ -46,9 +46,10 @@
     "kb:check": "node dist/cli/index.js kb check",
     "check:mirror": "diff -rq .claude/skills skills && diff -rq .claude/agents agents",
     "check:pack": "node scripts/check-pack.mjs",
+    "check:clean": "test -z \"$(git status --porcelain -- . ':(exclude)output')\"",
     "lint": "tsc --noEmit",
     "version": "node scripts/sync-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json",
-    "prepublishOnly": "npm run build && npm run lint && npm test && npm run check:pack"
+    "prepublishOnly": "npm run check:clean && npm run build && npm run check:clean && npm run lint && npm run check:mirror && npm test && npm run validate && npm run kb:check && npm run check:pack"
   },
   "keywords": [
     "exploratory-testing",
@@ -73,7 +74,7 @@
   "author": "William Oliveira",
   "license": "MIT",
   "engines": {
-    "node": ">=22.4.0"
+    "node": ">=22.12.0"
   },
   "packageManager": "npm@10.9.2",
   "repository": {
@@ -85,13 +86,13 @@
     "url": "https://github.com/willcoliveira/qualiow-exploratory-testing-skills/issues"
   },
   "dependencies": {
-    "@playwright/cli": "^0.1.19",
+    "@playwright/cli": "0.1.22",
     "chalk": "^6.0.1",
     "commander": "^15.0.0",
     "glob": "^13.0.6",
-    "handlebars": "^4.7.8",
+    "handlebars": "^4.7.10",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@playwright/test": "^1.59.1"
