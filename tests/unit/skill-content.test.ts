@@ -207,6 +207,14 @@ describe('backend reporting claims only what the finalize scan catches', () => {
   });
 });
 
+describe('/qa-target-setup is accurate about what is ignored', () => {
+  it('does not call qa/target.yml gitignored', () => {
+    const setup = skillFile('qa-target-setup', 'SKILL.md');
+    expect(setup).not.toContain('(both gitignored patterns)');
+    expect(setup.replace(/\s+/g, ' ')).toContain('holds no secret values');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
