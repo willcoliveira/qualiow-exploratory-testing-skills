@@ -18,6 +18,7 @@ interface HookDecision {
 function runGuard(payload: unknown, env: Record<string, string | undefined> = {}): HookDecision | null {
   const base: Record<string, string | undefined> = { ...process.env };
   delete base.QUALIOW_HOOKS;
+  delete base.CLAUDE_PROJECT_DIR;
   const stdout = execFileSync('node', [BASH_GUARD], {
     input: typeof payload === 'string' ? payload : JSON.stringify(payload),
     env: { ...base, ...env },
@@ -231,7 +232,7 @@ describe('bash-guard.mjs — npx', () => {
   });
 
   // Without a TTY npm assumes --yes, so a bare `npx <name>` installs whatever the name resolves to.
-  it.each(['npx some-unknown-pkg', 'npx qualiow init', 'npx vitest run', 'npx tsc --noEmit', 'npx --no-install evil-pkg'])(
+  it.each(['npx some-unknown-pkg', 'npx qualiow init', 'npx --no-install evil-pkg', 'npx -y evil-pkg'])(
     'denies the unlisted package in %s',
     (command) => {
       const d = runGuard(bash(command));
@@ -239,6 +240,65 @@ describe('bash-guard.mjs — npx', () => {
       expect(d?.permissionDecisionReason).toContain('allowlist');
     },
   );
+
+  // An unlisted bin already in node_modules/.bin runs without an install.
+  describe('a bin already installed in node_modules/.bin', () => {
+    function project(binDir: string, bins: string[]): string {
+      const root = mkdtempSync(join(tmpdir(), 'qualiow-npx-'));
+      mkdirSync(join(root, binDir, 'node_modules', '.bin'), { recursive: true });
+      for (const b of bins) writeFileSync(join(root, binDir, 'node_modules', '.bin', b), '#!/bin/sh\n');
+      return root;
+    }
+    const run = (cwd: string, command: string, env: Record<string, string> = {}) =>
+      runGuard({ ...bash(command), cwd }, env)?.permissionDecision ?? null;
+
+    it.each(['npx vitest run', 'npx tsc --noEmit', 'npx -y vitest run', 'npx --yes tsc -p .', 'npx -p vitest vitest run'])(
+      'lets %s through when the bin is local',
+      (command) => {
+        const root = project('.', ['vitest', 'tsc']);
+        try {
+          expect(run(root, command)).toBeNull();
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      },
+    );
+
+    it('finds the bin in an ancestor of the cwd, up to CLAUDE_PROJECT_DIR', () => {
+      const root = project('.', ['tsc']);
+      try {
+        mkdirSync(join(root, 'proj', 'src'), { recursive: true });
+        mkdirSync(join(root, 'proj', 'node_modules', '.bin'), { recursive: true });
+        writeFileSync(join(root, 'proj', 'node_modules', '.bin', 'vitest'), '#!/bin/sh\n');
+        const cwd = join(root, 'proj', 'src');
+        const projectDir = { CLAUDE_PROJECT_DIR: join(root, 'proj') };
+        expect(run(cwd, 'npx vitest run', projectDir)).toBeNull();
+        // `tsc` sits above the project directory: not looked at once the project is known.
+        expect(run(cwd, 'npx tsc --noEmit', projectDir)).toBe('deny');
+        expect(run(cwd, 'npx tsc --noEmit')).toBeNull();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it.each([
+      'npx vitest run',
+      'npx vitest@1.0.0 run',
+      'npx vitest@npm:evil-pkg run',
+      'npx -y vitest@github:evil/repo',
+      'npx @evil/vitest run',
+      'cd ../elsewhere && npx vitest run',
+    ])('still denies %s when npx would have to install', (command) => {
+      const root = project('.', ['vitest']);
+      try {
+        const cwd = command === 'npx vitest run' ? mkdtempSync(join(tmpdir(), 'qualiow-npx-empty-')) : root;
+        expect(run(cwd, command)).toBe('deny');
+        if (cwd !== root) rmSync(cwd, { recursive: true, force: true });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  });
 
   // Every npx spelling the skills and the docs use.
   it.each([
@@ -258,6 +318,9 @@ describe('bash-guard.mjs — npx', () => {
     'npx playwright trace open output/sessions/x/traces/trace.zip',
     'npx playwright trace actions --errors-only',
     'npx playwright trace --help',
+    // This repository's own devDependencies, installed under node_modules/.bin.
+    'npx vitest run',
+    'npx tsc --noEmit',
   ])('lets %s through', (command) => {
     expect(runGuard(bash(command))).toBeNull();
   });

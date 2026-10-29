@@ -17,7 +17,9 @@
  *   `<cwd>/.auth/`; anything else is `ask`.
  * - `npx -c/--call <shell>`, and `npx` of a package outside a short allowlist,
  *   install or run arbitrary code — with or without `-y`, since npm assumes
- *   `--yes` when there is no TTY. An allowlisted name is trusted only as a
+ *   `--yes` when there is no TTY. An unlisted bare name whose bin is already in
+ *   `node_modules/.bin/` (the cwd or an ancestor, up to `CLAUDE_PROJECT_DIR`)
+ *   installs nothing and goes through. An allowlisted name is trusted only as a
  *   plain registry spec, `name` or `name@<semver|dist-tag>`: an `npm:` alias,
  *   a git host, `file:`, a URL, a tarball or a path installs other code under
  *   the trusted name. The decision is `deny`.
@@ -44,7 +46,7 @@
  * here lets the command through (exit 0, no stdout) to the normal permission
  * check rather than breaking the caller because of a hook bug.
  */
-import { readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename as pathBasename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 // `playwright` is the Playwright Test runner the skills reach through `npx playwright
@@ -273,6 +275,25 @@ const ASK_EXPANDED_PROGRAM =
   'ask:the command name comes from a shell expansion (a variable, a command substitution or a glob), so the ' +
   'guard cannot tell what runs; write the command literally or confirm it.';
 
+/**
+ * True when `node_modules/.bin/<name>` exists in the cwd or an ancestor — up to
+ * CLAUDE_PROJECT_DIR when the cwd is inside it, the cwd alone when it is outside,
+ * the filesystem root when it is unset. npx runs such a bin without installing.
+ */
+function localBin(name, ctx) {
+  // After a `cd` npx resolves from a directory this hook cannot see.
+  if (ctx.dirChanged || name.includes('/')) return false;
+  const cwd = resolve(ctx.cwd);
+  const stop = process.env.CLAUDE_PROJECT_DIR ? resolve(process.env.CLAUDE_PROJECT_DIR) : null;
+  const within = stop !== null && (cwd === stop || inside(stop, cwd) !== null);
+  for (let dir = cwd; ; ) {
+    if (existsSync(join(dir, 'node_modules', '.bin', name))) return true;
+    const up = dirname(dir);
+    if (up === dir || (stop !== null && (!within || dir === stop))) return false;
+    dir = up;
+  }
+}
+
 /** 'ask:<reason>' or null for the words after `playwright-cli`. */
 function checkPlaywrightCli(args, ctx) {
   const candidates = subcommandCandidates(args);
@@ -458,10 +479,12 @@ function checkWords(words, ctx, depth) {
         'file:, URLs, tarballs and paths install code from elsewhere. Use the plain package name.'
       );
     }
-    if (!NPX_ALLOWED_PACKAGES.has(name)) {
+    // A bare name (no version) whose bin is already installed locally needs no install.
+    if (!NPX_ALLOWED_PACKAGES.has(name) && !(spec === name && localBin(name, ctx))) {
       return (
-        `deny:npx would install and run ${name}, which is not on the qualiow allowlist ` +
-        `(${[...NPX_ALLOWED_PACKAGES].join(', ')}); without a TTY npm installs a missing package without asking. ` +
+        `deny:npx would install and run ${name}, which is neither on the qualiow allowlist ` +
+        `(${[...NPX_ALLOWED_PACKAGES].join(', ')}) nor installed in node_modules/.bin; without a TTY npm ` +
+        'installs a missing package without asking. ' +
         "Run the project's own script (npm run …) or install the package deliberately instead."
       );
     }
