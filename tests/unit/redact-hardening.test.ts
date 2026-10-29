@@ -252,8 +252,10 @@ describe('patterns stay linear on adversarial input', () => {
     'cookie: ' + 'a;'.repeat(100000),
   ];
 
-  // Generous enough for a loaded CI box; a quadratic pattern takes seconds on these.
-  const BUDGET_MS = 100;
+  // A loaded CI runner is several times slower than a laptop (a 20 ms rule has taken
+  // 128 ms there); a quadratic pattern takes 4–16 s on these inputs, so 1 s still tells
+  // the two apart.
+  const BUDGET_MS = 1000;
 
   it.each(REDACTION_PATTERNS.map((r, i) => [i, r.name] as const))('rule %i (%s)', (i) => {
     const { pattern } = REDACTION_PATTERNS[i];
@@ -270,7 +272,7 @@ describe('patterns stay linear on adversarial input', () => {
       const t = performance.now();
       redact(input);
       findSecretCategories(input);
-      expect(performance.now() - t).toBeLessThan(BUDGET_MS * 5);
+      expect(performance.now() - t).toBeLessThan(BUDGET_MS * 3);
     }
   });
 });

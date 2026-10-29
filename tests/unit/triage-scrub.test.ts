@@ -122,7 +122,9 @@ describe('scrubForTransmission — every scheme, escaped URLs, scheme-less queri
 });
 
 describe('scrubForTransmission — bounded work on hostile input', () => {
-  const budgetMs = 200;
+  // Several times the slowest case on a loaded CI runner (203 ms there, 43 ms on a
+  // laptop); a quadratic pattern takes seconds on 200k characters.
+  const budgetMs = 1000;
   it.each([
     ['a × 200k', 'a'.repeat(2e5)],
     ['a- × 100k', 'a-'.repeat(1e5)],
@@ -131,7 +133,7 @@ describe('scrubForTransmission — bounded work on hostile input', () => {
     ['160-char dotted runs', ('a.'.repeat(LONG_RUN / 2) + ' ').repeat(1250)],
     ['repeated scheme', 'http://'.repeat(3e4)],
     ['near-e-mails', ('a'.repeat(150) + '@ ').repeat(1300)],
-  ])('scrubs %s in under 200 ms', (_label, input) => {
+  ])('scrubs %s in under 1 s', (_label, input) => {
     const t = performance.now();
     scrubForTransmission(input);
     expect(performance.now() - t).toBeLessThan(budgetMs);
