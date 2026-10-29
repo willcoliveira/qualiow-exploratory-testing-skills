@@ -301,6 +301,14 @@ describe('write-guard.mjs known credential values', () => {
     expect(guard(cwd, 'Edit', { file_path: BUG, old_string: PASS, new_string: '[REDACTED]' })).toBeNull();
   });
 
+  it('reads the first key of a .env saved with a UTF-8 byte-order mark', () => {
+    const cwd = makeTmpCwd();
+    seed(cwd, 'qa/.env', `﻿QA_PASS=${PASS}\nQA_USER=qa.user\n`);
+    const reason = guard(cwd, 'Write', { file_path: BUG, content: `typed ${PASS}` });
+    expect(reason).toContain('value of QA_PASS');
+    expect(reason).not.toContain('﻿');
+  });
+
   it('fails open on an unreadable .env', () => {
     const cwd = makeTmpCwd();
     mkdirSync(join(cwd, 'qa', '.env'), { recursive: true }); // a directory, not a file

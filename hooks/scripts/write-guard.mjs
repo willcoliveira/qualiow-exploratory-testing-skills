@@ -74,7 +74,8 @@ function knownSecretValues(cwd) {
     let parsed;
     try {
       if (statSync(file).size > MAX_ENV_FILE_BYTES) continue;
-      parsed = parseEnv(readFileSync(file, 'utf-8'));
+      // An editor's UTF-8 byte-order mark would otherwise become part of the first key.
+      parsed = parseEnv(readFileSync(file, 'utf-8').replace(/^﻿/, ''));
     } catch {
       continue;
     }
