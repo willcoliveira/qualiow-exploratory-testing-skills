@@ -212,7 +212,7 @@ describe('runInit — --hooks', () => {
       permissions: { allow: string[] };
     };
     expect(parsed.hooks.PreToolUse.map((e) => e.matcher)).toEqual([
-      'Read',
+      'Read|Grep|Glob',
       'Write|Edit|MultiEdit|NotebookEdit',
       'Bash',
     ]);
@@ -319,7 +319,7 @@ describe('runInit — --hooks never replaces a settings.json it cannot parse', (
 });
 
 describe('runInit — --hooks upgrades an earlier install', () => {
-  it('rewrites the old write-guard matcher in place, adds bash-guard, and is a no-op on the next run', async () => {
+  it('rewrites the old read- and write-guard matchers in place, adds bash-guard, and is a no-op on the next run', async () => {
     const cwd = makeTmpCwd();
     const settingsPath = join(cwd, '.claude', 'settings.json');
     mkdirSync(join(cwd, '.claude'), { recursive: true });
@@ -358,7 +358,7 @@ describe('runInit — --hooks upgrades an earlier install', () => {
     const first = readFileSync(settingsPath, 'utf-8');
     const parsed = JSON.parse(first) as { hooks: { PreToolUse: Record<string, unknown>[] } };
     expect(parsed.hooks.PreToolUse).toEqual([
-      readHook,
+      { ...readHook, matcher: 'Read|Grep|Glob' },
       { ...oldWrite, matcher: 'Write|Edit|MultiEdit|NotebookEdit' },
       userMixed,
       userHook,

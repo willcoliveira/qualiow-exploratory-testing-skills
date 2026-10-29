@@ -1,9 +1,9 @@
 {
-  "description": "qualiow routing guards: whole-file reads of qualiow data over the line threshold, secrets in session output, and code-execution routes in Bash (playwright-cli run-code, arbitrary npx)",
+  "description": "qualiow routing guards: whole-file reads of qualiow data over the line threshold and the bug judge's reads of the finder's files, secrets in session output and writes to qualiow's own config, and code-execution routes in Bash (playwright-cli run-code and upload, git exec options, arbitrary npx)",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",

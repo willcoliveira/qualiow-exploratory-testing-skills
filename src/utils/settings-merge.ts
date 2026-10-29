@@ -17,7 +17,8 @@ export interface QualiowHookEntry {
 }
 
 export const QUALIOW_HOOK_ENTRIES: QualiowHookEntry[] = [
-  { matcher: 'Read', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs"' },
+  // Grep and Glob too: the read guard keeps the finder's files away from the bug judge.
+  { matcher: 'Read|Grep|Glob', command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs"' },
   {
     matcher: 'Write|Edit|MultiEdit|NotebookEdit',
     command: 'node "$CLAUDE_PROJECT_DIR/qa/hooks/write-guard.mjs"',

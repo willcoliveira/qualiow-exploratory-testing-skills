@@ -212,7 +212,7 @@ Three `PreToolUse` hooks enforce what the delegation and security rules ask for.
 write guards are scoped to qualiow-owned paths; the bash guard sees every `Bash` command but
 only acts on the few patterns below, so ordinary coding in the same project is unaffected:
 
-- **`read-guard.mjs`** (matcher `Read`) fires only for `data/knowledge/manifest.yml`,
+- **`read-guard.mjs`** (matcher `Read|Grep|Glob`) fires only for `data/knowledge/manifest.yml`,
   `data/knowledge/releases/**`, `output/sessions/*/phase-*.md` and
   `output/sessions/*/snapshots/*`. A whole-file read of one of those over
   `QUALIOW_READ_MAX_LINES` lines (default 300) is denied, with the cheaper route named in the
