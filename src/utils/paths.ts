@@ -53,11 +53,24 @@ export function resolveSkillsSource(pkgRoot: string): string | null {
 }
 
 /**
+ * A target id is a file name under `data/targets/`: letters, digits, `.`, `_`
+ * and `-`, not starting with `.` or `-`, and never containing `..`. Anything
+ * else could name a YAML outside `data/targets/` — one that declares any env
+ * var as its login credential.
+ */
+const TARGET_ID_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+
+export function isValidTargetId(name: string): boolean {
+  return TARGET_ID_RE.test(name) && !name.includes('..');
+}
+
+/**
  * Resolve a target config path. With a name: `data/targets/<name>.yml` under
  * cwd, else under the package root. Without a name: a project-local
  * `qa/target.yml`, else `data/targets/_default.yml`. Returns the first path
  * that exists, or the most-specific candidate when none exist (so callers can
- * report a useful "not found").
+ * report a useful "not found"). Throws on a name that is not a valid target id
+ * (`isValidTargetId`); the message does not echo it.
  */
 export function resolveTargetPath(
   cwd: string,
@@ -65,6 +78,12 @@ export function resolveTargetPath(
   pkgRoot: string = getPackageRoot(),
 ): string {
   if (name) {
+    if (!isValidTargetId(name)) {
+      throw new Error(
+        'invalid target id — use the file name of a config under data/targets/ ' +
+          '(letters, digits, . _ -; no path separators, no "..")',
+      );
+    }
     const candidates = [
       resolve(cwd, 'data', 'targets', `${name}.yml`),
       resolve(pkgRoot, 'data', 'targets', `${name}.yml`),
@@ -161,6 +180,20 @@ export function idFromFilename(filePath: string): string {
   return basename(filePath, '.yml');
 }
 
+/** The `.env` files credentials are read from, in order: `<cwd>/qa/.env`, then `<cwd>/.env`. */
+export function envFilePaths(cwd: string): string[] {
+  return [resolve(cwd, 'qa', '.env'), resolve(cwd, '.env')];
+}
+
+/**
+ * The variables of one `.env` file. A leading UTF-8 byte-order mark is dropped
+ * first: `parseEnv` would keep it on the first name, and that variable would
+ * then read as unset.
+ */
+export function parseEnvFile(file: string): NodeJS.Dict<string> {
+  return parseEnv(readFileSync(file, 'utf-8').replace(/^﻿/, ''));
+}
+
 /**
  * Read one credential by NAME in the order `paths.md` defines for the skills:
  * a variable already in the environment wins, then `<cwd>/qa/.env`, then
@@ -170,9 +203,9 @@ export function idFromFilename(filePath: string): string {
 export function readEnvVar(cwd: string, name: string): string | undefined {
   const fromProcess = process.env[name];
   if (fromProcess) return fromProcess;
-  for (const file of [resolve(cwd, 'qa', '.env'), resolve(cwd, '.env')]) {
+  for (const file of envFilePaths(cwd)) {
     if (!existsSync(file)) continue;
-    const value = parseEnv(readFileSync(file, 'utf-8'))[name];
+    const value = parseEnvFile(file)[name];
     if (value) return value;
   }
   return undefined;

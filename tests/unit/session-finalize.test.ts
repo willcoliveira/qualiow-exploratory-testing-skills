@@ -330,12 +330,12 @@ describe('runSessionFinalize — scans every text artefact', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('skips binary files (a NUL byte in the first 8 KB)', async () => {
+  it('skips binary files (a known file signature)', async () => {
     const { cwd, sessionDir } = makeCleanSessionCwd();
     mkdirSync(join(sessionDir, 'evidence'), { recursive: true });
     writeFileSync(
       join(sessionDir, 'evidence', 'shot.png'),
-      Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x00]), Buffer.from(AWS_KEY)]),
+      Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]), Buffer.from(AWS_KEY)]),
     );
 
     const result = await runSessionFinalize('latest', { check: true }, { cwd, log: silentLog });

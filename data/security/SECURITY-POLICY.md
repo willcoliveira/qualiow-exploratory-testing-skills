@@ -277,7 +277,7 @@ refused.
 
 ---
 
-## Implementation Status (2.0.0)
+## Implementation Status (2.5.0, plus unreleased changes)
 
 ### Implemented
 
@@ -286,7 +286,8 @@ refused.
 - [x] One production-detection rule with an exclusion list, applied by web, mobile and backend
       skills
 - [x] Credential redaction: one list, implemented in `src/utils/redact.ts` and applied by every
-      formatter (html, json, jira) — not just documented
+      formatter (html, json, jira) — not just documented; `hooks/scripts/secret-patterns.mjs`
+      carries the same rules, checked by a test
 - [x] Confidentiality header on every template, every session artefact and every export
 - [x] YAML schema validation for targets, domains and knowledge entries — `qualiow validate --all`,
       which CI runs against a freshly installed project
@@ -295,11 +296,31 @@ refused.
       session end
 - [x] Credentials by env var name only; `.gitignore` block written by `qualiow init`
 - [x] Data-retention prompt in `/qa-explore-cleanup`
+- [x] `qualiow auth fill` types a login credential into a web form field from its env var, so the
+      value never passes through the model's command line; its output is redacted. Only a login
+      name the target declares is accepted — never an API, cloud or triage key — and a target id
+      is a file name under `data/targets/`, never a path
+- [x] Three `PreToolUse` guards (`hooks/`, on by default under a plugin install,
+      `qualiow init --hooks` for npm projects): the read guard caps whole-file reads of data and
+      session files; the write guard denies secret-shaped text and credential values under
+      `output/`; the bash guard asks before or denies the code-execution routes of pre-approved
+      commands (`playwright-cli run-code`, `npx -c`, git exec options)
+- [x] Credential-value scan: `qualiow session finalize` looks for the literal values of the
+      target's credential variables, URI-, form-, JSON- and base64-encoded, in every text file —
+      `snapshots/` included, for values only — and fails closed (every secret-named `.env`
+      variable) when the session's target does not resolve. `qualiow judge triage` refuses to
+      send a state that carries one
+- [x] `evidence-manifest.json`: size, SHA-256 and scan status of every evidence file, written by
+      finalize; a file is `binary-not-scanned` only when it starts with a known image, video,
+      archive or PDF signature. `carry-forward.json` hashes the files `--continue` reads
+- [x] Verdict cross-check: a `Verified` bug needs a CONFIRMED or CONFIRMED-ADJUSTED verdict of its
+      own number, a verdict file carries exactly one `VERDICT:` line, and one verdict backs one bug
 
 ### Open
 
 - [ ] Secret scanning in a git pre-commit hook
-- [ ] Signed session reports (tamper detection for compliance)
+- [ ] Signed session reports — the evidence manifest and `carry-forward.json` detect a change
+      made without re-running finalize; they are not a signature
 - [ ] SBOM generation at publish time
 - [ ] `SECURITY.md` vulnerability-disclosure policy in the repo root
 - [ ] Rate limiting on browser actions

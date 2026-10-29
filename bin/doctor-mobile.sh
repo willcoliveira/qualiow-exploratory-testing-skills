@@ -13,7 +13,7 @@
 #   bin/doctor-mobile.sh --android  # Android only
 #   bin/doctor-mobile.sh --quiet    # only print failures + final verdict
 #
-# Checks: macOS, Homebrew, Node >= 22.4, Maestro >= $MAESTRO_MIN_VERSION (default 2.6.0),
+# Checks: macOS, Homebrew, Node >= 22.12, Maestro >= $MAESTRO_MIN_VERSION (default 2.6.0),
 #   Android: JDK 17, SDK root, adb, emulator, sdkmanager/avdmanager, an AVD;
 #   iOS: Xcode CLT + full Xcode, an iOS runtime, an iPhone simulator, and (warnings)
 #   ios-webkit-debug-proxy + python3 for the bin/wk-ios DOM bridge.
@@ -37,7 +37,7 @@ done
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SETUP="bin/setup-mobile.sh"
 [ -x "$HERE/setup-mobile.sh" ] && SETUP="$HERE/setup-mobile.sh"
-NODE_MIN_MAJOR=22; NODE_MIN_MINOR=4
+NODE_MIN_MAJOR=22; NODE_MIN_MINOR=12
 MAESTRO_MIN_VERSION="${MAESTRO_MIN_VERSION:-2.6.0}"
 MAESTRO_INSTALL_VERSION="${MAESTRO_VERSION:-2.10.0}"
 
