@@ -84,10 +84,7 @@ try {
   const threshold = Number(process.env.QUALIOW_READ_MAX_LINES) || 300;
 
   if (lineCount > threshold) {
-    deny(
-      `${filePath} is ${lineCount} lines (limit ${threshold}). Route: ${matched.route}. ` +
-        'Set QUALIOW_HOOKS=off to disable.',
-    );
+    deny(`${filePath} is ${lineCount} lines (limit ${threshold}). Route: ${matched.route}.`);
   }
   process.exit(0);
 } catch {

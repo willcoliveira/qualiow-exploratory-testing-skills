@@ -132,6 +132,7 @@ describe('read-guard.mjs', () => {
     expect(d?.hookEventName).toBe('PreToolUse');
     expect(d?.permissionDecisionReason).toContain('400 lines');
     expect(d?.permissionDecisionReason).toContain('kb digest');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
   });
 
   it('allows the same Read when it carries offset or limit', () => {
@@ -191,7 +192,7 @@ describe('write-guard.mjs', () => {
     expect(d?.permissionDecision).toBe('deny');
     expect(d?.permissionDecisionReason).toContain('GitHub token');
     expect(d?.permissionDecisionReason).not.toContain(token);
-    expect(d?.permissionDecisionReason).toContain('QUALIOW_HOOKS=off');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
   });
 
   it('allows the same content under snapshots/, outside output/, when clean, or when disabled', () => {

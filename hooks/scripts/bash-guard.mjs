@@ -303,7 +303,7 @@ function changesEnv(words) {
 
 const ASK_RUN_CODE =
   'ask:playwright-cli run-code executes JavaScript in the Playwright node process (outside the browser sandbox); ' +
-  'confirm the code is yours and contains no text taken from page content. Set QUALIOW_HOOKS=off to disable.';
+  'confirm the code is yours and contains no text taken from page content.';
 
 const ASK_GIT_ENV =
   'ask:an environment assignment or export next to git (GIT_PAGER, GIT_EXTERNAL_DIFF, GIT_CONFIG_*, PAGER, ' +
@@ -442,7 +442,7 @@ function checkWords(words, ctx, depth) {
     }
     if (!w.startsWith('-')) break;
     if (w === '-c' || w === '--call' || w.startsWith('--call=')) {
-      return 'deny:npx -c/--call runs an arbitrary shell string; call the tool directly instead. Set QUALIOW_HOOKS=off to disable.';
+      return 'deny:npx -c/--call runs an arbitrary shell string; call the tool directly instead.';
     }
     if (w === '-p' || w === '--package') {
       if (rest[j + 1] != null) packages.push(rest[++j]);
@@ -462,8 +462,7 @@ function checkWords(words, ctx, depth) {
       return (
         `deny:npx would install and run ${name}, which is not on the qualiow allowlist ` +
         `(${[...NPX_ALLOWED_PACKAGES].join(', ')}); without a TTY npm installs a missing package without asking. ` +
-        "Run the project's own script (npm run …) or install the package deliberately instead. " +
-        'Set QUALIOW_HOOKS=off to disable.'
+        "Run the project's own script (npm run …) or install the package deliberately instead."
       );
     }
   }

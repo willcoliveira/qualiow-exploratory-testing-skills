@@ -22,13 +22,28 @@
  * plus QA_PASS, QA_TOKEN and QA_API_TOKEN, six characters or longer, matched
  * literally and URL-encoded, JSON-escaped or base64-encoded.
  *
+ * Two scope rules come first, for every file (inside `output/` or not):
+ *
+ * - A sub-agent, named by the hook input's `agent_type` (the frontmatter name,
+ *   or `<plugin>:<name>` for a plugin agent), writes only where its job is:
+ *   `qa-gather-agent` under `output/context/`, `qa-reporting-agent` under
+ *   `output/sessions/`; `qa-bug-judge`, `qa-page-mapper-agent` and
+ *   `qa-diff-indexer-agent` not at all. Anything else is `deny`.
+ * - The files that steer qualiow itself — `qa/target.yml` and
+ *   `data/targets/**.yml` (the production override lives there), `qa/hooks/**`,
+ *   `.claude/settings.json`, `.claude/settings.local.json` and `.mcp.json` —
+ *   are `ask`, so text from a page, ticket or diff cannot rewrite them unseen.
+ *
+ * Both resolve the path against the cwd and `CLAUDE_PROJECT_DIR`, after `..`
+ * and symlinks, case-insensitively.
+ *
  * Node built-ins only, plus the sibling `secret-patterns.mjs` — a
  * git-sourced plugin install has neither `dist/` nor `node_modules`. Never
  * throws and never echoes the matched text back: the denial reason names
  * categories and variable names only.
  */
-import { readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseEnv } from 'node:util';
 import {
   MIN_SECRET_VALUE_LENGTH,
@@ -73,15 +88,73 @@ function knownSecretValues(cwd) {
   return out;
 }
 
-function deny(reason) {
+function decide(permissionDecision, reason) {
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision: 'deny',
+        permissionDecision,
         permissionDecisionReason: reason,
       },
     }),
+  );
+}
+
+const deny = (reason) => decide('deny', reason);
+
+// Relative to the project root, lower-cased, forward slashes.
+const SELF_CONFIG = [
+  /^qa\/target\.ya?ml$/,
+  /^data\/targets\/.+\.ya?ml$/,
+  /^qa\/hooks(\/|$)/,
+  /^\.claude\/settings(\.local)?\.json$/,
+  /^\.mcp\.json$/,
+];
+const AGENT_WRITE_SCOPE = new Map([
+  ['qa-gather-agent', { re: /^output\/context\//, label: 'output/context/' }],
+  ['qa-reporting-agent', { re: /^output\/sessions\//, label: 'output/sessions/' }],
+]);
+const AGENT_NO_WRITE = new Set(['qa-bug-judge', 'qa-page-mapper-agent', 'qa-diff-indexer-agent']);
+
+/** The agent name from `agent_type`: `qa-bug-judge` or `<plugin>:qa-bug-judge`. */
+function agentName(agentType) {
+  if (typeof agentType !== 'string' || !agentType) return null;
+  return agentType.slice(agentType.lastIndexOf(':') + 1);
+}
+
+/** The real path of `abs`: symlinks resolved on the deepest ancestor that exists. */
+function realPath(abs) {
+  const missing = [];
+  for (let head = abs; ; ) {
+    try {
+      return join(realpathSync(head), ...missing);
+    } catch {
+      const up = dirname(head);
+      if (up === head) return abs;
+      missing.unshift(basename(head));
+      head = up;
+    }
+  }
+}
+
+/** `abs` relative to `root`, lower-cased with forward slashes, or null when it is not inside `root`. */
+function inside(root, abs) {
+  const rel = relative(root.toLowerCase(), abs.toLowerCase());
+  if (!rel || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
+  return rel.split(sep).join('/');
+}
+
+/**
+ * The path as seen from each project root: one entry per spelling of the file
+ * (as given, and through symlinks), each listing its relative path under every
+ * root it is inside.
+ */
+function projectPaths(absPath, cwd) {
+  const roots = new Set([cwd]);
+  if (process.env.CLAUDE_PROJECT_DIR) roots.add(resolve(process.env.CLAUDE_PROJECT_DIR));
+  for (const r of [...roots]) roots.add(realPath(r));
+  return [absPath, realPath(absPath)].map((variant) =>
+    [...roots].map((r) => inside(r, variant)).filter((rel) => rel !== null),
   );
 }
 
@@ -164,6 +237,27 @@ try {
 
   const cwd = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
   const absPath = resolve(cwd, filePath);
+  const seen = projectPaths(absPath, cwd);
+
+  const agent = agentName(input.agent_type);
+  if (agent && AGENT_NO_WRITE.has(agent)) {
+    deny(`${agent} has no write access: it returns its result to the session that spawned it, which writes the file.`);
+    process.exit(0);
+  }
+  const scope = agent ? AGENT_WRITE_SCOPE.get(agent) : undefined;
+  if (scope && !seen.every((rels) => rels.some((rel) => scope.re.test(rel)))) {
+    deny(`${agent} writes only under ${scope.label}; ${filePath} is outside it.`);
+    process.exit(0);
+  }
+  if (seen.some((rels) => rels.some((rel) => SELF_CONFIG.some((re) => re.test(rel))))) {
+    decide(
+      'ask',
+      `${filePath} configures qualiow itself (target safety settings, guard hooks, Claude Code settings or MCP ` +
+        'servers). Confirm the change is yours and not taken from page, ticket or diff content.',
+    );
+    process.exit(0);
+  }
+
   const normalized = absPath.split('\\').join('/');
   const outputAt = normalized.search(/(^|\/)output\//i);
   if (outputAt === -1) process.exit(0);
@@ -191,15 +285,13 @@ try {
       `Refusing to write ${filePath}: it contains the value of ${names}` +
         (found.size > 0 ? ` and ${[...found].join(', ')}` : '') +
         '. Replace it with [REDACTED] before writing; a credential is filled with ' +
-        '`qualiow auth fill --session <sid> --ref <ref> --env <NAME>`, never typed. ' +
-        'Set QUALIOW_HOOKS=off to disable.',
+        '`qualiow auth fill --session <sid> --ref <ref> --env <NAME>`, never typed.',
     );
   } else if (found.size > 0) {
     deny(
       `Refusing to write ${filePath}: it contains ${[...found].join(', ')}. ` +
         'Redact per security-rules.md ([REDACTED]) before writing; ' +
-        'qualiow session finalize --redact rewrites an existing file. ' +
-        'Set QUALIOW_HOOKS=off to disable.',
+        'qualiow session finalize --redact rewrites an existing file.',
     );
   }
   process.exit(0);

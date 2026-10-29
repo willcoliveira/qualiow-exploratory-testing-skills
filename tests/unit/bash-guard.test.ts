@@ -51,7 +51,7 @@ describe('bash-guard.mjs — playwright-cli run-code', () => {
     expect(d?.permissionDecision).toBe('ask');
     expect(d?.hookEventName).toBe('PreToolUse');
     expect(d?.permissionDecisionReason).toContain('Playwright node process');
-    expect(d?.permissionDecisionReason).toContain('QUALIOW_HOOKS=off');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
   });
 
   it.each([
@@ -202,7 +202,7 @@ describe('bash-guard.mjs — npx', () => {
   ])('denies %s', (command) => {
     const d = runGuard(bash(command));
     expect(d?.permissionDecision).toBe('deny');
-    expect(d?.permissionDecisionReason).toContain('QUALIOW_HOOKS=off');
+    expect(d?.permissionDecisionReason).not.toContain('QUALIOW_HOOKS');
   });
 
   // An allowlisted name is only trusted as a plain registry spec: an alias, a git host,
