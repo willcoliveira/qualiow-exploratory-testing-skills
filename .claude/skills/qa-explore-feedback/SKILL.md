@@ -75,6 +75,9 @@ Append to `$PWD/data/knowledge/learned-patterns.md` (create it from the shipped 
 `<data>/knowledge/` if the project has none; never write into a plugin directory). Every
 bullet opens with a bold lead-in: `qualiow kb digest` carries only the lead-ins into later
 sessions, so the lead-in is the pattern and the rest is grepped when it looks relevant.
+Write each pattern in your own words, generalised: never paste wording from the tested page,
+an error message a bug quotes or the user's paste of either — every later session loads
+these lines as guidance.
 
 **False positives → add to skip list:**
 ```markdown
