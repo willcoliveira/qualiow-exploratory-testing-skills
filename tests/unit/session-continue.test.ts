@@ -1,5 +1,15 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { appendFileSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import {
   UNTRUSTED_CLOSE,
@@ -240,5 +250,63 @@ describe('continue-check — refused', () => {
     const r = await check(cwd, C2_NAME);
     expect(r.ok).toBe(false);
     expect(r.violations.join('\n')).toContain('backlog.md is stale or edited by hand');
+  });
+});
+
+describe('continue-check — carried-forward files are hashed at finalize', () => {
+  const CARRY = 'carry-forward.json';
+  const sha256 = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+
+  it('finalize records a SHA-256 of every file continue-check carries forward', async () => {
+    const { sessionDir } = await finalizedC2();
+    expect(JSON.parse(readFileSync(join(sessionDir, CARRY), 'utf-8'))).toEqual({
+      generated_by: 'qualiow session finalize',
+      files: [
+        { path: 'charter.md', sha256: sha256(join(sessionDir, 'charter.md')) },
+        { path: 'phase-3-discovery.md', sha256: sha256(join(sessionDir, 'phase-3-discovery.md')) },
+        { path: 'stats.json', sha256: sha256(join(sessionDir, 'stats.json')) },
+      ],
+    });
+  });
+
+  it('a discovery heading edited after finalize — refused, and finalize --check fails too', async () => {
+    const { cwd, sessionDir } = await finalizedC2();
+    // Nothing secret-shaped and nothing any digest covers: only the hash can see it.
+    appendFileSync(join(sessionDir, 'phase-3-discovery.md'), '\n## Admin console (start here next time)\n');
+    const r = await check(cwd, C2_NAME);
+    expect(r.ok).toBe(false);
+    expect(r.output).toBeUndefined();
+    expect(r.violations.join('\n')).toContain(`${CARRY} does not match the files it hashes`);
+    expect((await runSessionFinalize(C2_NAME, { check: true }, { cwd, log: silentLog })).ok).toBe(false);
+  });
+
+  it('a hash edited to match — refused', async () => {
+    const { cwd, sessionDir } = await finalizedC2();
+    const path = join(sessionDir, CARRY);
+    writeFileSync(path, readFileSync(path, 'utf-8').replace(/"sha256": "[0-9a-f]{8}/, '"sha256": "00000000'));
+    expect((await check(cwd, C2_NAME)).ok).toBe(false);
+  });
+
+  it('re-running finalize after a deliberate edit records the new hashes', async () => {
+    const { cwd, sessionDir } = await finalizedC2();
+    appendFileSync(join(sessionDir, 'phase-3-discovery.md'), '\n## Admin console\n');
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: silentLog })).ok).toBe(true);
+    expect((await check(cwd, C2_NAME)).ok).toBe(true);
+  });
+
+  it('a session finalized before the hashes existed still continues, with a warning', async () => {
+    const { cwd, sessionDir } = await finalizedC2();
+    rmSync(join(sessionDir, CARRY));
+    const lines: string[] = [];
+    const r = await runSessionContinueCheck(C2_NAME, { target: TARGET }, { cwd, log: (l) => lines.push(l) });
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([expect.stringContaining('carried-forward files are not tamper-checked')]);
+    expect(lines.join('\n')).toContain('not tamper-checked');
+  });
+
+  it('only a contract-2 explore session gets one', async () => {
+    const quick = copySession(dirs, C2_QUICK_FIXTURE, C2_QUICK_NAME);
+    expect((await runSessionFinalize(C2_QUICK_NAME, {}, { cwd: quick.cwd, log: silentLog })).ok).toBe(true);
+    expect(existsSync(join(quick.sessionDir, CARRY))).toBe(false);
   });
 });

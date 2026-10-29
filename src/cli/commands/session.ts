@@ -67,8 +67,12 @@ import { backlogCell, levelFacts } from '../../session/coverage-level.js';
 import { pathOfUrl, scrubForTransmission } from '../../triage/scrub.js';
 import { checkVerdicts } from '../../session/verdict-check.js';
 import {
+  CARRY_FORWARD_FILE,
+  CARRY_FORWARD_SOURCES,
   EVIDENCE_MANIFEST_FILE,
+  buildCarryForwardRecord,
   buildEvidenceManifest,
+  renderCarryForwardRecord,
   renderEvidenceManifest,
 } from '../../session/evidence-manifest.js';
 import { resolveSecretValues } from '../../utils/secret-values.js';
@@ -324,12 +328,14 @@ export async function runSessionFinalize(
   // would flag. Text is told from binary by content, so renaming a file does not take it
   // out of the scan. evidence-manifest.json is finalize's own output — paths and hashes,
   // where a 13-digit timestamp in a file name reads as a card number — and is held to the
-  // exact content finalize would write instead (step 6).
+  // exact content finalize would write instead (step 6). So is carry-forward.json, in the
+  // one kind of session that has it (below).
+  const continuable = raw?.contract === 2 && (stats?.kind ?? parsedDirName?.kind) === 'explore';
   const textFiles = new Set<string>();
   for (const { path: file, rel } of walk.files) {
     const snapshot = rel.split(sep)[0] === 'snapshots';
     if (snapshot && secretValues.length === 0) continue;
-    if (rel === EVIDENCE_MANIFEST_FILE) continue;
+    if (rel === EVIDENCE_MANIFEST_FILE || (continuable && rel === CARRY_FORWARD_FILE)) continue;
     const size = statSync(file).size;
     const sniffed = sniffTextEncoding(file);
     if (sniffed === null) continue;
@@ -359,6 +365,27 @@ export async function runSessionFinalize(
     } else {
       violations.push(`${rel} contains a secret: ${redactions.join(', ')} (run with --redact to fix)`);
     }
+  }
+
+  // carry-forward.json — CLI-written, for a contract-2 explore session only: the SHA-256 of
+  // each file continue-check carries forward, taken after any --redact rewrite. Under
+  // --check an existing record must be exactly what this run would write, so a carried
+  // file edited after finalize — a discovery heading is in no digest — is caught.
+  const carryPath = join(sessionDir, CARRY_FORWARD_FILE);
+  const carryText = continuable ? renderCarryForwardRecord(buildCarryForwardRecord(sessionDir)) : undefined;
+  const carryState = regularFileState(carryPath);
+  if (carryText !== undefined && carryState === 'other') {
+    violations.push(`${CARRY_FORWARD_FILE} is not a regular file — remove it; finalize writes it`);
+  } else if (
+    options.check &&
+    carryText !== undefined &&
+    carryState === 'file' &&
+    readFileSync(carryPath, 'utf-8') !== carryText
+  ) {
+    violations.push(
+      `${CARRY_FORWARD_FILE} does not match the files it hashes (${CARRY_FORWARD_SOURCES.join(', ')}) — ` +
+        `one changed after finalize; re-run \`qualiow session finalize ${dirName}\` if the change is meant`,
+    );
   }
 
   // 4. verdict cross-check — only in a session that ran the bug judge (a verification/
@@ -408,6 +435,7 @@ export async function runSessionFinalize(
 
   // Written before any index row, so a refused write leaves the indexes untouched.
   writeFileGuarded(manifestPath, manifestText);
+  if (carryText !== undefined) writeFileGuarded(carryPath, carryText);
 
   // stats is guaranteed defined here: an undefined stats always pushes a violation above.
   const finalStats = stats as SessionMetrics;
@@ -830,6 +858,8 @@ export interface SessionContinueCheckResult {
   sessionName?: string;
   /** The fenced block, as printed. */
   output?: string;
+  /** Printed before the block: a session finalized before carry-forward hashes existed. */
+  warnings?: string[];
 }
 
 /**
@@ -837,7 +867,9 @@ export interface SessionContinueCheckResult {
  * path by which a prior session reaches a new one under `--continue` [H2]: the candidate
  * must be a real directory directly under the real `output/sessions/`, an `explore`
  * session under contract 2, finalized, of exactly the same `stats.target`, and still
- * pass `finalize --check` (which catches an edit made after it was finalized). What is
+ * pass `finalize --check` (which catches an edit made after it was finalized, the
+ * carried files included through `carry-forward.json`; a session finalized before that
+ * record existed is carried with a warning). What is
  * printed is the only carry-forward: the charter's risk rows, the backlog rows, the
  * discovery `##` headings and the site-map URL paths — scrubbed, redacted, capped, and
  * fenced as untrusted data. `latest` is the newest finalized contract-2 explore session
@@ -923,9 +955,20 @@ export async function runSessionContinueCheck(
     return refuse(`${chosen} fails the contract-2 checks`, ...assessment.violations);
   }
 
+  // finalize --check above held an existing carry-forward.json to the files; one finalized
+  // before the record existed has none, and its carried files are taken on trust.
+  const warnings: string[] = [];
+  if (!existsSync(join(candidate, CARRY_FORWARD_FILE))) {
+    warnings.push(
+      `${chosen} was finalized before ${CARRY_FORWARD_FILE} existed — its carried-forward files are not ` +
+        `tamper-checked; re-run \`qualiow session finalize ${chosen}\` to record them`,
+    );
+  }
+  for (const w of warnings) log(chalk.yellow(`⚠ ${w}`));
+
   const output = renderCarryForward(chosen, assessment, readContainedText(candidate, 'phase-3-discovery.md', MAX_DISCOVERY_BYTES));
   log(output);
-  return { ok: true, violations: [], sessionName: chosen, output };
+  return { ok: true, violations: [], sessionName: chosen, output, ...(warnings.length ? { warnings } : {}) };
 }
 
 /** `latest`'s filter: a readable, capped `stats.json` with `contract: 2` and exactly this target. */
