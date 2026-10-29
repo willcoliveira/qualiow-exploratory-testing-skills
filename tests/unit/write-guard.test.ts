@@ -257,6 +257,16 @@ describe('write-guard.mjs known credential values', () => {
     expect(reason).not.toContain(PASS);
   });
 
+  it('denies a credential value under snapshots/ too, while the pattern exemption there stays', () => {
+    const cwd = makeTmpCwd();
+    seedEnv(cwd);
+    const snap = 'output/sessions/x/snapshots/login.yml';
+    const reason = guard(cwd, 'Write', { file_path: snap, content: `- textbox "Password" [ref=e6]: ${PASS}\n` });
+    expect(reason).toContain('QA_PASS');
+    expect(reason).not.toContain(PASS);
+    expect(guard(cwd, 'Write', { file_path: snap, content: 'password=hunter2\n' })).toBeNull();
+  });
+
   it('catches the value URL-encoded, JSON-escaped and base64-encoded, and a .env value by name pattern', () => {
     const cwd = makeTmpCwd();
     seedEnv(cwd);

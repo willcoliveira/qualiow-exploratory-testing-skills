@@ -3,10 +3,10 @@
  * PreToolUse hook (matcher: Write|Edit|MultiEdit|NotebookEdit).
  *
  * Denies writing a secret-shaped string into anything under `output/`
- * (excluding `output/**\/snapshots/`, which never ships a report and is
- * excluded from the secrets scan the same way `qualiow session finalize`
- * excludes it). Mechanises security rule 3 (redact before disk) instead of
- * relying on the model remembering it.
+ * (excluding `output/**\/snapshots/` from the pattern rules, which never ships a
+ * report — the same exemption `qualiow session finalize` applies; credential
+ * values below are still denied there). Mechanises security rule 3 (redact
+ * before disk) instead of relying on the model remembering it.
  *
  * The path is resolved against the hook's `cwd` first, so `snapshots/../bugs/`
  * cannot borrow the snapshots exemption, and `output/` matches in any case
@@ -262,11 +262,16 @@ try {
   const normalized = absPath.split('\\').join('/');
   const outputAt = normalized.search(/(^|\/)output\//i);
   if (outputAt === -1) process.exit(0);
-  if (normalized.slice(outputAt).includes('/snapshots/')) process.exit(0);
+  // snapshots/ is exempt from the pattern rules only: a raw page tree is full of
+  // token-shaped noise, but a credential's own value is never noise there.
+  const inSnapshots = normalized.slice(outputAt).includes('/snapshots/');
 
-  const found = new Set(findSecretCategories(insertedText(input.tool_name, toolInput)));
+  const found = new Set();
   const edited = postEditContent(input.tool_name, toolInput, absPath);
-  if (edited) introducedCategories(edited[0], edited[1]).forEach((c) => found.add(c));
+  if (!inSnapshots) {
+    findSecretCategories(insertedText(input.tool_name, toolInput)).forEach((c) => found.add(c));
+    if (edited) introducedCategories(edited[0], edited[1]).forEach((c) => found.add(c));
+  }
 
   const values = knownSecretValues(cwd);
   const leaked = new Set();
