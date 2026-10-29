@@ -331,8 +331,8 @@ export async function runSessionFinalize(
     if (snapshot && secretValues.length === 0) continue;
     if (rel === EVIDENCE_MANIFEST_FILE) continue;
     const size = statSync(file).size;
-    const encoding = sniffTextEncoding(file);
-    if (encoding === null) continue;
+    const sniffed = sniffTextEncoding(file);
+    if (sniffed === null) continue;
     if (!snapshot) textFiles.add(file);
     if (size > MAX_SCAN_BYTES) {
       if (snapshot) {
@@ -346,6 +346,7 @@ export async function runSessionFinalize(
       continue;
     }
     const raw = readFileSync(file);
+    const encoding = textEncodingOf(raw, sniffed);
     const content = decodeText(raw, encoding);
     const scan = snapshot ? { values: secretValues, patterns: false } : { values: secretValues };
     if (!containsSecrets(content, scan)) continue;
@@ -1367,7 +1368,7 @@ function listFilesRecursive(dir: string): string[] {
 /** Text files larger than this are refused rather than scanned in part. */
 const MAX_SCAN_BYTES = 32 * 1024 * 1024;
 
-/** How much of a file is inspected for a NUL byte to tell binary from text. */
+/** How much of a file is inspected for a file signature and for UTF-16. */
 const BINARY_SNIFF_BYTES = 8 * 1024;
 
 interface SessionFile {
@@ -1412,12 +1413,41 @@ function walkSession(sessionDir: string): { files: SessionFile[]; violations: st
   return { files, violations };
 }
 
-type TextEncoding = 'utf8' | 'utf16le' | 'utf16be';
+type TextEncoding = 'utf8' | 'utf16le' | 'utf16be' | 'latin1';
+
+/** `bytes` (a byte list or an ASCII string) at `offset` of `buf`. */
+function bytesAt(buf: Buffer, offset: number, bytes: readonly number[] | string): boolean {
+  const want = typeof bytes === 'string' ? Buffer.from(bytes, 'latin1') : Buffer.from(bytes);
+  return buf.length >= offset + want.length && buf.subarray(offset, offset + want.length).equals(want);
+}
 
 /**
- * How to read `file` as text, or null for binary. A NUL byte in the first few KB means binary
- * — except UTF-16, which is text full of NULs: a byte-order mark, or NULs in nearly every
- * other byte, reads it as UTF-16 so a secret cannot hide from the scan by re-encoding.
+ * The file signatures of the binary evidence a session holds: PNG, JPEG, GIF, WebP,
+ * WebM/Matroska, MP4 and other ISO-BMFF (`ftyp`), ZIP (a Playwright trace is one), gzip, PDF.
+ */
+function hasBinarySignature(buf: Buffer): boolean {
+  return (
+    bytesAt(buf, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
+    bytesAt(buf, 0, [0xff, 0xd8, 0xff]) ||
+    bytesAt(buf, 0, 'GIF87a') ||
+    bytesAt(buf, 0, 'GIF89a') ||
+    (bytesAt(buf, 0, 'RIFF') && bytesAt(buf, 8, 'WEBP')) ||
+    bytesAt(buf, 0, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    bytesAt(buf, 4, 'ftyp') ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x03, 0x04]) ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x05, 0x06]) ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x07, 0x08]) ||
+    bytesAt(buf, 0, [0x1f, 0x8b]) ||
+    bytesAt(buf, 0, '%PDF-')
+  );
+}
+
+/**
+ * How to read `file` as text, or null for binary. Binary means a known file signature
+ * (`hasBinarySignature`) and nothing less: a NUL byte does not take a text file out of the
+ * scan. UTF-16 — a byte-order mark, or NULs in nearly every other byte — is read as UTF-16
+ * so a secret cannot hide by re-encoding; anything else is UTF-8, or latin1 when it is not
+ * valid UTF-8 (`textEncodingOf`).
  */
 function sniffTextEncoding(file: string): TextEncoding | null {
   const fd = openSync(file, 'r');
@@ -1428,11 +1458,12 @@ function sniffTextEncoding(file: string): TextEncoding | null {
   } finally {
     closeSync(fd);
   }
+  if (hasBinarySignature(buf)) return null;
   if (buf[0] === 0xff && buf[1] === 0xfe) return 'utf16le';
   if (buf[0] === 0xfe && buf[1] === 0xff) return 'utf16be';
   if (!buf.includes(0)) return 'utf8';
   const pairs = Math.floor(buf.length / 2);
-  if (pairs < 2) return null;
+  if (pairs < 2) return 'utf8';
   let evenNul = 0;
   let oddNul = 0;
   for (let i = 0; i + 1 < buf.length; i += 2) {
@@ -1441,7 +1472,22 @@ function sniffTextEncoding(file: string): TextEncoding | null {
   }
   if (oddNul >= pairs * 0.9 && evenNul <= pairs * 0.1) return 'utf16le';
   if (evenNul >= pairs * 0.9 && oddNul <= pairs * 0.1) return 'utf16be';
-  return null;
+  return 'utf8';
+}
+
+/**
+ * The sniffed encoding checked against the whole file: text that is not valid UTF-8 is
+ * read as latin1, one character per byte, so the scan sees every ASCII run and
+ * `--redact` writes back every byte it did not replace.
+ */
+function textEncodingOf(raw: Buffer, sniffed: TextEncoding): TextEncoding {
+  if (sniffed !== 'utf8') return sniffed;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(raw);
+    return 'utf8';
+  } catch {
+    return 'latin1';
+  }
 }
 
 function swapBytes16(buf: Buffer): Buffer {
@@ -1451,6 +1497,7 @@ function swapBytes16(buf: Buffer): Buffer {
 
 function decodeText(raw: Buffer, encoding: TextEncoding): string {
   if (encoding === 'utf8') return raw.toString('utf-8');
+  if (encoding === 'latin1') return raw.toString('latin1');
   const le = encoding === 'utf16le' ? raw : swapBytes16(raw);
   return le.toString('utf16le').replace(/^\uFEFF/, '');
 }
@@ -1458,6 +1505,7 @@ function decodeText(raw: Buffer, encoding: TextEncoding): string {
 /** Write redacted text back in the encoding it came in, keeping a byte-order mark it had. */
 function encodeText(text: string, encoding: TextEncoding, original: Buffer): Buffer {
   if (encoding === 'utf8') return Buffer.from(text, 'utf-8');
+  if (encoding === 'latin1') return Buffer.from(text, 'latin1');
   const hadBom =
     (original[0] === 0xff && original[1] === 0xfe) || (original[0] === 0xfe && original[1] === 0xff);
   const le = Buffer.from((hadBom ? '\uFEFF' : '') + text, 'utf16le');

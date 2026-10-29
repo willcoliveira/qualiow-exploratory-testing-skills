@@ -133,3 +133,58 @@ describe('finalize — a resolved target', () => {
     expect(lines.some((l) => /does not resolve/.test(l))).toBe(false);
   });
 });
+
+describe('finalize — binary means a known file signature, nothing less', () => {
+  const AWS_SHAPED = ['AKIA', 'IOSFODNN7', 'EXAMPLE'].join('');
+  const bytes = (...parts: (number[] | string)[]): Buffer =>
+    Buffer.concat(parts.map((p) => (typeof p === 'string' ? Buffer.from(p, 'latin1') : Buffer.from(p))));
+
+  it('scans a text file with a NUL byte in it', async () => {
+    const { cwd, sessionDir } = copyC2();
+    writeFileSync(join(sessionDir, 'evidence', 'probe.txt'), bytes('status ok', [0], `\nkey ${AWS_SHAPED}\n`));
+    const { result } = await checkWithLog(cwd);
+    expect(result.ok).toBe(false);
+    expect(result.violations).toEqual([`${join('evidence', 'probe.txt')} contains a secret: AWS access key id (run with --redact to fix)`]);
+  });
+
+  it('scans a text file that is not valid UTF-8, and --redact keeps its other bytes', async () => {
+    vi.stubEnv('QA_PASS', 'Fake-Latin1-Pass-2026');
+    const { cwd, sessionDir } = copyC2();
+    const file = join(sessionDir, 'evidence', 'legacy.log');
+    writeFileSync(file, bytes('caf', [0xe9], ' login with Fake-Latin1-Pass-2026 ', [0xff, 0x00], '\n'));
+    expect((await checkWithLog(cwd)).result.violations).toEqual([
+      `${join('evidence', 'legacy.log')} contains a secret: Credential value (run with --redact to fix)`,
+    ]);
+
+    expect((await runSessionFinalize(C2_NAME, { redact: true }, { cwd, log: () => {} })).ok).toBe(true);
+    expect(readFileSync(file)).toEqual(bytes('caf', [0xe9], ' login with [REDACTED] ', [0xff, 0x00], '\n'));
+  });
+
+  it('scans a file that only looks like the start of an archive', async () => {
+    const { cwd, sessionDir } = copyC2();
+    writeFileSync(join(sessionDir, 'evidence', 'notes.txt'), `PK notes\nkey ${AWS_SHAPED}\n`);
+    expect((await checkWithLog(cwd)).result.ok).toBe(false);
+  });
+
+  it.each([
+    ['PNG', 'screenshots/x.png', bytes([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+    ['JPEG', 'screenshots/x.jpg', bytes([0xff, 0xd8, 0xff, 0xe0])],
+    ['GIF', 'screenshots/x.gif', bytes('GIF89a')],
+    ['WebP', 'screenshots/x.webp', bytes('RIFF', [0x24, 0, 0, 0], 'WEBPVP8 ')],
+    ['WebM', 'videos/x.webm', bytes([0x1a, 0x45, 0xdf, 0xa3])],
+    ['MP4', 'videos/x.mp4', bytes([0, 0, 0, 0x20], 'ftypisom')],
+    ['a Playwright trace (zip)', 'traces/trace.zip', bytes([0x50, 0x4b, 0x03, 0x04])],
+    ['gzip', 'logs/x.log.gz', bytes([0x1f, 0x8b, 0x08])],
+    ['PDF', 'evidence/x.pdf', bytes('%PDF-1.7\n')],
+  ])('leaves %s to the manifest as binary-not-scanned', async (_label, rel, magic) => {
+    const { cwd, sessionDir } = copyC2();
+    mkdirSync(join(sessionDir, rel.split('/')[0]), { recursive: true });
+    writeFileSync(join(sessionDir, ...rel.split('/')), Buffer.concat([magic, Buffer.from(`\nkey ${AWS_SHAPED}\n`)]));
+    expect((await checkWithLog(cwd)).result.violations).toEqual([]);
+    expect((await runSessionFinalize(C2_NAME, {}, { cwd, log: () => {} })).ok).toBe(true);
+    const manifest = JSON.parse(readFileSync(join(sessionDir, 'evidence-manifest.json'), 'utf-8')) as {
+      files: { path: string; scan: string }[];
+    };
+    expect(manifest.files.find((f) => f.path === rel)?.scan).toBe('binary-not-scanned');
+  });
+});
