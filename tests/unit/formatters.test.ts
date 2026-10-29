@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { extractCoverage } from '../../src/formatters/common.js';
+import { extractCoverage, extractReportMeta } from '../../src/formatters/common.js';
 import { csvEscape } from '../../src/formatters/jira-export.js';
 import { generateMarkdownSummary } from '../../src/formatters/markdown-summary.js';
 
@@ -132,5 +132,26 @@ describe('extractCoverage — contract-2 report', () => {
       'A5 Help pages',
     ]);
     expect(coverage[3]).toMatchObject({ risk: 'P2', status: 'partial', bugsFound: '1' });
+  });
+});
+
+describe('extractReportMeta — table cells', () => {
+  it('reads the Date, Duration and Target cells of the canonical report', () => {
+    const meta = extractReportMeta(readFileSync(join(CANONICAL_SESSION_DIR, 'session-report.md'), 'utf-8'), 'sid');
+    expect(meta).toMatchObject({ date: '2026-09-08', duration: '42 min', target: 'Example App' });
+  });
+
+  it('an empty cell reads as empty instead of borrowing the next row', () => {
+    const meta = extractReportMeta('| Date |  |\n| Duration | 42 min |\n', 'sid');
+    expect(meta.date).toBe('');
+    expect(meta.duration).toBe('42 min');
+  });
+
+  // A cubic pattern takes seconds on 3,000 spaces; the cell pattern is linear.
+  it.each(['Date', 'Duration', 'Target'])('a %s cell with no closing pipe is read in under 100 ms', (label) => {
+    const report = `| ${label} |${' '.repeat(3000)}`;
+    const t = performance.now();
+    extractReportMeta(report, 'sid');
+    expect(performance.now() - t).toBeLessThan(100);
   });
 });

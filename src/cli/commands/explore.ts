@@ -1,11 +1,13 @@
 import { Command } from 'commander';
-import { resolve, join, relative } from 'node:path';
+import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import chalk from 'chalk';
 import { validateTargetConfig } from '../../utils/validate.js';
 import { resolveTargetPath } from '../../utils/paths.js';
-import { sessionDirName, slugify } from '../../utils/session-dir.js';
+import { sessionDirName, sessionTimestamp, slugify } from '../../utils/session-dir.js';
 import { CONFIDENTIALITY_HEADER_MD } from '../../utils/confidentiality.js';
+import { runWebPreflight, type PreflightCheck } from '../../utils/web-preflight.js';
 
 export interface ExploreOptions {
   target?: string;
@@ -49,8 +51,16 @@ export function parseTimeBox(value: string): number {
 export async function runExplore(
   url: string | undefined,
   options: ExploreOptions,
-  ctx: { cwd: string; now?: Date; log?: (line: string) => void },
-): Promise<{ sessionDir: string }> {
+  ctx: {
+    cwd: string;
+    now?: Date;
+    log?: (line: string) => void;
+    /** For the web pre-flight checks; default to this process's own. */
+    env?: NodeJS.ProcessEnv;
+    platform?: NodeJS.Platform;
+    home?: string;
+  },
+): Promise<{ sessionDir: string; preflight: PreflightCheck[] }> {
   const cwd = ctx.cwd;
   const now = ctx.now ?? new Date();
   const log = ctx.log ?? ((line: string) => console.log(line));
@@ -71,7 +81,7 @@ export async function runExplore(
   if (options.target || existsSync(targetPath)) {
     if (!existsSync(targetPath)) {
       throw new Error(
-        `Target config not found: ${relative(cwd, targetPath)}\n  Available targets: npx qualiow list targets`,
+        `Target config not found: ${relative(cwd, targetPath)}\n  Available targets: qualiow list targets`,
       );
     }
     const result = validateTargetConfig(targetPath);
@@ -97,23 +107,55 @@ export async function runExplore(
 
   const sessionName = sessionDirName('explore', targetLabel, now);
   const sessionDir = resolve(cwd, 'output', 'sessions', sessionName);
+  // The name carries the minute, not a counter: a second run in the same minute would
+  // land on the same directory and overwrite a charter a session may already be filling in.
+  const alreadyThere = existsSync(sessionDir);
+  const existsMessage =
+    `Session directory ${relative(cwd, sessionDir)} already exists — refusing to overwrite it. ` +
+    `Continue that session with --session output/sessions/${sessionName}, or start a new one in the next minute.`;
+
+  // What the browser session will need, checked without a network call or a browser. Warnings
+  // only: a session can still run, and a setup these checks do not know may be fine.
+  const preflight = runWebPreflight({
+    cwd,
+    env: ctx.env ?? process.env,
+    platform: ctx.platform ?? process.platform,
+    home: ctx.home ?? homedir(),
+  });
+  log('');
+  log(chalk.cyan.bold('Web pre-flight'));
+  for (const check of preflight) {
+    log(check.ok ? chalk.green(`  ✓ ${check.message}`) : chalk.yellow(`  ⚠ ${check.message}`));
+  }
 
   if (options.dryRun) {
     log('');
     log(chalk.cyan.bold('Dry run — no files created'));
+    if (alreadyThere) log(chalk.yellow(`  ⚠ ${existsMessage}`));
     log(chalk.white(`  Session directory: ${relative(cwd, sessionDir)}`));
     log(chalk.white(`  URL:       ${url ?? '(none — /qa-explore will ask)'}`));
     log(chalk.white(`  Target:    ${options.target ?? relative(cwd, targetPath)}`));
     log(chalk.white(`  Context:   ${options.context ?? '(none)'}`));
     log(chalk.white(`  Time box:  ${minutes} min`));
-    return { sessionDir };
+    return { sessionDir, preflight };
   }
 
-  for (const sub of ['', 'screenshots', 'bugs', 'videos', 'snapshots']) {
+  if (alreadyThere) throw new Error(existsMessage);
+  // The session directory itself is created non-recursively, so a run that raced this
+  // one to the same name fails here rather than sharing the directory.
+  mkdirSync(dirname(sessionDir), { recursive: true });
+  try {
+    mkdirSync(sessionDir);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') throw new Error(existsMessage);
+    throw err;
+  }
+  for (const sub of ['screenshots', 'bugs', 'videos', 'snapshots']) {
     mkdirSync(join(sessionDir, sub), { recursive: true });
   }
 
-  const date = now.toISOString().slice(0, 10);
+  // Local time, from the same formatter as the directory name, so the two never disagree.
+  const date = sessionTimestamp(now).slice(0, 10);
   writeFileSync(
     join(sessionDir, 'charter.md'),
     `${CONFIDENTIALITY_HEADER_MD}
@@ -160,5 +202,5 @@ export async function runExplore(
   log(chalk.white(`    /qa-explore ${args} --session output/sessions/${sessionName}`));
   log('');
 
-  return { sessionDir };
+  return { sessionDir, preflight };
 }

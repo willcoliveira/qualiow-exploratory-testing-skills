@@ -4,8 +4,10 @@
  * Splits pipe-delimited rows and drops only the leading/trailing empty cells
  * produced by the outer pipes — internal empty cells are preserved, so column
  * indices stay aligned even when a cell is blank. An escaped pipe (`\|`) is cell
- * content, not a delimiter, as in GFM.
+ * content, not a delimiter, as in GFM. CRLF line ends read the same as LF.
  */
+
+import { splitLines } from './text-lines.js';
 
 export interface ParsedTable {
   headers: string[];
@@ -63,7 +65,7 @@ export function parseMarkdownTable(
   md: string,
   opts: { headingPrefix?: string } = {},
 ): ParsedTable | null {
-  const lines = md.split('\n');
+  const lines = splitLines(md);
   let start = 0;
 
   if (opts.headingPrefix) {

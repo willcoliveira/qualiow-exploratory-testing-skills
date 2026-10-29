@@ -43,7 +43,7 @@ export function kbCommand(): Command {
       try {
         const result = runKb('check', process.cwd());
         if (result.changed) {
-          console.error(chalk.red('  ✗ manifest.yml is out of sync — run: npx qualiow kb sync'));
+          console.error(chalk.red('  ✗ manifest.yml is out of sync — run: qualiow kb sync'));
           process.exit(1);
         }
         console.log(chalk.green(`  ✓ manifest.yml in sync (${result.entryCount} entries)`));
@@ -77,7 +77,7 @@ export function kbCommand(): Command {
 export function runKb(mode: 'sync' | 'check', cwd: string) {
   const dataDir = resolve(cwd, 'data');
   if (!existsSync(resolve(dataDir, 'knowledge', 'manifest.yml'))) {
-    throw new Error('data/knowledge/manifest.yml not found. Run `npx qualiow init` first.');
+    throw new Error('data/knowledge/manifest.yml not found. Run `qualiow init` first.');
   }
   return syncKnowledgeManifest(dataDir, { check: mode === 'check' });
 }
@@ -107,7 +107,7 @@ export function runKbDigest(options: KbDigestOptions, cwd: string): string {
   const manifestPath = join(knowledgeDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
     throw new Error(
-      `No knowledge manifest at ${manifestPath}. Pass --data <dir>, or run \`npx qualiow init\` first.`,
+      `No knowledge manifest at ${manifestPath}. Pass --data <dir>, or run \`qualiow init\` first.`,
     );
   }
 

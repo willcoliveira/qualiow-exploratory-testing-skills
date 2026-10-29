@@ -20,7 +20,6 @@
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import {
-  appendFileSync,
   closeSync,
   existsSync,
   lstatSync,
@@ -40,7 +39,7 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import chalk from 'chalk';
 import { resolveSessionDir } from './report.js';
 import { runList } from './list.js';
-import { parseSession } from '../../utils/parse-session.js';
+import { compareBugIds, parseSession, type ParsedBug, type ParsedSession } from '../../utils/parse-session.js';
 import { SessionMetricsSchema } from '../../schemas/session-metrics.schema.js';
 import {
   SESSION_DIR_RE,
@@ -60,6 +59,8 @@ import {
   missingColumns,
 } from '../../utils/index-files.js';
 import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../utils/markdown-table.js';
+import { detectEol, splitLines } from '../../utils/text-lines.js';
+import { withIndexLock, writeFileAtomic } from '../../utils/locked-write.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
@@ -215,7 +216,8 @@ export function sessionCommand(): Command {
     .description('Delete sessions older than N days (dry run unless --yes)')
     .requiredOption('--older-than <days>', 'Delete sessions with a timestamp older than N days')
     .option('--yes', 'Perform the deletion instead of a dry run', false)
-    .action((options: { olderThan: string; yes: boolean }) => {
+    .option('--force', 'Also delete sessions whose progress.json does not say complete', false)
+    .action((options: { olderThan: string; yes: boolean; force: boolean }) => {
       try {
         runSessionPrune(options, { cwd: process.cwd() });
       } catch (err) {
@@ -243,6 +245,8 @@ export interface SessionFinalizeResult {
   bugRowsAdded?: string[];
   /** True when `evidence-manifest.json` was written (a passing, non-`--check` run). */
   evidenceManifestWritten?: boolean;
+  /** What finalize reports without refusing — logged too, on a passing run and a failing one. */
+  warnings?: string[];
 }
 
 export async function runSessionFinalize(
@@ -254,7 +258,7 @@ export async function runSessionFinalize(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -410,8 +414,33 @@ export async function runSessionFinalize(
     violations.push(`${EVIDENCE_MANIFEST_FILE} is not a regular file — remove it; finalize writes it`);
   }
 
+  // 7. stats.json against the session it describes: its counts go into INDEX.md and
+  // metrics.jsonl as written, and session_id is the metrics dedupe key. A contract-2
+  // session is held to the counts; an older one is told. The bug files are read only
+  // once the walk found nothing to refuse, so no link out of the session is followed.
+  const warnings: string[] = [];
+  let parsedSession: ParsedSession | undefined;
+  if (stats && walk.violations.length === 0) {
+    parsedSession = await parseSession(sessionDir);
+    const mismatches = statsCountMismatches(stats, parsedSession.bugs);
+    if (raw?.contract === 2) violations.push(...mismatches);
+    else warnings.push(...mismatches);
+  }
+  if (stats && stats.session_id !== dirName) {
+    warnings.push(
+      `stats.json session_id is "${stats.session_id}", not the directory name "${dirName}" — ` +
+        'metrics.jsonl dedupes on it, so a copied stats.json can hide this session’s metrics line',
+    );
+  }
+
+  // 8. session-report.md — the file the INDEX.md row points at, opening with the
+  // contract's heading. Refused in a contract-2 session, reported in an older one.
+  const reportProblem = sessionReportProblem(sessionDir);
+  if (reportProblem) (raw?.contract === 2 ? violations : warnings).push(reportProblem);
+  for (const w of warnings) log(chalk.yellow(`  ○ ${w}`));
+
   if (violations.length > 0) {
-    return { ok: false, violations, sessionDir, redactedFiles };
+    return { ok: false, violations, sessionDir, redactedFiles, warnings };
   }
 
   // The secret scan has passed, so every text file in it is clean.
@@ -427,10 +456,11 @@ export async function runSessionFinalize(
         ],
         sessionDir,
         redactedFiles,
+        warnings,
       };
     }
     log(chalk.green(`  ✓ ${dirName} passes finalize checks (--check — nothing written)`));
-    return { ok: true, violations: [], sessionDir, redactedFiles };
+    return { ok: true, violations: [], sessionDir, redactedFiles, warnings };
   }
 
   // Written before any index row, so a refused write leaves the indexes untouched.
@@ -441,58 +471,69 @@ export async function runSessionFinalize(
   const finalStats = stats as SessionMetrics;
   const kind = finalStats.kind ?? parsedDirName?.kind ?? '';
 
-  const indexPath = join(sessionsDir, 'INDEX.md');
-  ensureFileWithHeader(indexPath, INDEX_MD_HEADER);
-  const bugsOutputDir = resolve(cwd, 'output', 'bugs');
-  mkdirSync(bugsOutputDir, { recursive: true });
-  const allBugsPath = join(bugsOutputDir, 'all-bugs.md');
-  ensureFileWithHeader(allBugsPath, ALL_BUGS_MD_HEADER);
+  const bugs = [...(parsedSession ?? (await parseSession(sessionDir))).bugs].sort((a, b) => compareBugIds(a.id, b.id));
 
-  const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
-  let indexRowAdded = false;
-  if (tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`)).length === 0) {
-    appendIndexRow({
-      date: finalStats.date,
-      kind,
-      target: finalStats.target,
-      bugs: String(finalStats.bugs_found),
-      duration: `${finalStats.duration_min} min`,
-      status: 'complete',
-      report: `${dirName}/session-report.md`,
-    });
-    indexRowAdded = true;
-  }
+  // Every index file is read, edited and replaced under one lock, so two runs never
+  // interleave a read-modify-write and a reader never sees half a file.
+  const { indexRowAdded, bugRowsAdded } = withIndexLock(resolve(cwd, 'output'), () => {
+    const indexPath = join(sessionsDir, 'INDEX.md');
+    ensureFileWithHeader(indexPath, INDEX_MD_HEADER);
+    const bugsOutputDir = resolve(cwd, 'output', 'bugs');
+    mkdirSync(bugsOutputDir, { recursive: true });
+    const allBugsPath = join(bugsOutputDir, 'all-bugs.md');
+    ensureFileWithHeader(allBugsPath, ALL_BUGS_MD_HEADER);
 
-  const parsedSession = await parseSession(sessionDir);
-  const bugs = [...parsedSession.bugs].sort((a, b) => a.id.localeCompare(b.id));
-  const existingBugRows = readAllBugsRows(allBugsPath);
-  const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
-  const bugRowsAdded: string[] = [];
-  for (const bug of bugs) {
-    const reportPath = `${dirName}/bugs/${bug.id}.md`;
-    // Either identification is enough: the id/session pair under the current columns,
-    // the report path under a layout that names them differently.
-    if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
-    if (tableRowsReferencing(allBugsPath, (ref) => ref === reportPath).length) continue;
-    const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
-    const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
-    appendBugRow({
-      id: bug.id,
-      session: dirName,
-      title,
-      severity,
-      status: 'open',
-      report: reportPath,
-    });
-    bugRowsAdded.push(bug.id);
-  }
+    const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
+    let indexRowAdded = false;
+    if (tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`)).length === 0) {
+      appendIndexRow({
+        date: finalStats.date,
+        kind,
+        target: finalStats.target,
+        bugs: String(finalStats.bugs_found),
+        duration: `${finalStats.duration_min} min`,
+        status: 'complete',
+        report: `${dirName}/session-report.md`,
+      });
+      indexRowAdded = true;
+    }
 
-  warnSplitTable(indexPath, 'INDEX.md', log);
-  warnSplitTable(allBugsPath, 'all-bugs.md', log);
+    const existingBugRows = readAllBugsRows(allBugsPath);
+    const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
+    const bugRowsAdded: string[] = [];
+    for (const bug of bugs) {
+      const reportPath = `${dirName}/bugs/${bug.id}.md`;
+      // Either identification is enough: the id/session pair under the current columns,
+      // the report path under a layout that names them differently.
+      if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
+      if (tableRowsReferencing(allBugsPath, (ref) => ref === reportPath).length) continue;
+      const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
+      const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
+      appendBugRow({
+        id: bug.id,
+        session: dirName,
+        title,
+        severity,
+        status: 'open',
+        report: reportPath,
+      });
+      bugRowsAdded.push(bug.id);
+    }
 
-  if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats, { areaTiers })) {
-    log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
-  }
+    warnSplitTable(indexPath, 'INDEX.md', log);
+    warnSplitTable(allBugsPath, 'all-bugs.md', log);
+
+    if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats, { areaTiers })) {
+      log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
+    } else {
+      log(
+        chalk.yellow(
+          `  ○ metrics.jsonl already has a line for session_id "${finalStats.session_id}" — not appended again`,
+        ),
+      );
+    }
+    return { indexRowAdded, bugRowsAdded };
+  });
 
   const progressPath = join(sessionDir, 'progress.json');
   if (existsSync(progressPath)) {
@@ -517,7 +558,61 @@ export async function runSessionFinalize(
     indexRowAdded,
     bugRowsAdded,
     evidenceManifestWritten: true,
+    warnings,
   };
+}
+
+/** The output contract's top heading for `session-report.md`: `# Session Report — <target>`. */
+const SESSION_REPORT_HEADING_RE = /^#\s+Session Report\b/;
+/** Enough of the report to find its first heading. */
+const REPORT_HEAD_BYTES = 64 * 1024;
+
+/**
+ * What is wrong with the session's `session-report.md`, or null: it must exist, and its
+ * first line after the confidentiality header must be the `# Session Report — <target>`
+ * heading. Read under containment, so a link out of the session is never followed.
+ */
+function sessionReportProblem(sessionDir: string): string | null {
+  const file = 'session-report.md';
+  try {
+    lstatSync(join(sessionDir, file));
+  } catch {
+    return `${file} is missing — the INDEX.md row points at it; write it (the qa-reporting-agent assembles it) and re-run finalize`;
+  }
+  const text = readContainedText(sessionDir, file, REPORT_HEAD_BYTES);
+  if (text === null) return `${file} is not a regular file inside the session — replace it with one`;
+  const first = splitLines(text.replace(/^\uFEFF/, '')).find((line) => line.trim() !== '' && !line.startsWith('>'));
+  if (first === undefined || !SESSION_REPORT_HEADING_RE.test(first)) {
+    return `${file} does not open with \`# Session Report — <target>\` after the confidentiality header`;
+  }
+  return null;
+}
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low'] as const;
+
+/**
+ * Where stats.json disagrees with the bug files beside it: the shipped-bug count, and
+ * the tally of their `**Severity:**` lines. Only `bugs/BUG-*.md` counts —
+ * `bugs/refuted/` is excluded from both, as the output contract says.
+ */
+function statsCountMismatches(stats: SessionMetrics, bugs: ParsedBug[]): string[] {
+  const out: string[] = [];
+  if (stats.bugs_found !== bugs.length) {
+    out.push(
+      `stats.json bugs_found is ${stats.bugs_found}, but bugs/ holds ${bugs.length} bug file(s) — ` +
+        'count the shipped bugs only (bugs/refuted/ is not counted)',
+    );
+  }
+  const tally: Record<(typeof SEVERITIES)[number], number> = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const bug of bugs) tally[bug.severity]++;
+  if (SEVERITIES.some((k) => stats.severity_counts[k] !== tally[k])) {
+    const show = (counts: Record<(typeof SEVERITIES)[number], number>) =>
+      SEVERITIES.map((k) => `${k} ${counts[k]}`).join(', ');
+    out.push(
+      `stats.json severity_counts (${show(stats.severity_counts)}) do not match the bug files (${show(tally)})`,
+    );
+  }
+  return out;
 }
 
 /** `absent`, a regular single-link `file`, or `other` (a link, a directory, a hard link). */
@@ -703,7 +798,7 @@ export async function runSessionLevel(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(ctx.cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
   const sessionDir = resolveSessionDir(sessionsDir, dir);
   const dirName = basename(sessionDir);
@@ -1096,7 +1191,7 @@ function renderCarryForward(name: string, assessment: Contract2Assessment, disco
 function ensureFileWithHeader(path: string, header: string): void {
   if (existsSync(path)) return;
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, header);
+  writeFileAtomic(path, header);
 }
 
 // ─── index tables ───────────────────────────────────────────────────
@@ -1203,7 +1298,7 @@ function referenceMatcher(path: string, matches: (ref: string) => boolean): (lin
 function tableRowsReferencing(path: string, matches: (ref: string) => boolean): string[] {
   if (!existsSync(path)) return [];
   const isMatch = referenceMatcher(path, matches);
-  return tableRowLines(readFileSync(path, 'utf-8').split('\n'))
+  return tableRowLines(splitLines(readFileSync(path, 'utf-8')))
     .map((r) => r.text)
     .filter(isMatch);
 }
@@ -1244,21 +1339,28 @@ function tableRowAppender(
  */
 function insertTableRow(path: string, row: string): void {
   if (!existsSync(path)) {
-    appendFileSync(path, `${row}\n`);
+    writeFileAtomic(path, `${row}\n`);
     return;
   }
-  const lines = readFileSync(path, 'utf-8').split('\n');
+  const content = readFileSync(path, 'utf-8');
+  // Written with the line end the file already uses, so a CRLF index stays CRLF.
+  const eol = detectEol(content);
+  const lines = splitLines(content);
   const { headerIdx, endIdx } = tableBounds(lines);
   let last = -1;
   for (let i = headerIdx === -1 ? 0 : headerIdx; i < endIdx; i++) {
     if (isTableLine(lines[i])) last = i;
   }
   if (last === -1) {
-    appendFileSync(path, `${row}\n`);
+    // Appended to a file that does not end in a newline, the row would join its last line.
+    const lead = content === '' || content.endsWith('\n') ? '' : eol;
+    writeFileAtomic(path, `${content}${lead}${row}${eol}`);
     return;
   }
   lines.splice(last + 1, 0, row);
-  writeFileSync(path, lines.join('\n'));
+  // A table that ran to the end of a file with no final newline: the row is now last, so end it.
+  if (last + 1 === lines.length - 1) lines.push('');
+  writeFileAtomic(path, lines.join(eol));
 }
 
 // ─── split tables ───────────────────────────────────────────────────
@@ -1286,7 +1388,7 @@ function nonBlankNeighbour(lines: string[], from: number, step: -1 | 1): number 
 }
 
 function analyseTable(content: string): SplitTableReport {
-  const lines = content.split('\n');
+  const lines = splitLines(content);
   const { headerIdx, endIdx } = tableBounds(lines);
   if (headerIdx === -1) return { total: 0, visible: 0, blankLines: [] };
 
@@ -1357,38 +1459,43 @@ export function runSessionRepairIndex(
   ];
 
   const files: RepairedIndexFile[] = [];
-  for (const { path, label } of targets) {
-    if (!existsSync(path)) continue;
-    const content = readFileSync(path, 'utf-8');
-    const report = analyseTable(content);
-    const hiddenRows = Math.max(report.total - report.visible, 0);
-    const blankLines = report.blankLines.length;
+  const scan = (): void => {
+    for (const { path, label } of targets) {
+      if (!existsSync(path)) continue;
+      const content = readFileSync(path, 'utf-8');
+      const report = analyseTable(content);
+      const hiddenRows = Math.max(report.total - report.visible, 0);
+      const blankLines = report.blankLines.length;
 
-    if (blankLines === 0) {
-      log(chalk.green(`  ✓ ${label}: nothing to repair`));
-      files.push({ file: label, blankLines, hiddenRows: 0, repaired: false });
-      continue;
-    }
+      if (blankLines === 0) {
+        log(chalk.green(`  ✓ ${label}: nothing to repair`));
+        files.push({ file: label, blankLines, hiddenRows: 0, repaired: false });
+        continue;
+      }
 
-    if (!options.yes) {
+      if (!options.yes) {
+        log(
+          chalk.cyan(
+            `  ${label}: ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) would become visible`,
+          ),
+        );
+        files.push({ file: label, blankLines, hiddenRows, repaired: false });
+        continue;
+      }
+
+      const drop = new Set(report.blankLines);
+      writeFileAtomic(path, splitLines(content).filter((_, i) => !drop.has(i)).join(detectEol(content)));
       log(
-        chalk.cyan(
-          `  ${label}: ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) would become visible`,
+        chalk.green(
+          `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
         ),
       );
-      files.push({ file: label, blankLines, hiddenRows, repaired: false });
-      continue;
+      files.push({ file: label, blankLines, hiddenRows, repaired: true });
     }
-
-    const drop = new Set(report.blankLines);
-    writeFileSync(path, content.split('\n').filter((_, i) => !drop.has(i)).join('\n'));
-    log(
-      chalk.green(
-        `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
-      ),
-    );
-    files.push({ file: label, blankLines, hiddenRows, repaired: true });
-  }
+  };
+  // A rewrite reads and writes under the index lock; a dry run only reads, and creates nothing.
+  if (options.yes && targets.some((t) => existsSync(t.path))) withIndexLock(resolve(cwd, 'output'), scan);
+  else scan();
 
   if (files.length === 0) {
     log(chalk.yellow('  No output/sessions/INDEX.md or output/bugs/all-bugs.md found.'));
@@ -1610,7 +1717,7 @@ export function runSessionArchive(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -1623,9 +1730,14 @@ export function runSessionArchive(
   let removed = false;
   if (options.remove) {
     rmSync(sessionDir, { recursive: true, force: true });
-    setIndexRowStatus(join(sessionsDir, 'INDEX.md'), dirName, 'archived');
+    withIndexLock(resolve(cwd, 'output'), () => {
+      setIndexRowStatus(join(sessionsDir, 'INDEX.md'), dirName, 'archived');
+      // The bug reports these rows link to left with the directory; the INDEX.md row
+      // stays, marked archived, and names the session the archive holds.
+      removeTableRows(resolve(cwd, 'output', 'bugs', 'all-bugs.md'), sessionRowMatchers(dirName).bugs);
+    });
     removed = true;
-    log(chalk.green(`  ✓ Removed ${dirName} (INDEX.md row marked archived)`));
+    log(chalk.green(`  ✓ Removed ${dirName} (INDEX.md row marked archived, all-bugs.md rows removed)`));
   }
 
   return { ok: true, sessionDir, tarPath, removed };
@@ -1639,7 +1751,8 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
   const statusIdx = headers.findIndex((h) => h.trim().toLowerCase() === 'status');
   if (statusIdx === -1) return;
   const isRow = referenceMatcher(indexPath, (ref) => ref.startsWith(`${dirName}/`));
-  const lines = readFileSync(indexPath, 'utf-8').split('\n');
+  const content = readFileSync(indexPath, 'utf-8');
+  const lines = splitLines(content);
   const updated = lines.map((line) => {
     if (!isRow(line)) return line;
     // Cells kept escaped, so a pipe inside one is written back as it was.
@@ -1648,7 +1761,7 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
     inner[statusIdx] = status;
     return `| ${inner.join(' | ')} |`;
   });
-  writeFileSync(indexPath, updated.join('\n'));
+  writeFileAtomic(indexPath, updated.join(detectEol(content)));
 }
 
 // ─── delete ─────────────────────────────────────────────────────────
@@ -1672,7 +1785,7 @@ export function runSessionDelete(
   const log = ctx.log ?? defaultLog;
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const sessionDir = resolveSessionDir(sessionsDir, dir);
@@ -1682,9 +1795,11 @@ export function runSessionDelete(
   const indexPath = join(sessionsDir, 'INDEX.md');
   const allBugsPath = resolve(cwd, 'output', 'bugs', 'all-bugs.md');
   // Counted by reference rather than by column name, so the numbers hold on an
-  // index whose header predates the current column set.
-  const indexRows = tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`));
-  const bugRows = tableRowsReferencing(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`));
+  // index whose header predates the current column set — and with the matchers
+  // performDelete removes by, so the dry run names exactly what --yes removes.
+  const rows = sessionRowMatchers(dirName);
+  const indexRows = tableRowsReferencing(indexPath, rows.index);
+  const bugRows = tableRowsReferencing(allBugsPath, rows.bugs);
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — would delete ${dirName}`));
@@ -1722,18 +1837,34 @@ function performDelete(cwd: string, sessionDir: string): void {
   rmSync(sessionDir, { recursive: true, force: true });
   const indexPath = join(cwd, 'output', 'sessions', 'INDEX.md');
   const allBugsPath = join(cwd, 'output', 'bugs', 'all-bugs.md');
-  removeTableRows(indexPath, referenceMatcher(indexPath, (ref) => ref === `${dirName}/session-report.md`));
-  removeTableRows(allBugsPath, referenceMatcher(allBugsPath, (ref) => ref.startsWith(`${dirName}/bugs/`)));
+  const rows = sessionRowMatchers(dirName);
+  withIndexLock(join(cwd, 'output'), () => {
+    removeTableRows(indexPath, rows.index);
+    removeTableRows(allBugsPath, rows.bugs);
+  });
 }
 
-function removeTableRows(filePath: string, matches: (line: string) => boolean): void {
+/** Which index rows belong to a session: its INDEX.md row and its all-bugs.md rows, by Report path. */
+function sessionRowMatchers(dirName: string): { index: (ref: string) => boolean; bugs: (ref: string) => boolean } {
+  return {
+    index: (ref) => ref.startsWith(`${dirName}/`),
+    bugs: (ref) => ref.startsWith(`${dirName}/bugs/`),
+  };
+}
+
+/**
+ * Removes the data rows `tableRowsReferencing` would report for `matches` — the same
+ * rows of the same table, in every block — and nothing else: a second table under a
+ * later heading is never touched.
+ */
+function removeTableRows(filePath: string, matches: (ref: string) => boolean): void {
   if (!existsSync(filePath)) return;
-  const lines = readFileSync(filePath, 'utf-8').split('\n');
-  const sepIdx = lines.findIndex((l) => /^\|(\s*:?-{2,}\s*\|)+\s*$/.test(l.trim()));
-  if (sepIdx === -1) return;
-  const head = lines.slice(0, sepIdx + 1);
-  const rest = lines.slice(sepIdx + 1).filter((l) => !matches(l));
-  writeFileSync(filePath, [...head, ...rest].join('\n'));
+  const content = readFileSync(filePath, 'utf-8');
+  const lines = splitLines(content);
+  const isMatch = referenceMatcher(filePath, matches);
+  const drop = new Set(tableRowLines(lines).filter((r) => isMatch(r.text)).map((r) => r.index));
+  if (drop.size === 0) return;
+  writeFileAtomic(filePath, lines.filter((_, i) => !drop.has(i)).join(detectEol(content)));
 }
 
 function dirStats(dir: string): { fileCount: number; totalBytes: number } {
@@ -1758,10 +1889,21 @@ export interface SessionPruneResult {
   ok: boolean;
   dryRun: boolean;
   candidates: string[];
+  /** Old enough, but still in progress — kept unless `--force`. */
+  skipped: string[];
+}
+
+/**
+ * A session still being written: it has a `progress.json` that does not say
+ * `complete` (an unreadable one counts as not complete). A session with no
+ * `progress.json` at all — older output, or one never tracked — is not held back.
+ */
+function sessionInProgress(sessionDir: string): boolean {
+  return existsSync(join(sessionDir, 'progress.json')) && !progressComplete(sessionDir);
 }
 
 export function runSessionPrune(
-  options: { olderThan: string | number; yes?: boolean },
+  options: { olderThan: string | number; yes?: boolean; force?: boolean },
   ctx: { cwd: string; log?: Log; now?: Date },
 ): SessionPruneResult {
   const cwd = ctx.cwd;
@@ -1781,7 +1923,7 @@ export function runSessionPrune(
 
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   if (!existsSync(sessionsDir)) {
-    throw new Error('No output/sessions directory found. Run `npx qualiow init` first.');
+    throw new Error('No output/sessions directory found. Run `qualiow init` first.');
   }
 
   const thresholdMs = days * 24 * 60 * 60 * 1000;
@@ -1793,8 +1935,18 @@ export function runSessionPrune(
     .filter((d): d is DiscoveredSessionDir => d !== null)
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const selected = dirs.filter((d) => now.getTime() - d.timestamp.getTime() > thresholdMs);
+  const old = dirs.filter((d) => now.getTime() - d.timestamp.getTime() > thresholdMs);
+  // An old timestamp does not make a session finished: one still running — or resumed
+  // after a pause — keeps its directory unless --force says otherwise.
+  const held = options.force ? [] : old.filter((d) => sessionInProgress(join(sessionsDir, d.name)));
+  const selected = old.filter((d) => !held.includes(d));
   const candidates = selected.map((d) => d.name);
+  const skipped = held.map((d) => d.name);
+  const logSkipped = (): void => {
+    for (const name of skipped) {
+      log(chalk.yellow(`  ○ Skipped ${name} — its progress.json is not complete (pass --force to delete it anyway)`));
+    }
+  };
 
   if (!options.yes) {
     log(chalk.cyan(`\nDry run — ${candidates.length} session(s) older than ${days} day(s):`));
@@ -1802,14 +1954,16 @@ export function runSessionPrune(
       log(chalk.white(`  ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
     }
     if (!candidates.length) log(chalk.white('  (none)'));
+    logSkipped();
     log('');
-    return { ok: true, dryRun: true, candidates };
+    return { ok: true, dryRun: true, candidates, skipped };
   }
 
   for (const d of selected) {
     performDelete(cwd, join(sessionsDir, d.name));
     log(chalk.green(`  ✓ Deleted ${d.name}${d.legacy ? '  (legacy name)' : ''}`));
   }
+  logSkipped();
 
-  return { ok: true, dryRun: false, candidates };
+  return { ok: true, dryRun: false, candidates, skipped };
 }

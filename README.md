@@ -107,7 +107,7 @@ from the shell.
 | Command | Flags | What it does |
 |---------|-------|--------------|
 | `qualiow init` | `--include-examples` `--force` `--dry-run` `--hooks` | Install skills, sub-agents, data, `qa/bin/` and the output tree into the current project. Idempotent. `--hooks` also copies the guard scripts to `qa/hooks/` and merges the hook and permission entries into `.claude/settings.json` |
-| `qualiow explore [url]` | `-t <target>` `-c <context>` `--time-box 45m` `--dry-run` | **Pre-flight only.** Validates the inputs, creates the session directory skeleton, and prints the `/qa-explore … --session <dir>` command to paste into Claude Code. It does not drive a browser |
+| `qualiow explore [url]` | `-t <target>` `-c <context>` `--time-box 45m` `--dry-run` | **Pre-flight only.** Validates the inputs, warns about a missing `playwright-cli`, browser, guard hooks or allow rules (no network call), creates the session directory skeleton (refusing one that exists), and prints the `/qa-explore … --session <dir>` command to paste into Claude Code. It does not drive a browser |
 | `qualiow validate` | `--targets` `--domains` `--knowledge` `--kb` `--all` | Validate configs against their schemas; exits 1 on any failure. `--all` also checks a project-local `qa/target.yml` and cross-checks the knowledge base against its manifest |
 | `qualiow list <type>` | `sessions` \| `knowledge` \| `targets` \| `domains`; for `knowledge` also `--domain` `--tag` `--type` `--entry <id>` `--changelog` `--stats` | List what is installed or recorded. `list knowledge --entry <id>` prints that entry's YAML; `--changelog` and `--stats` read the knowledge changelog and the manifest counts |
 | `qualiow report` | `-s <id>\|latest` `-f md\|html\|json\|jira` `-o <file>` `--stdout` | Export an existing session. `-o` is confined to `output/` (relative paths resolve inside it; `..` is refused). `md` writes `session-summary.md`; html/json/jira carry the confidentiality header and pass through redaction |
@@ -119,7 +119,7 @@ from the shell.
 | `qualiow session list` | — | The session listing, same as `list sessions` |
 | `qualiow session archive <dir>` | `--remove` | Tar the session directory; `--remove` also deletes it and marks its INDEX row archived |
 | `qualiow session delete <dir>` | `--yes` | Remove a session directory and its index rows. Dry-run until `--yes` |
-| `qualiow session prune` | `--older-than <days>` `--yes` | The same, for every session older than N days |
+| `qualiow session prune` | `--older-than <days>` `--yes` `--force` | The same, for every session older than N days; a session whose `progress.json` is not complete is skipped unless `--force` |
 | `qualiow judge triage <claim-file>` | `--target <id>` `--out <dir>` `--evidence-max-lines <n>` `--dry-run` `--mock <json>` `--provider typesafe\|laya` `--endpoint <url>` | **Opt-in, advisory.** Asks a decision model typed questions about one claim card and records the answers beside the judge's verdict. Sends nothing unless the target sets `verification.mode: triage-shadow` and lists the provider; exit 2 = not enabled (nothing sent), 3 = unavailable |
 | `qualiow --version` | — | Print the package version |
 
