@@ -203,6 +203,9 @@ function readWholeEntry(
       `Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`,
     );
   }
+  // A custom entry asked for by name is held to the schema: the digest skipped it, so
+  // printing it here would be the only place it reaches a session unchecked.
+  if (!meta) parseCustomEntry(path);
   return readFileSync(path, 'utf-8').trimEnd();
 }
 
@@ -251,14 +254,15 @@ function entryBlock(file: string, meta: EntryHeading, maxLines: number, custom =
 
 /**
  * The project's custom entries (`resolveCustomEntryFiles`), rendered like registry
- * entries. Each is held to the registry's entry schema.
+ * entries. Each is held to the registry's entry schema; one that fails it is skipped
+ * with a warning, so a bad file never stops a session's setup.
  */
 function customSection(customFiles: { id: string; file: string }[], maxLines: number): string[] {
-  if (!customFiles.length) return [];
+  const entries = loadCustomEntries(customFiles);
+  if (!entries.length) return [];
 
   const lines = ['', '## Custom entries'];
-  for (const { file } of customFiles) {
-    const entry = parseCustomEntry(file);
+  for (const { file, entry } of entries) {
     lines.push(
       ...entryBlock(
         file,
@@ -269,6 +273,25 @@ function customSection(customFiles: { id: string; file: string }[], maxLines: nu
     );
   }
   return lines;
+}
+
+/**
+ * The custom entries that pass the entry schema. Each one that does not is skipped
+ * with one warning on stderr naming the file and its first validation problem.
+ */
+export function loadCustomEntries(
+  customFiles: { id: string; file: string }[],
+  warn: (message: string) => void = (message) => console.error(chalk.yellow(message)),
+): { file: string; entry: z.infer<typeof KnowledgeEntrySchema> }[] {
+  const out: { file: string; entry: z.infer<typeof KnowledgeEntrySchema> }[] = [];
+  for (const { file } of customFiles) {
+    try {
+      out.push({ file, entry: parseCustomEntry(file) });
+    } catch (err) {
+      warn(`  ⚠ Skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return out;
 }
 
 /** A custom entry file parsed against the knowledge-entry schema; throws naming the file. */

@@ -9,7 +9,7 @@ import { parseMarkdownTable } from '../../utils/markdown-table.js';
 import { INDEX_COLUMNS } from '../../utils/index-files.js';
 import { describeSessionDir, type DiscoveredSessionDir } from '../../utils/session-dir.js';
 import { resolveDataDir, resolveCustomEntryFiles } from '../../utils/paths.js';
-import { parseCustomEntry } from './kb.js';
+import { loadCustomEntries, parseCustomEntry } from './kb.js';
 import { KnowledgeManifestSchema } from '../../schemas/knowledge-manifest.schema.js';
 import { KnowledgeChangelogSchema } from '../../schemas/knowledge-changelog.schema.js';
 
@@ -220,8 +220,9 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   const entries = manifest.entries.filter(matches);
 
   // Custom entries: the project's own (`/qa-knowledge-add`), listed under the same filters.
-  const custom = customFiles
-    .map(({ file }) => parseCustomEntry(file))
+  // One that fails the entry schema is skipped with a warning on stderr.
+  const custom = loadCustomEntries(customFiles)
+    .map(({ entry }) => entry)
     .filter((e) => matches(e));
 
   if (filters.length) {
@@ -270,6 +271,7 @@ function readEntryFile(
   if (!path || !existsSync(path)) {
     throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
   }
+  if (!meta) parseCustomEntry(path); // a custom entry asked for by name is held to the schema
   return readFileSync(path, 'utf-8').trimEnd();
 }
 

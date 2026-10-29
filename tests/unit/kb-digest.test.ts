@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -304,9 +304,56 @@ describe('custom entries in a project with no local manifest (plugin install)', 
     expect(runKbDigest({ entry: 'technique-house-style' }, cwd)).toBe(body.trimEnd());
   });
 
-  it('kb digest refuses one that does not match the entry schema, naming the file', () => {
-    const cwd = makePluginProject({ 'pattern-x.yml': customEntryYaml('pattern-x').replace('type: technique', 'type: pattern') });
-    expect(() => runKbDigest({ for: 'explore' }, cwd)).toThrow(/Custom entry .*pattern-x\.yml does not match the knowledge-entry schema: type/);
+  describe('one that does not match the entry schema', () => {
+    const INVALID = /Custom entry .*pattern-x\.yml does not match the knowledge-entry schema: type — /;
+    const invalidProject = () =>
+      makePluginProject({
+        'pattern-x.yml': customEntryYaml('pattern-x').replace('type: technique', 'type: pattern'),
+        'technique-house-style.yml': customEntryYaml('technique-house-style'),
+      });
+
+    /** Runs `fn` with stderr captured; returns what it printed there. */
+    async function stderrOf(fn: () => unknown): Promise<string[]> {
+      const lines: string[] = [];
+      const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+        lines.push(args.map(String).join(' '));
+      });
+      try {
+        await fn();
+      } finally {
+        spy.mockRestore();
+      }
+      return lines;
+    }
+
+    it('kb digest warns once on stderr, skips it and keeps the valid ones', async () => {
+      const cwd = invalidProject();
+      let digest = '';
+      const warnings = await stderrOf(() => {
+        digest = runKbDigest({ for: 'explore' }, cwd);
+      });
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toMatch(INVALID);
+      expect(digest).toContain('- technique-house-style [technique/medium] [custom]');
+      expect(digest).not.toContain('pattern-x');
+      for (const id of ALWAYS_IDS) expect(digest).toContain(`- ${id} [`);
+    });
+
+    it('list knowledge warns once on stderr, skips it and lists the valid ones', async () => {
+      const cwd = invalidProject();
+      const out: string[] = [];
+      const warnings = await stderrOf(() => runList('knowledge', cwd, {}, (line) => out.push(line)));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toMatch(INVALID);
+      expect(out.join('\n')).toMatch(/Custom entries \(1\):\n.*technique-house-style/);
+      expect(out.join('\n')).not.toContain('pattern-x');
+    });
+
+    it('kb digest --entry and list knowledge --entry for it fail with the same message', async () => {
+      const cwd = invalidProject();
+      expect(() => runKbDigest({ entry: 'pattern-x' }, cwd)).toThrow(INVALID);
+      await expect(runList('knowledge', cwd, { entry: 'pattern-x' }, () => {})).rejects.toThrow(INVALID);
+    });
   });
 
   it('the project file wins over a data-directory file with the same id', () => {

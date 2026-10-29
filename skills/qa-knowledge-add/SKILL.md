@@ -93,7 +93,8 @@ every session loads it under `## Custom entries`. Never add a custom id to `load
 (the digest refuses an id that is not a release entry). Run `qualiow kb sync` only when
 `$PWD/data/knowledge/manifest.yml` exists; without one (a plugin install) skip it and tell
 the user why — there is no local manifest to sync. Verify with `qualiow kb digest --for explore`:
-the entry must appear under `## Custom entries` (the digest holds each one to the entry schema).
+the entry must appear under `## Custom entries`. One that fails the entry schema is skipped
+with a warning naming the problem — fix the file until it appears.
 
 **Inside this repository:**
 
