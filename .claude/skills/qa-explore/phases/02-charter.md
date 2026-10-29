@@ -1,5 +1,7 @@
 # Phase 2: Business Context & Charter (5 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 **This is the most important phase. Skip it and everything else is shallow.**
 
 ## Step 1: Use the App as a Real User
@@ -18,6 +20,11 @@ Ask yourself:
 - **What would make a user lose trust?** (wrong prices? lost data? broken checkout?)
 
 Write your answers in the charter. This is your north star for the session.
+
+**Domain not known yet?** (setup left it open.) Pick it now from what the app does — the
+closest of `<data>/domains/*.yml`, or `_default` when none fits — record it in
+`progress.json` `domain`, read `<data>/domains/<domain>.yml`, and run setup Step 3's digest:
+`qualiow kb digest --for explore --domain <domain>`, with its tags.
 
 **If context was provided**, also check:
 - Do the acceptance criteria match what you see in the app?

@@ -33,7 +33,7 @@ the `## Observations` section of a session report instead — see
 | `--stats` | `qualiow list knowledge --stats` |
 
 Flags combine; pass them through exactly as given. `--type` ∈ `heuristic` · `technique` ·
-`checklist` · `reference` · `pattern`.
+`checklist` · `reference`. The project's custom entries are listed in their own group.
 
 ```bash
 qualiow list knowledge --domain fintech --tag security

@@ -67,4 +67,5 @@
 - Judge repro result: [one line — what the judge observed, or why it could not run the steps]
 - Severity: [original X → final Y — only when adjusted; or "kept at X; judge proposed Y" when overruled]
 - Full verdict: `../verification/VERDICT-NNN.md`
+- Replay: `../verification/VERDICT-NNN.md` (REPRO_COMMANDS) [only when the verdict carries a `REPRO_COMMANDS:` list]
 - Triage (advisory): [predicted verdict · route · P(refuted) — `../verification/JEV-NNN.md`; only when the target's `verification.mode` is `triage-shadow`]
