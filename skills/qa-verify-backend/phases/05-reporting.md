@@ -1,5 +1,7 @@
 # Phase 5: Reporting
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 ## Step 1: The AC Traceability Matrix
 
 `ac-matrix.md` is the headline deliverable. One row per AC:
@@ -169,10 +171,13 @@ install) with the session directory and `kind: backend`. It assembles `session-r
 recommendations and reflection verbatim, and then runs `qualiow session finalize`.
 
 That scans every text file in the session, whatever its extension (`.txt`, `.har`, `.csv`
-included; only the top-level `snapshots/` is exempt), with the same redaction list `src/utils/redact.ts` implements — the
-list in `security-rules.md`: tokens, keys, cookies, real user emails, consumer PII, account
-ids not already in the target — and the raw probe output under `evidence/` is scanned like
-everything else. It also checks the confidentiality header on every markdown file and
+included; only the top-level `snapshots/` is exempt), with the pattern list
+`src/utils/redact.ts` implements — the list in `security-rules.md`: private keys, tokens,
+keys, cookies and auth headers, emails, SSNs, card numbers — plus the literal values of the
+target's credential variables, and the raw probe output under `evidence/` is scanned like
+everything else. It does not catch account ids or personal data without a pattern (names,
+addresses, phone numbers): redact those yourself before writing, per
+`${CLAUDE_SKILL_DIR}/references/safety-rules.md` §6. It also checks the confidentiality header on every markdown file and
 validates `stats.json`, then appends the session row to `output/sessions/INDEX.md` (`Kind` =
 `backend`) and one row per bug to `output/bugs/all-bugs.md`, and records the session metrics.
 It is idempotent.

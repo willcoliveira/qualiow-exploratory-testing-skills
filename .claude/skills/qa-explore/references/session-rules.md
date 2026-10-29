@@ -32,3 +32,11 @@
 18. **Don't test technology, test the BUSINESS** -- "Does the math add up?" not "Does the button click?"
 19. **Ask "What would a real user care about?"** -- At least once per phase
 20. **Challenge your own findings** -- Before reporting a bug, ask "Is this really a problem for users?"
+
+## After Compaction or Resume
+
+A summary is not the session's state. After an auto-compaction, or when picking a session back
+up, re-read before the next command: `progress.json` (session dir, `current_phase`, `sid`,
+`read_only`, `verification`, `data_dir`), the charter's `## Feature Risk Ranking` table (the
+area IDs; backend: `ac-matrix.md`) and the tail of `session-log.md` (`wc -l`, then `Read` with
+`offset`). Use those values, never ones recalled from the summary.

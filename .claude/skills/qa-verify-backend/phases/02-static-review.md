@@ -1,5 +1,7 @@
 # Phase 2: Static Review
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Read the branch against every AC. Use `git show <branch>:<path>` and
 `git diff <base>...<branch> -- <path>` — never check out.
 

@@ -6,7 +6,7 @@ description: >
   candidate AC ids, plus the files no AC claims and the ACs no file serves. Use it when
   `git diff --stat` reports 25 or more files or 1,500 or more changed lines, so the session
   reads only the code that maps to an AC. It returns a map, never a verdict.
-tools: Read, Grep, Bash(git diff:*), Bash(git show:*), Bash(wc:*)
+tools: Read, Grep, Bash(git -C:*), Bash(git diff:*), Bash(git show:*), Bash(wc:*)
 model: haiku
 effort: low
 maxTurns: 25
@@ -27,13 +27,16 @@ If the AC list is missing, say so and stop — an index with nothing to match ag
 
 ## Rules
 
-Never check out, never switch branch, never write to the repository. Read only through:
+Never check out, never switch branch, never write to the repository. The repository is
+rarely your working directory: reach it with `git -C <repo>`, and read only through:
 
 ```bash
-git diff --stat <base>...<branch>
-git diff <base>...<branch> -- <path>
-git show <branch>:<path>
+git -C <repo> diff --stat <base>...<branch>
+git -C <repo> diff <base>...<branch> -- <path>
+git -C <repo> show <branch>:<path>
 ```
+
+No other git subcommand, and no `-c`, `--output` or pager option.
 
 Start with `--stat` and work file by file from it. Pull a whole file only when the hunk alone
 does not name the symbol or resource that changed; `wc -l` it first and read it in windows if

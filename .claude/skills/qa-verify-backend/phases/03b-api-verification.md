@@ -1,5 +1,7 @@
 # Phase 3b: API Verification
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Phase 3 asks *"is the resource configured the way the AC says?"*. This phase asks
 *"does the endpoint actually behave the way the AC says, for inputs the UI will never
 send?"* — the service's own HTTP surface, between the browser and the cloud resources.

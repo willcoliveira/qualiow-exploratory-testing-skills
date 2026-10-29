@@ -1,11 +1,13 @@
 # AWS Read-Only Probe Catalogue
 
-Every command here is read-only. Set once per session:
+Every command here is read-only. Each Bash call is a fresh shell, so an `export` never
+reaches the next probe: every `aws` call carries `--profile <profile> --region <region>`
+literally, the names resolved in setup. The examples below omit both for brevity, the way the
+phase files omit `-s=<sid>`; a call without them runs on the default profile and collects
+evidence from the wrong account.
 
 ```bash
-export AWS_PROFILE="$QA_AWS_PROFILE"    # or --profile on each call
-export AWS_REGION="$QA_AWS_REGION"     # the region the target declares
-aws sts get-caller-identity             # ALWAYS first — confirm the account
+aws sts get-caller-identity --profile <profile> --region <region>   # ALWAYS first — confirm the account
 ```
 
 Save raw output to `evidence/` before interpreting. `--output json | jq` keeps it

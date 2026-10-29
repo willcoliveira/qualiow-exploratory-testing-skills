@@ -1,5 +1,7 @@
 # Phase 1: Authentication (2 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 Skip if `auth.strategy: none`. Every command below carries the session id `-s=<sid>` (omitted here).
 
 ## Storage State (fastest)
@@ -31,11 +33,17 @@ playwright-cli snapshot
 playwright-cli fill <email_ref> "<username value>"
 qualiow auth fill --session <sid> --ref <pass_ref> --env <the NAME from auth.credentials.password> --target <target id>
 playwright-cli click <submit_ref>
+playwright-cli fill <pass_ref> ""    # an error that the ref is gone means the field is gone too
 playwright-cli state-save .auth/<target>.json
 ```
 
 Exit 2 means the variable is not set: say which one and stop the credentials path — never
 ask for the value in the conversation.
+
+**A snapshot prints a password field's value.** Never snapshot between `qualiow auth fill` and
+the submit click. After the click, clear the field (`playwright-cli fill <pass_ref> ""`, as
+above) before any snapshot: after a failed attempt, or a login that asks for more on the same
+page, it still holds the password.
 
 ## Token (`auth.strategy: token`)
 
@@ -54,12 +62,13 @@ After authentication, `playwright-cli snapshot` and confirm user indicators are 
 (username display, avatar, dashboard access).
 
 If login fails:
-1. Check the console: `playwright-cli console error`
-2. Check the last requests: `playwright-cli requests --filter="login|auth|session"`
-3. Verify the credentials are the ones the target names
-4. Check for MFA. Never automate an MFA challenge; hand it to the user in a headed browser
+1. Clear the password field before any further snapshot, if it is still on the page: `playwright-cli fill <pass_ref> ""`
+2. Check the console: `playwright-cli console error`
+3. Check the last requests: `playwright-cli requests --filter="login|auth|session"`
+4. Verify the credentials are the ones the target names
+5. Check for MFA. Never automate an MFA challenge; hand it to the user in a headed browser
    (`playwright-cli open <login_url> --headed`) and continue once they confirm
-5. Log the failure and attempt an alternative strategy if the target defines one
+6. Log the failure and attempt an alternative strategy if the target defines one
 
 **Update progress:** set the auth phase complete (or failed) in `progress.json`. Append to `session-log.md`:
 `[<timestamp>] [PHASE] Auth complete — strategy: <strategy>, result: <success/failed>, user: <redacted>`
