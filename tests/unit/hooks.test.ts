@@ -79,6 +79,7 @@ function runHook(
   const base: Record<string, string | undefined> = { ...process.env };
   delete base.QUALIOW_HOOKS;
   delete base.QUALIOW_READ_MAX_LINES;
+  delete base.CLAUDE_PROJECT_DIR;
   const stdout = execFileSync('node', [script], {
     input: typeof payload === 'string' ? payload : JSON.stringify(payload),
     env: { ...base, ...env },
@@ -201,7 +202,17 @@ describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence'
     `${S}/verification/VERDICT-002.md`,
     `${S}/verification/JEV-001.json`,
     `${S}/verification/LAYA-001.md`,
+    // Everything else under output/ that is not the claim card or its evidence.
+    `${S}/stats.json`,
+    `${S}/session-report.md`,
+    `${S}/evidence-level.md`,
+    `${S}/backlog.md`,
+    `${S}/snapshots/home.yml`,
+    `${S}/verification/proposed-patterns.md`,
+    'output/sessions/INDEX.md',
     'output/bugs/all-bugs.md',
+    'output/context/TICKET-1-context.md',
+    'output/report.html',
     '.auth/parabank.json',
     'qa/.env',
     'qa/.env.local',
@@ -215,7 +226,9 @@ describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence'
     `${S}/traces/trace.zip`,
     `${S}/logs/console.txt`,
     `${S}/evidence/network.txt`,
-    `${S}/stats.json`,
+    // Outside output/: reference files stay readable, whatever their name.
+    'data/templates/bug-report.md',
+    'docs/charter.md',
   ];
 
   function seedSession(): string {
@@ -239,7 +252,18 @@ describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence'
     expect(judge(cwd, 'Read', { file_path: `${S}/verification/claims/../drafts/BUG-001.md` }, agent)?.permissionDecision).toBe('deny');
   });
 
-  it('lets the judge read its claim card, the evidence directories and other session files', () => {
+  it('resolves output/ against CLAUDE_PROJECT_DIR as well as the cwd', () => {
+    const cwd = seedSession();
+    mkdirSync(join(cwd, 'src'));
+    const d = runHook(
+      READ_GUARD,
+      { cwd: join(cwd, 'src'), tool_name: 'Read', tool_input: { file_path: '../output/report.html' }, agent_type: 'qa-bug-judge' },
+      { CLAUDE_PROJECT_DIR: cwd },
+    );
+    expect(d?.permissionDecision).toBe('deny');
+  });
+
+  it('lets the judge read its claim card, the evidence directories and files outside output/', () => {
     const cwd = seedSession();
     for (const rel of READABLE) expect(judge(cwd, 'Read', { file_path: rel }), rel).toBeNull();
   });
@@ -265,6 +289,10 @@ describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence'
     ['Glob', { pattern: 'bugs/*', path: S }],
     ['Glob', { pattern: '../**/*.md', path: `${S}/logs` }],
     ['Glob', { pattern: '.auth/*' }],
+    ['Grep', { pattern: 'x', path: `${S}/verification/claims` }],
+    ['Grep', { pattern: 'x', path: `${S}/snapshots` }],
+    ['Grep', { pattern: 'x', path: `${S}/stats.json` }],
+    ['Glob', { pattern: 'output/**/*.md' }],
   ])('denies the judge a %s search that reaches the finder files: %j', (tool, input) => {
     const cwd = seedSession();
     const d = judge(cwd, tool, input);
@@ -285,7 +313,9 @@ describe('read-guard.mjs — qa-bug-judge sees only its claim card and evidence'
     ['Glob', { pattern: '*.png', path: `${S}/screenshots` }],
     ['Glob', { pattern: `${S}/screenshots/*.png` }],
     ['Glob', { pattern: 'logs/*.txt', path: S }],
-  ])('lets the judge %s inside its evidence: %j', (tool, input) => {
+    ['Grep', { pattern: 'severity', path: 'data/templates' }],
+    ['Glob', { pattern: 'data/templates/*.md' }],
+  ])('lets the judge %s inside its evidence or outside output/: %j', (tool, input) => {
     const cwd = seedSession();
     expect(judge(cwd, tool, input)).toBeNull();
   });
