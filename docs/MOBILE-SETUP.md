@@ -31,7 +31,7 @@ few things it can't (Xcode + the iOS runtime). It finishes by running the doctor
 | Component | Needed for | Auto by `setup-mobile.sh`? |
 |-----------|-----------|----------------------------|
 | Homebrew | base | ✅ (offers to install; `curl \| bash`) |
-| **Node ≥ 22.4** | runs `mobile-cli.mjs`, `wkeval.mjs` | ✅ |
+| **Node ≥ 22.12** | runs `mobile-cli.mjs`, `wkeval.mjs` | ✅ |
 | **Maestro** (pinned, default 2.10.0) | the driver (hierarchy/tap/input) | ✅ (`get.maestro.mobile.dev`, `curl \| bash`) |
 | **JDK 17** | Maestro and the Android SDK tooling | ✅ `brew install openjdk@17` |
 | Android cmdline-tools | `sdkmanager`/`avdmanager` | ✅ `brew install --cask android-commandlinetools` |
@@ -91,7 +91,7 @@ The mobile session's `00-setup` phase runs it first, so a fresh machine fails fa
 actionable guidance instead of a cryptic error deep in a session. Exit code 0 means every
 REQUIRED check for the requested platform passed.
 
-It checks macOS, Homebrew, **Node ≥ 22.4**, **Maestro ≥ 2.6.0** (`MAESTRO_MIN_VERSION` —
+It checks macOS, Homebrew, **Node ≥ 22.12**, **Maestro ≥ 2.6.0** (`MAESTRO_MIN_VERSION` —
 `mobile-cli` parses the JSON-only `maestro hierarchy` introduced in 2.6), then per platform:
 JDK 17, the SDK root, `adb`, `emulator`, `sdkmanager`/`avdmanager` and an AVD for Android;
 Xcode CLT + full Xcode, an iOS runtime and an iPhone simulator for iOS. `ios-webkit-debug-proxy`
@@ -177,7 +177,7 @@ bin/wk-ios --url        # print the page WebSocket URL
 bin/wk-ios --stop       # stop the proxy this script started (never anyone else's)
 ```
 
-Requires `ios-webkit-debug-proxy`, `python3`, Node ≥ 22.4 (`wkeval.mjs` uses the global
+Requires `ios-webkit-debug-proxy`, `python3`, Node ≥ 22.12 (`wkeval.mjs` uses the global
 `WebSocket`), and a booted Simulator with Safari on a page. `WK_IOS_PORT` (default 9221) sets
 the iwdp device-list port; pages are served on `WK_IOS_PORT + 1`.
 

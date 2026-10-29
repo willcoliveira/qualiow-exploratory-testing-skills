@@ -60,9 +60,20 @@ const MUST_EXCLUDE = [
   /^docs\/ARCHITECTURE-DECISIONS\.md$/,
   /^scripts\//,
   /^output\//,
-  /^\.env$/,
-  /^\.auth\//,
 ];
+
+// Credentials and session state: refused wherever they sit in the tree, not only at the root.
+// `.env.example` is the one shipped template.
+export const SENSITIVE = [
+  /(^|\/)\.env(\.(?!example$)[^/]*)?$/,
+  /(^|\/)\.auth\//,
+  /(^|\/)\.npmrc$/,
+  /(^|\/)[^/]*storage[-_]?state[^/]*\.json$/i,
+  /(^|\/)\.playwright-cli\//,
+  /(^|\/)[^/]*\.(pem|key|p12)$/i,
+];
+
+export const isSensitive = (path) => SENSITIVE.some((re) => re.test(path));
 
 // The POC target configs never ship. parabank and saucedemo are the shipped demo
 // targets (MUST_INCLUDE above), so they are not on this list.
@@ -70,29 +81,57 @@ const POC_TARGETS = [
   'compendiumdev', 'demoqa', 'gh-users-search', 'thinking-tester', 'ultimateqa', 'webdriveruniversity',
 ];
 
-const out = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
-  cwd: root,
-  encoding: 'utf-8',
-  stdio: ['ignore', 'pipe', 'ignore'],
-});
-const files = new Set(JSON.parse(out)[0].files.map((f) => f.path));
-
-const problems = [];
-for (const path of MUST_INCLUDE) {
-  if (!files.has(path)) problems.push(`missing: ${path}`);
-}
-for (const path of files) {
-  for (const re of MUST_EXCLUDE) {
-    if (re.test(path)) problems.push(`must not ship: ${path}`);
+/**
+ * Pure check over the packed file list. `tracked` is the set of paths under version
+ * control and `modified` the tracked paths with uncommitted changes (null skips that part).
+ * Everything shipped outside dist/ must be tracked and unmodified, so an untracked
+ * _client.yml or a locally edited mirror never reaches the registry.
+ */
+export function findProblems(files, tracked, modified) {
+  const problems = [];
+  for (const path of MUST_INCLUDE) {
+    if (!files.has(path)) problems.push(`missing: ${path}`);
   }
-  for (const poc of POC_TARGETS) {
-    if (path === `data/targets/${poc}.yml`) problems.push(`must not ship: ${path}`);
+  for (const path of files) {
+    for (const re of MUST_EXCLUDE) {
+      if (re.test(path)) problems.push(`must not ship: ${path}`);
+    }
+    if (isSensitive(path)) problems.push(`sensitive path must not ship: ${path}`);
+    for (const poc of POC_TARGETS) {
+      if (path === `data/targets/${poc}.yml`) problems.push(`must not ship: ${path}`);
+    }
+    if (tracked && !path.startsWith('dist/') && path !== 'package.json') {
+      if (!tracked.has(path)) problems.push(`shipped but not tracked: ${path}`);
+      else if (modified && modified.has(path)) problems.push(`shipped with uncommitted changes: ${path}`);
+    }
   }
+  return problems;
 }
 
-if (problems.length) {
-  console.error('check-pack: FAILED');
-  for (const p of problems) console.error(`  ${p}`);
-  process.exit(1);
+function main() {
+  const out = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+    cwd: root,
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  const files = new Set(JSON.parse(out)[0].files.map((f) => f.path));
+
+  const vcs = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8' });
+  const tracked = new Set(vcs('ls-files', '-z').split('\0').filter(Boolean));
+  const modified = new Set(
+    vcs('status', '--porcelain', '-z', '--untracked-files=no')
+      .split('\0')
+      .filter((l) => l.length > 3)
+      .map((l) => l.slice(3)),
+  );
+
+  const problems = findProblems(files, tracked, modified);
+  if (problems.length) {
+    console.error('check-pack: FAILED');
+    for (const p of problems) console.error(`  ${p}`);
+    process.exit(1);
+  }
+  console.log(`check-pack: OK (${files.size} files)`);
 }
-console.log(`check-pack: OK (${files.size} files)`);
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
