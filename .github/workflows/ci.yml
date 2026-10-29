@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Weekly: catches upstream drift (new dependency releases, runner images) while the repo is quiet.
+    - cron: '17 5 * * 1'
+
+# One run per ref; a newer push cancels an older pull-request run, never a main run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Read-only token: the workflow only builds, tests and packs.
 permissions:
@@ -11,18 +19,26 @@ permissions:
 
 jobs:
   test:
-    name: lint · build · test · validate (${{ matrix.os }})
+    name: lint · build · test · validate (${{ matrix.os }}, node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # 22.12.0 is the declared engines floor; 22.x and 24.x are what people publish and install from.
+        os: [ubuntu-latest]
+        node: ['22.12.0', '22.x', '24.x']
+        include:
+          - os: macos-latest
+            node: '22.x'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - run: npm ci
@@ -68,7 +84,8 @@ jobs:
           TGZ="$(ls "$RUNNER_TEMP"/qualiow-exploratory-testing-*.tgz)"
           mkdir -p "$RUNNER_TEMP/proj" && cd "$RUNNER_TEMP/proj"
           npm init -y >/dev/null
-          npm install --no-audit --no-fund "$TGZ"
+          npm install --no-fund "$TGZ"
+          npm audit --omit=dev --audit-level=high
           npx qualiow --version | grep -q "$(node -p "require('$GITHUB_WORKSPACE/package.json').version")"
           npx qualiow init
           npx qualiow init --hooks
@@ -93,11 +110,34 @@ jobs:
         if: runner.os == 'macOS'
         run: bin/doctor-mobile.sh --android --quiet || true
 
-      - name: Plugin manifest
+  plugin:
+    name: plugin manifest and marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ci/tools/package-lock.json
+
+      - name: Manifest matches package.json
         run: |
           node -e "const p=require('./.claude-plugin/plugin.json'),k=require('./package.json'); if(p.name!=='qualiow'||p.version!==k.version){console.error('plugin.json mismatch');process.exit(1)}"
-          npm install -g @anthropic-ai/claude-code@2.1.289 || echo "::warning::could not install @anthropic-ai/claude-code — skipping claude plugin validate"
-          if command -v claude >/dev/null; then
-            claude plugin validate .
-            claude plugin validate .claude-plugin/marketplace.json
-          fi
+
+      # The CLI is pinned in ci/tools (Dependabot-tracked). Its postinstall installs the native
+      # binary, so scripts run here and only here; an install failure fails the job.
+      - name: Install the pinned claude CLI
+        working-directory: ci/tools
+        run: npm ci --no-audit --no-fund
+
+      - name: Validate plugin and marketplace
+        run: |
+          CLAUDE="$GITHUB_WORKSPACE/ci/tools/node_modules/.bin/claude"
+          "$CLAUDE" --version
+          "$CLAUDE" plugin validate .
+          "$CLAUDE" plugin validate .claude-plugin/marketplace.json

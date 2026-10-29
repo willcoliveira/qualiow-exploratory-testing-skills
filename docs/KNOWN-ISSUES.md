@@ -1,7 +1,7 @@
 # Known Issues
 
-Repo-only notes — this file is not shipped in the npm package. Last reviewed 2026-10-04
-(2.3.1).
+Repo-only notes — this file is not shipped in the npm package. Last reviewed 2026-10-29
+(2.5.0, plus unreleased changes).
 
 ## ISSUE-001: Autonomous sub-agent sessions and Bash permissions
 
@@ -152,7 +152,10 @@ More residual risks from the plan review and the implementation review were acce
 | Same-user local races | `level --write` writes through the resolved session directory and re-checks it before every file, which narrows but cannot close a swap by a process running as the same user. Such a process can already write the session directly |
 | A `<file>.<pid>.tmp` left by a hard crash in `level --write` | It sits in the session directory, where finalize's secret scan still covers it; delete it by hand |
 | Unbounded reads of `stats.json`, `progress.json` and `INDEX.md` | Older finalize code reads them with `readFileSync`; a FIFO or a huge file planted there is a local denial of service against the user's own command, nothing more |
-| Percent-encoded secrets and `redact()` | The redaction list anchors on word boundaries, so a token that follows `%3D` inside an encoded URL (`?x%3Dsk_live_…`) is not matched, in any artefact. This predates 2.4.0. The `--continue` carry-forward decodes every path, cuts the query and drops `%`, so nothing encoded crosses there; elsewhere it waits for a fix to the redaction list itself |
+| Percent-encoded secrets and `redact()` | The redaction list anchors on word boundaries, so a token that follows `%3D` inside an encoded URL (`?x%3Dsk_live_…`) is not matched, in any artefact. This predates 2.4.0. The `--continue` carry-forward decodes every path, cuts the query and drops `%`, so nothing encoded crosses there; elsewhere it waits for a fix to the redaction list itself. *Unreleased:* the key/value rules now read percent-encoded and HTML-entity quotes, brackets and operators (`%22password%22%3A`, `user%5Bpassword%5D=`, `password%3D`, `&quot;password&quot;:`); a vendor token after `%3D` is still missed |
+| Verdict borrowing and a doubled verdict line | *Closed (unreleased).* A bug linked any `VERDICT-*.md`, so `BUG-103` could ship `Verified` on `VERDICT-101.md`'s CONFIRMED, and the parser took the first `VERDICT:` line, so a quoted line above the real one decided. `BUG-NNN` now rests on `VERDICT-NNN.md` only, a `Full verdict:` link to any other file is a violation, two bug files on one verdict are refused, and a verdict file with more than one line-anchored `VERDICT:` is not read. Still open: the session writes the verdict file itself (see the hardening table below) |
+| Carried-forward files edited after finalize | *Narrowed (unreleased).* `phase-3-discovery.md` is in no digest, so an edit made after finalize passed `finalize --check` and was carried. Finalize now writes `carry-forward.json` — the SHA-256 of `charter.md`, `phase-3-discovery.md` and `stats.json` — for a contract-2 explore session, and `--check` refuses a mismatch. Re-running finalize records the files as they then are, deleting the record falls back to the warning a session finalized before it gets, and the record is not a signature. A CLI command that rewrites a carried file after finalize must rewrite the record too |
+| A fence marker spelled with look-alike letters | *Closed (unreleased).* Only the exact marker strings were removed, so `ЕND UNTRUSTED…` with a Cyrillic `Е` was carried inside the fence, held off only by the indentation. Every carried line is now folded (NFKC, combining marks dropped, Cyrillic and Greek homoglyphs mapped to Latin) and replaced whole when it says UNTRUSTED or PRIOR-SESSION. Letters outside that map — small capitals, Cherokee, Armenian look-alikes — are not folded |
 
 ---
 
@@ -179,9 +182,29 @@ The web token strategy (`auth.strategy: token`, `cookie-set` / `localstorage-set
 `qa-explore/phases/01-auth.md`) is the same gap on the web side: `auth fill` covers form fields
 only, so the token value is still read and typed by the model.
 
+**The value comes back through the snapshot.** Playwright's accessibility tree carries the
+`value` of a filled `type=password` input, so the first `playwright-cli snapshot` after
+`auth fill` — the one a failed or multi-step login needs — prints `textbox "Password": <value>`
+into the transcript, and `click` writes the same tree to `.playwright-cli/page-*.yml`. `auth
+fill` keeps the value out of the command line the model writes; it cannot keep it out of a
+snapshot the model takes afterwards. `finalize` now (unreleased) scans the top-level
+`snapshots/` directory for the credential values too (the pattern rules still skip it), so a
+raw tree saved there with the password in it is refused and `finalize --redact` rewrites it;
+what the model already read is not undone. Fix: clear the field (or submit) before any
+snapshot on a failed login, or an `auth fill --submit <ref>` that fills and submits in one call.
+
+**The value is in the child's argv while it runs.** `auth fill` passes the value to
+`playwright-cli fill` as an argument, so for the lifetime of that child it is visible to any
+process of the same user (`ps`, `/proc/<pid>/cmdline`) and, on Windows, to anything that reads
+the `cmd.exe` command line of the `.cmd` shim. playwright-cli takes the text only as an
+argument; this stays a residual until it can read it from stdin. On Windows the shim path is
+used only when the value holds nothing `cmd.exe` would interpret inside quotes (`"`, `%`, `!`,
+`^`, a control character) — otherwise `auth fill` refuses — and that path is unit-tested with a
+mocked platform, not on Windows itself.
+
 ---
 
-## Hardening after 2.4.1 (unreleased, ADR-016): what it closes and what it leaves
+## Hardening after 2.4.1 (shipped in 2.5.0, ADR-016): what it closes and what it leaves
 
 Credential values, the verdict cross-check and the evidence manifest change some of the
 entries above. The entries themselves are left as written; this is the current reading.
@@ -197,8 +220,9 @@ New residual risks:
 
 | Item | Residual risk |
 |---|---|
-| Short or unnamed credentials | Values under six characters, and variables that neither the target config nor the default list (`QA_PASS`, `QA_TOKEN`, `QA_API_TOKEN`) names, are not scanned for by value in `finalize`. The write guard's name rule (`…PASS`, `…PASSWORD`, `…TOKEN`, `…SECRET`, `…API_KEY`, `…_KEY`) covers more of `.env`, at write time only |
-| Binary evidence | Screenshots, video and trace archives are listed `binary-not-scanned`. A password typed into an unmasked field, or a token inside a trace, is not detected — the label says so, nothing prevents it |
+| Short or unnamed credentials | Values under six characters, and variables that neither the target config nor the default list (`QA_PASS`, `QA_TOKEN`, `QA_API_TOKEN`) names, are not scanned for by value in `finalize`. The write guard's name rule (`…PASS`, `…PASSWORD`, `…TOKEN`, `…SECRET`, `…API_KEY`, `…_KEY`) covers more of `.env`, at write time only. *Unreleased:* when `stats.target` resolves to no target config (the URL of an ad-hoc run), `finalize` warns and scans every `.env` variable under that name rule too; a declared name outside the rule (`ACME_PW`) is still scanned only when the target resolves |
+| Binary evidence | Screenshots, video and trace archives are listed `binary-not-scanned`. A password typed into an unmasked field, or a token inside a trace, is not detected — the label says so, nothing prevents it. *Unreleased:* binary now means a known PNG, JPEG, GIF, WebP, WebM, MP4, ZIP, gzip or PDF signature — a NUL byte no longer takes a text file out of the scan, and text that is not UTF-8 is read as latin1. A text file that starts with a forged signature is still skipped |
+| Off-machine triage and credential values | *Closed (unreleased).* `qualiow judge triage` redacted by pattern only, so a password quoted in a claim step or a text evidence file was sent, literal or encoded. It now checks the state and the fields, evidence and patterns it is built from against the target's credential values and refuses — exit 3, the variable named, nothing sent or written. Values under six characters are not checked |
 | Older sessions | A finalized 2.4.x session that holds a credential value in the clear now fails `finalize --check`, and so `--continue` from it. `finalize --redact` rewrites the files |
 | `REPRO_COMMANDS` replay | The commands are the judge's own run with `-s=<sid>` as a placeholder; refs are only valid against the snapshot before them, so a replay against a changed page can drift. It is a record, not a test |
 
@@ -245,7 +269,6 @@ dangerous paths already go through the bash guard or a prompt. Revisit only on a
 | `Bash(git -C:*)` | The bash guard asks on `-c`, `--config-env`, `--upload-pack`, `--receive-pack`, `--exec`, `--exec-path=`, `--ext-diff`, `--output` and `-O`/`--open-files-in-pager` (bundled or abbreviated) for any subcommand, on any environment assignment or `export` next to git, and on any `git -C` subcommand outside the read-only list (`diff`, `show`, `log`, `grep`, `status`, …; `branch`/`tag`/`remote` only in their listing forms). Left: a repository's own config (`core.fsmonitor`, textconv and diff drivers) still runs for read-only subcommands; `-O<orderfile>` and stuck values containing `O` (`-SOrder`) ask too; `git -C <repo> fetch` in mobile setup now asks |
 | Bash guard does not cover `npm exec`, `pnpm dlx`, `yarn dlx`, `bunx` | `npx` itself is covered: only the allowlisted names, as `name` or `name@<semver\|dist-tag>`, with or without `-y`, plus a bare name whose bin is already in `node_modules/.bin` (cwd up to `CLAUDE_PROJECT_DIR`) — a bin written there by the session would pass too. Not followed: wrappers other than `env`/`command`/`exec`/`time`/`nohup` (`xargs`, `find -exec`, `sudo`), and file-writing playwright-cli subcommands other than `state-save` (`screenshot --filename`, `video-start`, `pdf`). A safety net, not a sandbox |
 | An `Edit` swapping one secret for another of the same kind in an already-dirty file passes the write guard | The price of allowing one-at-a-time redaction; `finalize` still catches it |
-| esbuild low advisory | Dev-only, Windows dev server; fix needs a tsup/esbuild bump |
 
 ### Not verified on hardware
 
@@ -269,7 +292,6 @@ the CHANGELOG.
 | **Rate-limit browser actions** | Nothing stops a session from firing thousands of requests at a target. A cap per session (and a warning threshold) keeps an exploratory run from looking like a load test — or an attack — to the team that owns the app |
 | **Signed session reports** | A session report is evidence. Nothing currently proves an artefact was not edited after the session ended, which is the first question anyone auditing it will ask |
 | **SBOM generation** | No software bill of materials is produced at publish time, so a consumer cannot answer "what is in this package" without unpacking it |
-| **`SECURITY.md` vulnerability-disclosure policy** | The repo is public and has no stated way to report a vulnerability privately |
 | **Secret-scanning pre-commit hook** | Tracked files are clean today (verified), but nothing enforces that. A private target config or a live token is one `git add -A` away |
 | **Benchmark suite** | See ISSUE-003. There is no repeatable way to tell whether a skill change made sessions better or worse |
 

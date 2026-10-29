@@ -6,7 +6,7 @@ Step-by-step guide to running your first AI-powered exploratory testing session.
 
 ### System requirements
 
-- **Node.js >= 22.4** (`node --version`)
+- **Node.js >= 22.12** (`node --version`)
 - **Claude Code**, installed and configured — the skills run as slash commands inside it
 - `playwright-cli` arrives as a dependency of this package. There is nothing else to install
   for the web path.
