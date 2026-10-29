@@ -11,15 +11,16 @@ Extract from the user message:
 - **--no-judge**: skip the adversarial bug judge in phase 7 for this run (optional)
 - **--continue <name|latest>**: continue one finalized session of the same target (optional;
   **explore only** — see "Continuing a session" below)
-- **domain**: domain type (optional; auto-detect from the app if not given)
+- **domain**: from the message, else the target config's `domain:`; `_default` or no target
+  leaves it open — phase 2 decides it from what the app does
 - **time_box**: 45 min (default and maximum)
 
 Resolve the target config, the data directory (`<data>`) and the credentials file in the
 order defined in `${CLAUDE_SKILL_DIR}/references/paths.md`: `--target` → `data/targets/<id>.yml`
 in the project, else the plugin's copy; no `--target` → `qa/target.yml` in the project, else
-`_default.yml`; credentials from `qa/.env`, else `.env`. Then read
-`<data>/domains/<domain>.yml` for the domain's completeness checklist, data-integrity checks
-and journeys.
+`_default.yml`; credentials from `qa/.env`, else `.env`. Once the domain is known — now, or
+at the end of phase 2 Step 1 when it is open — read `<data>/domains/<domain>.yml` for the
+domain's completeness checklist, data-integrity checks and journeys.
 
 Apply the **production rule** from `${CLAUDE_SKILL_DIR}/references/security-rules.md` to the
 resolved hostname now. If it fires, log `[SAFETY] Production detected -- running in read-only mode`
@@ -112,7 +113,8 @@ qualiow kb digest --for explore --domain <domain>
 
 Add `--tag security` when the target has authentication, and `--tag data-integrity` when the
 app has transactions or any state change. Resolve the `qualiow` prefix first (`${CLAUDE_SKILL_DIR}/references/paths.md`)
-and write it literally.
+and write it literally. With the domain still open, run this step at the end of phase 2 Step 1
+instead, once using the app has told you the domain — one digest, with the right entries.
 
 Read **only the digest**. When you need a heuristic's full question list, fetch that one entry
 — `qualiow list knowledge --entry <id>`, or `Grep` the release file for the heading. Never

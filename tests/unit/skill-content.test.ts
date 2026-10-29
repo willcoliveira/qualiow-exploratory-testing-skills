@@ -246,6 +246,22 @@ describe('every state-changing explore phase repeats the read-only rule', () => 
   });
 });
 
+describe('explore loads the domain profile only once the domain is known', () => {
+  const setup = skillFile('qa-explore', 'phases', '00-setup.md').replace(/\s+/g, ' ');
+
+  it('setup defers the profile and the --domain digest when the domain is open', () => {
+    expect(setup).not.toContain('`_default`; credentials from `qa/.env`, else `.env`. Then read `<data>/domains/<domain>.yml`');
+    expect(setup).toContain('Once the domain is known');
+    expect(setup).toContain('run this step at the end of phase 2 Step 1 instead');
+  });
+
+  it('the charter decides an open domain, then loads both', () => {
+    const charter = skillFile('qa-explore', 'phases', '02-charter.md');
+    expect(charter).toContain('**Domain not known yet?**');
+    expect(charter).toContain('--domain <domain>');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

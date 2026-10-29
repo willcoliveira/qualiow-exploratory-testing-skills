@@ -21,6 +21,11 @@ Ask yourself:
 
 Write your answers in the charter. This is your north star for the session.
 
+**Domain not known yet?** (setup left it open.) Pick it now from what the app does — the
+closest of `<data>/domains/*.yml`, or `_default` when none fits — record it in
+`progress.json` `domain`, read `<data>/domains/<domain>.yml`, and run setup Step 3's digest:
+`qualiow kb digest --for explore --domain <domain>`, with its tags.
+
 **If context was provided**, also check:
 - Do the acceptance criteria match what you see in the app?
 - Does the UI match the design specs?
