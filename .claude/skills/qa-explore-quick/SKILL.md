@@ -147,12 +147,12 @@ starts with these two lines, verbatim:
   Never write or edit those by hand. A quick session's level is never higher than
   `qualified`. The level is a computed coverage fact, never a ship probability or a release
   verdict.
-- `session-report.md` — `Kind: quick`; `## Executive Summary`; `## Coverage Level` (the body
-  of `evidence-level.md` after its confidentiality header, copied verbatim — never
-  recomputed or reworded); `## Summary Stats`;
+- `session-report.md` — `# Session Report — <target>`; `## Session Metadata` (`Kind: quick`);
+  `## Executive Summary`; `## Coverage Level` (the body of `evidence-level.md` after its
+  confidentiality header, copied verbatim — never recomputed or reworded); `## Summary Stats`;
   `## Coverage Map` (`| Area | Risk | Status | Bugs | Notes |`, one row per charter area,
   the Area cell starting with its ID); `## Bugs Found`; `## Observations`;
-  `## Areas Not Tested`; `## Recommendations`; `## Session Stats`
+  `## Areas Not Tested`; `## Recommendations`; `## Reflection`; `## Session Stats`
 
 Then finalize:
 

@@ -215,6 +215,31 @@ describe('/qa-target-setup is accurate about what is ignored', () => {
   });
 });
 
+describe('templates and the quick report match the output contract', () => {
+  const template = (name: string) => readFileSync(join(REPO_ROOT, 'data', 'templates', name), 'utf-8');
+
+  it('no Summary Stats row that no stats.json key feeds', () => {
+    expect(template('session-report.md')).not.toContain('Actions performed');
+    expect(skillFile('qa-explore', 'references', 'output-contract.md')).not.toContain('Actions performed');
+  });
+
+  it('the bug template carries the contract\'s Replay line', () => {
+    expect(template('bug-report.md')).toMatch(/^- Replay: `\.\.\/verification\/VERDICT-NNN\.md` \(REPRO_COMMANDS\)/m);
+  });
+
+  it('quick lists every shared report section, in order', () => {
+    const quick = skillFile('qa-explore-quick', 'SKILL.md').replace(/\s+/g, ' ');
+    const order = [
+      '# Session Report — <target>', '## Session Metadata', '## Executive Summary', '## Coverage Level',
+      '## Summary Stats', '## Coverage Map', '## Bugs Found', '## Observations', '## Areas Not Tested',
+      '## Recommendations', '## Reflection', '## Session Stats',
+    ];
+    const at = order.map((h) => quick.indexOf(`\`${h}\``));
+    expect(at.every((i) => i >= 0)).toBe(true);
+    expect([...at].sort((a, b) => a - b)).toEqual(at);
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

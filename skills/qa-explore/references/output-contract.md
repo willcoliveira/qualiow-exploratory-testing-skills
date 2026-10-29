@@ -163,7 +163,6 @@ and never renumbered: a gap in `bugs/` means that candidate moved to `bugs/refut
 | Metric | Count |
 |---|---|
 | Pages explored | |
-| Actions performed | |
 | Bugs — Critical | |
 | Bugs — High | |
 | Bugs — Medium | |
