@@ -10,7 +10,7 @@ Records 001–010 were written during the 2026-03 POC; 012 was written for 2.1.0
 2.2.0. This table is the current reading of each one; where the two disagree, this table wins.
 013 was written for the adversarial bug judge, after 2.2.1, and 014 for the advisory triage.
 015 was written for session contract 2 in 2.4.0, and 016 for the credential, verdict and
-evidence checks after 2.4.1.
+evidence checks after 2.4.1. 017 was written for the release workflow after 2.5.0.
 
 | ADR | Decision | Status (2026-09-13) | Note |
 |-----|----------|---------------------|------|
@@ -25,11 +25,12 @@ evidence checks after 2.4.1.
 | 009 | Single monolithic agent per session | **Partially done in 2.2.0** | Reporting, gather, page-mapper and diff-indexer are sub-agents; the session orchestrator remains blocked on `KNOWN-ISSUES.md` ISSUE-001 |
 | 010 | Snapshot-first page analysis | **Revisit** | Snapshot is still primary and correct. Selective vision for visual bugs remains unimplemented and unbudgeted |
 | 011 | Model routing: CLI first, cheap sub-agents second, the session model for reasoning | **Done in 2.2.0; amended by 013 and 015** | Four sub-agents (`qa-gather-agent`, `qa-reporting-agent`, `qa-diff-indexer-agent`, `qa-page-mapper-agent`) take the bounded reads and the report assembly; two `PreToolUse` hooks enforce the thresholds on qualiow-owned paths only. ADR-013 adds `qa-bug-judge` as the one bounded exception to the never-delegate list. Record below |
-| 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0** | `.claude-plugin/marketplace.json` (`source: "./"`) makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. Record below |
+| 012 | Marketplace distribution and the `bin/qualiow` launcher | **Done in 2.1.0; amended by 017** | `.claude-plugin/marketplace.json` makes the repository its own marketplace; the shim runs a local build when there is one and otherwise `npx`-fetches the published package at the version `plugin.json` names. ADR-017 pins the entry to a release instead of `source: "./"`. Record below |
 | 013 | Adversarial bug judge before a bug ships | **Done in 2.3.0** | `qa-bug-judge` (opus, effort high, no Write tool) re-checks every `/qa-explore` candidate from a claim card alone; on by default, off with `--no-judge` or `verification.mode: off`. Record below |
 | 014 | Advisory decision-model triage before the judge | **Done in 2.3.0 (opt-in, advisory)** | `qualiow judge triage`, `verification.mode: triage-shadow`, providers `typesafe` (hosted) and `laya` (loopback only). Recorded beside the verdict; never replaces, gates, orders or shortens the judge. Record below |
 | 015 | Session contract 2 and the computed coverage level | **Done in 2.4.0** | `/qa-explore` and `/qa-explore-quick` opt in with `"contract": 2`; `qualiow session level` checks the coverage record and computes the level; `finalize` fails closed on gaps or a stale level; `--continue` reads a prior session only through `qualiow session continue-check`. Mobile, backend and older sessions unchanged. Record below |
 | 016 | Credential values, verdict cross-check, evidence manifest, judge reasoning first | **Done (unreleased)** | `qualiow auth fill` types the password; `finalize` scans for credential values, ties every `Verified` line to a confirming verdict and writes `evidence-manifest.json`; the judge writes its reasoning before its verdict and its commands as `REPRO_COMMANDS`. Amends 013 and 015. Record below |
+| 017 | Release workflow, provenance and a pinned plugin source | **Accepted; first run pending** | `.github/workflows/release.yml` publishes a `v*.*.*` tag to npm through trusted publishing with provenance, from a tarball an unprivileged job built and tested, and attaches the tarball and a CycloneDX SBOM to the GitHub release. The marketplace entry is pinned to a release tag and its commit, and moves only with `sync-version.mjs --pin` after the publish. Needs one-time npm and GitHub settings. Amends 012. Record below |
 
 ---
 
@@ -790,7 +791,8 @@ session, so "the CLI is not there" stops being cosmetic.
 **The repository is its own marketplace, and `bin/qualiow` is a launcher shim.**
 
 - `.claude-plugin/marketplace.json` declares one plugin whose `source` is `"./"` — correct for
-  a repo that is both the marketplace and the plugin it lists. Install:
+  a repo that is both the marketplace and the plugin it lists. *(ADR-017 replaces `"./"` with
+  a `github` source pinned to the latest release tag and its commit.)* Install:
 
   ```bash
   claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
@@ -802,9 +804,11 @@ session, so "the CLI is not there" stops being cosmetic.
   and `node_modules` are both present, execs the local build. Otherwise it exports
   `CLAUDE_PLUGIN_ROOT` (so the CLI still finds the plugin's `data/`), reads the version from
   `.claude-plugin/plugin.json`, and execs
-  `npx -y -p qualiow-exploratory-testing@<version> qualiow …`, falling back to `@latest` if
-  the pinned fetch fails. `package.json` `bin.qualiow` still points at `dist/cli/index.js`, so
-  an npm install is unaffected.
+  `npx -y -p qualiow-exploratory-testing@<version> qualiow …` at exactly that version. It
+  fails closed: a missing, unreadable or malformed version exits 1 and asks for a reinstall,
+  and a version npm does not have fails in `npx` (`notarget`). It never falls back to
+  `@latest` or to any other version. `package.json` `bin.qualiow` still points at
+  `dist/cli/index.js`, so an npm install is unaffected.
 
 ### Alternatives
 
@@ -822,7 +826,8 @@ session, so "the CLI is not there" stops being cosmetic.
   and the GitHub release is cut. A tag that arrives first gives plugin installs a pinned fetch
   that fails outright — `npm error notarget`, since the shim has no fallback and npm does not
   substitute another version. Measured on 2026-09-14: `npx -p qualiow-exploratory-testing@99.99.99`
-  errors rather than resolving `@latest`.
+  errors rather than resolving `@latest`. *ADR-017 replaces this order: the tag now starts the
+  publish, so the constraint becomes "npm has the version before plugin installs can see it".*
 - **A plugin install caches by manifest version, so a fix needs a version bump to travel.** The
   cache path is `plugins/cache/<marketplace>/<plugin>/<version>/`, and `claude plugin update`
   compares versions only: with `.claude-plugin/plugin.json` unchanged it reports "already at the
@@ -859,6 +864,7 @@ session, so "the CLI is not there" stops being cosmetic.
   behaviour is the user's settings, not ours.
 - `scripts/sync-version.mjs` now writes `plugins[0].version` in `marketplace.json` alongside
   `plugin.json`, and `scripts/check-pack.mjs` asserts `bin/qualiow` is in the tarball.
+  *(ADR-017: it no longer does; the marketplace entry moves only with `--pin`.)*
 
 **Status: DONE in 2.1.0**
 
@@ -1289,6 +1295,150 @@ value it does not need, and the judge shows its working before its verdict.**
   record can state.
 
 **Status: DONE (unreleased)**
+
+---
+
+## ADR-017: Release Workflow, Provenance and a Pinned Plugin Source
+
+*Written 2026-10-28, after 2.5.0. Amends ADR-012: the release order, and the marketplace
+entry's `source`.*
+
+### Context
+
+Every release up to 2.5.0 was cut by hand from a laptop: bump, `npm publish` with a local
+login, push the tag, write the GitHub release. That leaves five gaps:
+
+1. **Nothing ties the published tarball to a commit.** It is packed from whatever the working
+   tree holds, so an untracked file under a shipped path or an uncommitted edit can be
+   published, and a consumer has no provenance statement to check it against.
+2. **The publish-time checks are weaker than CI.** `prepublishOnly` builds, typechecks, tests
+   and checks the tarball, but does not check that the mirror is committed, that the tree is
+   clean, `validate`, `kb:check`, or that the tag, `package.json` and `plugin.json` agree.
+3. **The credential is a person's npm login**, not something scoped to one workflow.
+4. **No software bill of materials** is produced (`KNOWN-ISSUES.md`, hardening backlog).
+5. **A plugin install takes whatever `main` holds.** With `source: "./"`, every new install
+   gets `main` at that moment: the hooks that run on every tool call, the skills' tool grants,
+   and the `bin/qualiow` line that runs `npx`. A bad commit on `main` reaches every new
+   install at once, and a version bump on `main` reaches plugin installs before npm has the
+   version, so their `npx` fetch fails until the publish lands (ADR-012).
+
+### Decision Made
+
+**A tag push publishes, through three jobs that each hold only what they need.**
+`.github/workflows/release.yml` runs on a `v*.*.*` tag, with `permissions: {}` at the top
+and one `release` concurrency group that never cancels a run in progress. Every action is
+pinned to a full commit SHA and covered by Dependabot's `github-actions` updates.
+
+- **`verify`** (contents: read, no secrets, checkout without a persisted credential). The tag
+  must be `vX.Y.Z`, annotated, checked out, and its commit an ancestor of `origin/main`;
+  `node scripts/sync-version.mjs --check X.Y.Z` must pass for `package.json` and
+  `.claude-plugin/plugin.json`; `CHANGELOG.md` must have a non-empty `## [X.Y.Z]` section,
+  which becomes the release notes. Then the CI sequence: `npm ci --ignore-scripts`, lint,
+  build, the mirror committed and the tree clean, test, validate, `kb:check`, `check:pack`,
+  and the tree checked clean again before packing. It writes a CycloneDX SBOM with
+  `npm sbom`, packs the tarball, records its SHA-256 as a job output, and uploads tarball,
+  SBOM and notes as one artifact. All third-party code in the release runs here.
+- **`publish`** (environment `npm-publish`; contents: read and id-token: write; no checkout,
+  only `setup-node` and npm). It downloads the artifact, checks the tarball against
+  `verify`'s SHA-256, asserts npm is 11.5.1 or later (the first version that exchanges the
+  OIDC token: Node 24 has bundled one since 24.5.0, and the step fails rather than installing
+  another npm in the job that holds the token), and runs
+  `npm publish <tgz> --provenance --access public --ignore-scripts`. npm trusted publishing
+  issues a short-lived token for that one publish; no npm token is stored anywhere.
+- **`github-release`** (contents: write). It checks the SHA-256 again and runs
+  `gh release create "$TAG" --verify-tag` with the CHANGELOG section as notes and the
+  tarball and SBOM attached.
+
+**The SBOM covers the whole installed tree, not `--omit dev`.** `npm sbom --omit dev` leaves
+out `yaml`, a runtime dependency, because its `.dev` selector also matches a package that a
+dev dependency reaches (seen with npm 11.11.0 and 11.19.1). Without the flag, npm marks each
+development-only component `cdx:npm:package:development=true`, and nothing is lost. `verify`
+checks out into a directory named after the package because `npm sbom` names the root
+component after the directory.
+
+**The marketplace entry is pinned to a published release.** `plugins[0].source` is
+`{"source": "github", "repo": "willcoliveira/qualiow-exploratory-testing-skills", "ref":
+"vX.Y.Z", "sha": "<the tag's 40-character commit>"}`; with both set, Claude Code checks out
+`sha`. The entry's `version`, `ref` and `sha` move together, and only through
+`node scripts/sync-version.mjs --pin vX.Y.Z`, run after the publish. It resolves the tag
+with the local git, never fetches, and refuses unless the tag is annotated, its commit is on
+`origin/main`, and that commit's `.claude-plugin/plugin.json` says `X.Y.Z`. The `version`
+lifecycle (`npm version`) still bumps `package.json` and `plugin.json`, and no longer touches
+`marketplace.json`. `tests/unit/plugin-manifest.test.ts` asserts the shape: a `github`
+source for the repository `package.json` names, a `vX.Y.Z` ref, a 40-hex sha, an entry
+version equal to the ref, never ahead of `package.json`.
+
+The marketplace documentation does not say whether an entry may point at the marketplace's
+own repository, and `claude plugin validate` does not fetch sources. Checked on 2026-10-28
+with Claude Code 2.1.312, against an isolated config (`CLAUDE_CONFIG_DIR` and
+`CLAUDE_CODE_PLUGIN_CACHE_DIR` in a scratch directory): `claude plugin marketplace add
+<checkout>` then `claude plugin install qualiow@qualiow` installed version 2.5.0 with
+`gitCommitSha` `d79d03cc…`, the v2.5.0 commit, and the cached copy had no file added after
+that tag.
+
+**One-time settings, outside the repository:**
+
+- npm, package settings → trusted publisher: GitHub Actions, repository
+  `willcoliveira/qualiow-exploratory-testing-skills`, workflow `release.yml`, environment
+  `npm-publish`. Once a release has gone through the workflow: publishing access → "Require
+  two-factor authentication and disallow tokens", and revoke the local publish tokens
+  (`npm token list`).
+- GitHub: an `npm-publish` environment with the owner as required reviewer and a deployment
+  rule allowing `v*` tags only; a tag ruleset on `v*` so that only the owner can create, move
+  or delete a release tag.
+
+**Release order:** bump with `npm version X.Y.Z` (the `version` script runs
+`sync-version.mjs`) and write the CHANGELOG entry; land that commit on `main`; push an
+annotated `vX.Y.Z` tag on it; approve the `npm-publish` deployment; the workflow publishes to
+npm and then cuts the GitHub release. Last, `git fetch origin --tags`, run
+`node scripts/sync-version.mjs --pin vX.Y.Z`, and land that `marketplace.json` change through
+a pull request. Plugin users move to the new version only then, after npm has it.
+
+### Alternatives
+
+| Option | Why not |
+|--------|---------|
+| Keep publishing from a laptop | No provenance, the tarball is the working tree, and the credential is a login on a machine |
+| A long-lived `NPM_TOKEN` secret | A secret to rotate and to leak; trusted publishing has none |
+| One job that builds, tests and publishes | Every dependency's code would run in the job that can mint a publish token |
+| `npm install -g npm@…` in the publish job | Registry code in the job that holds the token. Node 24's bundled npm is new enough; the guard fails closed if it ever is not |
+| `npm sbom --omit dev` | Drops `yaml`, a runtime dependency |
+| Publish pre-release tags | npm would tag them `latest` without `--tag`; nothing needs one yet, so `verify` refuses them |
+| Keep `source: "./"` | Every new install gets `main` as it is that minute, and a bump on `main` breaks plugin installs until npm has the version |
+| Let `npm version` move the pin too | The pin would name a tag before it exists and a version before npm has it |
+| An `npm` plugin source (the provenance-attested tarball) | A strong candidate once a release carries provenance. Not chosen yet: every install would then go through the user's npm client and registry settings, and the tarball has not been tried as a plugin root |
+
+### Consequences
+
+- **Unproven until the first run.** The trusted publisher and the environment must exist
+  first. After it: `npm view qualiow-exploratory-testing@X.Y.Z dist.attestations` should be
+  non-empty and `npm audit signatures` should pass in a scratch install.
+- **The window ADR-012 describes is closed.** A bump on `main` no longer reaches plugin
+  installs; they move when the `--pin` change lands, after the publish.
+- **`marketplace.json` on `main` is still the root of trust.** Repointing the pin is a commit
+  to `main`, like any other. Required reviews and a CODEOWNERS entry for `.claude-plugin/`
+  are the mitigation; they are repository settings, not code.
+- **Existing installs are unaffected.** An install from `"./"` at 2.5.0 caches under the same
+  version as the pin, so `claude plugin update` sees nothing to do.
+- **A local checkout added as a marketplace installs the pinned release**, not the working
+  tree. `claude --plugin-dir <checkout>` is the development path.
+- **A fix that must reach plugin users now takes a release.** That was already true for
+  existing installs (ADR-012); it is now true for new ones too.
+- **Re-runs are partial by nature.** A failed `publish` can be re-run; once a version is on
+  npm a re-run fails with "cannot publish over", and only `github-release` needs re-running.
+- **One release at a time.** GitHub keeps a single pending run per concurrency group, so
+  pushing several tags at once cancels the ones still waiting. Push one tag at a time.
+- **Release builds run on Node 24, CI on 22.** tsup targets `node22`, so the output does not
+  depend on the runner's Node.
+- **An emergency manual publish** with 2FA still works after "disallow tokens"; it carries no
+  provenance, which is visible on the npm page.
+- **Not covered here:** signed tags; deprecating old versions; a shrinkwrap. Without one, the
+  SBOM records the lockfile's versions, while a consumer's install resolves the ranges fresh.
+  `--pin` checks the local view of `origin/main` and the tag; it does not ask GitHub whether
+  the tag was pushed or npm whether the version is published, which is why it comes last in
+  the release order.
+
+**Status: ACCEPTED (first run pending)**
 
 ---
 

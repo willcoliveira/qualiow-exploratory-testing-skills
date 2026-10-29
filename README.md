@@ -65,8 +65,9 @@ claude plugin install qualiow@qualiow
 ```
 
 The repository is its own marketplace (`.claude-plugin/marketplace.json`), so those two
-commands are the whole install. For development against a local checkout, point Claude Code
-at the directory instead:
+commands are the whole install. The marketplace entry is pinned to the latest release tag and
+its commit, so an install gets the published release, not whatever `main` holds that day. For
+development against a local checkout, point Claude Code at the directory instead:
 
 ```bash
 claude --plugin-dir /path/to/qualiow-exploratory-testing-skills
@@ -656,7 +657,7 @@ qualiow-exploratory-testing-skills/
   agents/                     # generated mirror
   .claude-plugin/
     plugin.json               # Claude Code plugin manifest
-    marketplace.json          # the repo is its own marketplace (source: "./")
+    marketplace.json          # the repo is its own marketplace (entry pinned to a release tag + sha)
   hooks/
     hooks.json                # PreToolUse registrations (plugin default discovery path)
     scripts/                  # read-guard.mjs, write-guard.mjs, bash-guard.mjs, secret-patterns.mjs

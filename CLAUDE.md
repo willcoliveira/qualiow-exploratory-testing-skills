@@ -147,7 +147,8 @@ claude plugin install qualiow@qualiow
   the mirror)
 - `.claude/agents/` — the 5 sub-agents; mirrored to `agents/` the same way
 - `.claude-plugin/` — `plugin.json` (Claude Code plugin manifest) and `marketplace.json` (the
-  repo is its own marketplace; the single plugin's `source` is `"./"`)
+  repo is its own marketplace; the single plugin's `source` is pinned to a release tag + commit
+  sha, moved only after npm publish — ADR-017)
 - `hooks/` — `hooks.json` (three `PreToolUse` registrations, plugin default discovery path) and
   `scripts/` (`read-guard.mjs`, `write-guard.mjs`, `bash-guard.mjs`, `secret-patterns.mjs`; node builtins only)
 - `bin/` — `qualiow` (CLI launcher shim: local build if present, else `npx` the published
@@ -155,7 +156,8 @@ claude plugin install qualiow@qualiow
   `wk-ios` + `wkeval.mjs` (iOS WebKit DOM bridge), `setup-mobile.sh`, `doctor-mobile.sh`
 - `scripts/` — repo dev tooling, not shipped: `kb-sync.mjs` (rebuild/check the knowledge
   manifest), `check-pack.mjs` (assert the npm tarball contents), `sync-version.mjs` (keep
-  `.claude-plugin/plugin.json` and `marketplace.json` in step with `package.json`)
+  `.claude-plugin/plugin.json` in step with `package.json`; `--check <v>` for the release
+  workflow, `--pin <tag>` to move the marketplace pin after publish)
 - `data/knowledge/` — YAML knowledge base (heuristics, techniques, checklists) versioned as
   releases v0.1.0–v0.6.0, 29 entries, indexed by `manifest.yml`
 - `data/domains/` — domain profiles, **YAML only** (`*.yml`; the `.md` variants were removed
