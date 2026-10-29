@@ -74,20 +74,22 @@ export function extractReportMeta(raw: string, sessionId: string): ReportMeta {
     summary: '',
   };
 
+  // A table cell ends at the next pipe: `[^|\n]*` keeps the match linear on a long
+  // run of spaces, where `\s*(.+?)\s*` backtracks cubically.
   const dateMatch =
     report.match(/\*\*Date:\*\*\s*(.+)/i) ??
-    report.match(/\|\s*Date\s*\|\s*(.+?)\s*\|/i);
+    report.match(/\|\s*Date\s*\|([^|\n]*)\|/i);
   if (dateMatch) meta.date = dateMatch[1].trim();
 
   const durationMatch =
     report.match(/\*\*Duration:\*\*\s*(.+)/i) ??
-    report.match(/\|\s*Duration\s*\|\s*(.+?)\s*\|/i);
+    report.match(/\|\s*Duration\s*\|([^|\n]*)\|/i);
   if (durationMatch) meta.duration = durationMatch[1].trim();
 
   const targetMatch =
     report.match(/\*\*Application:\*\*\s*(.+)/i) ??
     report.match(/\*\*Target:\*\*\s*(.+)/i) ??
-    report.match(/\|\s*Target\s*\|\s*(.+?)\s*\|/i);
+    report.match(/\|\s*Target\s*\|([^|\n]*)\|/i);
   if (targetMatch) meta.target = targetMatch[1].trim();
 
   const summaryMatch = report.match(

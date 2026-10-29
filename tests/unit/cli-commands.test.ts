@@ -109,6 +109,16 @@ describe('resolveSessionDir', () => {
     expect(resolveSessionDir(sessionsDir, 'output/sessions/2026-09-03-1000-explore-beta/')).toBe(want);
   });
 
+  it('any run of trailing slashes or backslashes is dropped, and a long run inside the argument stays fast', () => {
+    const sessionsDir = makeSessionsDir();
+    expect(resolveSessionDir(sessionsDir, '2026-09-03-1000-explore-beta//')).toBe(join(sessionsDir, '2026-09-03-1000-explore-beta'));
+    expect(resolveSessionDir(sessionsDir, '2026-09-03-1000-explore-beta\\')).toBe(join(sessionsDir, '2026-09-03-1000-explore-beta'));
+    // /[\\/]+$/ is quadratic here: seconds on 100,000 slashes.
+    const t = performance.now();
+    expect(() => resolveSessionDir(sessionsDir, `a${'/'.repeat(100_000)}x`)).toThrow(/not a session directory/);
+    expect(performance.now() - t).toBeLessThan(250);
+  });
+
   it('on win32 a path or name that differs only in case resolves to the directory as it is on disk', () => {
     const sessionsDir = makeSessionsDir();
     const want = join(sessionsDir, '2026-09-01-1000-explore-alpha');

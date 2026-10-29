@@ -165,8 +165,11 @@ export function resolveSessionDir(
   platform: NodeJS.Platform = process.platform,
 ): string {
   const fold = platform === 'win32' ? (s: string) => s.toLowerCase() : (s: string) => s;
-  // A tab-completed directory name ends in a slash; it names the same session.
-  const sessionId = requested.length > 1 ? requested.replace(/[\\/]+$/, '') : requested;
+  // A tab-completed directory name ends in a slash; it names the same session. A loop,
+  // not /[\\/]+$/, which is quadratic on a long run of slashes that does not end the string.
+  let end = requested.length;
+  if (end > 1) while (end > 0 && (requested[end - 1] === '/' || requested[end - 1] === '\\')) end--;
+  const sessionId = requested.slice(0, end);
   const dirs = readdirSync(sessionsDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name)
