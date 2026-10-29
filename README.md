@@ -14,7 +14,7 @@ scripts and no framework — AI reasoning, browser/device commands, and QA heuri
 
 ## Requirements
 
-- **Node.js >= 22.4** (`node --version`)
+- **Node.js >= 22.12** (`node --version`)
 - **Claude Code** — the skills run as slash commands inside it
 - `playwright-cli` ships as a dependency of this package; nothing extra to install for the
   web path. Mobile needs the iOS/Android toolchains — see [docs/MOBILE-SETUP.md](docs/MOBILE-SETUP.md).
@@ -435,7 +435,7 @@ bin/doctor-mobile.sh          # or --ios / --android / --quiet
 ```
 
 Read-only. Installs nothing; prints `✓`/`✗` with the exact fix command for each gap, and
-checks Node >= 22.4, python3, Maestro >= 2.6.0 and `ios-webkit-debug-proxy`.
+checks Node >= 22.12, python3, Maestro >= 2.6.0 and `ios-webkit-debug-proxy`.
 
 ### 3. Pick a target template
 
@@ -484,7 +484,7 @@ Exit codes: `0` ok · `1` command failed · `2` usage · `3` stale/unknown ref (
 `snapshot`) · `4` no device or app set.
 
 iOS Safari web targets also get real JS/DOM access through the WebKit bridge (needs
-`ios-webkit-debug-proxy`, `python3` and Node >= 22.4; `WK_IOS_PORT` overrides the port):
+`ios-webkit-debug-proxy`, `python3` and Node >= 22.12; `WK_IOS_PORT` overrides the port):
 
 ```bash
 bin/wk-ios 'document.title'
@@ -713,7 +713,7 @@ my-project/
 | Claude Code | AI reasoning and session orchestration |
 | Playwright CLI (`@playwright/cli`) | browser control for the web path |
 | Maestro + `xcrun simctl` / `adb` | device control for the mobile path |
-| TypeScript / Node.js >= 22.4 | CLI, formatters, schemas |
+| TypeScript / Node.js >= 22.12 | CLI, formatters, schemas |
 | Zod | runtime schema validation |
 | Commander | CLI argument parsing |
 | Handlebars | HTML report templating |
