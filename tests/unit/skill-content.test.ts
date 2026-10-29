@@ -101,6 +101,22 @@ describe('a contract-2 session without the CLI stays contract 2 and unindexed', 
   });
 });
 
+describe('/qa-verify-backend credentials never ride on a shell variable', () => {
+  const backend = ['phases/00-setup.md', 'phases/03-live-verification.md', 'references/aws-readonly-probes.md']
+    .map((f) => skillFile('qa-verify-backend', ...f.split('/')))
+    .join('\n');
+
+  it('passes a literal --profile on aws calls instead of exporting it', () => {
+    expect(backend).not.toMatch(/export AWS_PROFILE|--profile "\$/);
+    expect(backend).toContain('aws sts get-caller-identity --profile <profile> --region <region>');
+  });
+
+  it('proves the API key from a node --env-file script, never $KEY on a curl line', () => {
+    expect(backend).not.toMatch(/curl[^\n]*\$KEY/);
+    expect(backend).toContain('node --env-file=qa/.env probes/auth-proof.mjs');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

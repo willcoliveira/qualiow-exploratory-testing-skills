@@ -36,7 +36,7 @@ Example write-up:
 
 ```
 AC4 — stream view type
-  probe:  aws dynamodb describe-table --table-name <config> --query 'Table.StreamSpecification'
+  probe:  aws dynamodb describe-table --table-name <config> --query 'Table.StreamSpecification' --profile <profile> --region <region>
   raw:    evidence/AC4-config-table.json
   field:  StreamViewType = "NEW_AND_OLD_IMAGES"
   verdict: FAIL — AC requires NEW_IMAGE

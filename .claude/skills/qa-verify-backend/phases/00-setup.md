@@ -31,8 +31,14 @@ is untouched.
 
 ## Step 3: Establish AWS Access (skip if `--static-only`)
 
+Resolve the profile and region **names** once: `Grep` `qa/.env` (else `.env`) for the one
+line of the variable `backend.aws_profile_env` names, and of `backend.region_env`. They name
+a profile, not a credential; if neither file sets them, ask the user. Each Bash call is a
+fresh shell — an `export` or a shell variable never reaches the next call — so every `aws`
+command for the rest of the session carries both literally:
+
 ```bash
-aws sts get-caller-identity --profile "$<aws_profile_env>"
+aws sts get-caller-identity --profile <profile> --region <region>
 ```
 
 Compare the returned account to `backend.account_id`.
@@ -79,12 +85,14 @@ var named by `api.token_env` and sends it in `api.header_name` (default `X-Api-K
 `Authorization: Bearer` for `bearer-env`. The value is read from the environment at run
 time and never written into a script, a report or this repo.
 
-Prove the credential before the first probe, and record both calls in
-`evidence/fingerprint.md`:
+Prove the credential before the first probe, and record both results in
+`evidence/fingerprint.md`. `probes/auth-proof.mjs` calls one read endpoint twice — without
+the header (expect 401/403), then with the key read from `process.env[<api.token_env>]`
+(expect 200) — and prints the two status codes, never the key. The key is never on a
+command line and never in a shell variable:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' "$BASE/<a read endpoint>"                    # expect 401/403
-curl -s -o /dev/null -w '%{http_code}\n' -H "X-Api-Key: $KEY" "$BASE/<same endpoint>"  # expect 200
+node --env-file=qa/.env probes/auth-proof.mjs
 ```
 
 A service that answers the same either way is not authenticating, which is a finding
