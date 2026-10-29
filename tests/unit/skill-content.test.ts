@@ -199,6 +199,14 @@ describe('a typed password never comes back through a snapshot', () => {
   });
 });
 
+describe('backend reporting claims only what the finalize scan catches', () => {
+  it('says account ids and patternless PII are the session\'s to redact', () => {
+    const phase5 = skillFile('qa-verify-backend', 'phases', '05-reporting.md').replace(/\s+/g, ' ');
+    expect(phase5).not.toContain('consumer PII, account ids not already in the target');
+    expect(phase5).toContain('It does not catch account ids or personal data without a pattern');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
