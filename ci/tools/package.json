@@ -4,6 +4,6 @@
   "private": true,
   "description": "Pinned CLI used by CI to validate the plugin manifest; tracked by Dependabot",
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.289"
+    "@anthropic-ai/claude-code": "2.1.308"
   }
 }
