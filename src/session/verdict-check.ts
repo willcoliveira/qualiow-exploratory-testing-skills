@@ -3,7 +3,9 @@
  * what the `qa-bug-judge` said, and the judge's own words are on disk in
  * `verification/VERDICT-NNN.md` (copied verbatim by Phase 7). This holds the two
  * against each other, so a bug cannot ship as `Verified` on a verdict that refuted it,
- * or with no verdict at all.
+ * with no verdict at all, or on another bug's verdict: `BUG-NNN` rests on
+ * `VERDICT-NNN.md`, its `Full verdict:` link must name that file, and one verdict
+ * backs one bug.
  *
  * It applies only to a session that ran the judge — one with a `verification/`
  * directory, or with a bug carrying a `**Verification:**` line. Quick, mobile and
@@ -67,13 +69,17 @@ function classify(content: string): Claim | null {
 }
 
 /**
- * The verdict file a bug points at: its `Full verdict:` link when that names a
- * `VERDICT-*.md` directly under `verification/`, else the one with the bug's number.
+ * The verdict file a bug rests on: always the one with the bug's own number. A bug
+ * cannot borrow another bug's verdict through its `Full verdict:` link — a link that
+ * names any other file is a violation of its own (`linkedVerdictFor`).
  */
-function verdictFileFor(bugFile: string, content: string): string {
-  const linked = FULL_VERDICT_RE.exec(content)?.[1];
-  if (linked && VERDICT_FILE_RE.test(linked)) return linked;
+function verdictFileFor(bugFile: string): string {
   return `VERDICT-${BUG_FILE_RE.exec(bugFile)?.[1] ?? ''}.md`;
+}
+
+/** What the bug's `Full verdict:` link names under `verification/`, if it has one. */
+function linkedVerdictFor(content: string): string | undefined {
+  return FULL_VERDICT_RE.exec(content)?.[1];
 }
 
 export function checkVerdicts(sessionDir: string): string[] {
@@ -128,7 +134,26 @@ export function checkVerdicts(sessionDir: string): string[] {
     }
   }
 
-  // 2. Every bug's Verification line must match the verdict it rests on.
+  // 2. One verdict backs one bug, the bug with its number: a `Full verdict:` link names
+  // that file and no other, and no two bug files share a number.
+  const byVerdict = new Map<string, string[]>();
+  for (const bug of bugs) {
+    const own = verdictFileFor(bug.name);
+    const linked = linkedVerdictFor(bug.content);
+    if (linked !== undefined && linked !== own) {
+      violations.push(
+        `${bug.rel} links verification/${linked} — a bug rests on its own verdict, verification/${own}`,
+      );
+    }
+    byVerdict.set(own, [...(byVerdict.get(own) ?? []), bug.rel]);
+  }
+  for (const [file, rels] of byVerdict) {
+    if (rels.length > 1) {
+      violations.push(`${rels.join(' and ')} both rest on verification/${file} — one verdict backs one bug`);
+    }
+  }
+
+  // 3. Every bug's Verification line must match the verdict it rests on.
   for (const bug of bugs) {
     const { rel, claim } = bug;
     if (claim === null || claim === 'unverified') {
@@ -144,7 +169,7 @@ export function checkVerdicts(sessionDir: string): string[] {
       continue;
     }
 
-    const file = verdictFileFor(bug.name, bug.content);
+    const file = verdictFileFor(bug.name);
     const verdictRel = `verification/${file}`;
 
     if (claim === 'verified' || claim === 'overruled') {

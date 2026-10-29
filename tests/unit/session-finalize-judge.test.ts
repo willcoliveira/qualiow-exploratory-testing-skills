@@ -178,11 +178,11 @@ describe('finalize — verdict cross-check', () => {
     ]);
   });
 
-  it('the Full verdict link is followed before the bug number', async () => {
+  it('the bug number names the verdict; a Full verdict link to another one is refused', async () => {
     const { cwd, sessionDir } = verified();
     edit(join(sessionDir, 'bugs', 'BUG-101.md'), '../verification/VERDICT-101.md', '../verification/VERDICT-104.md');
     expect((await check(cwd)).violations).toEqual([
-      `bugs/BUG-101.md says Verified, but verification/VERDICT-104.md is REFUTED — ${OVERRULE_HINT}`,
+      'bugs/BUG-101.md links verification/VERDICT-104.md — a bug rests on its own verdict, verification/VERDICT-101.md',
     ]);
   });
 

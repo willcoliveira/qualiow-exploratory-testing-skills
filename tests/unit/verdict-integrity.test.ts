@@ -7,6 +7,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { runSessionFinalize } from '../../src/cli/commands/session.js';
+import { checkVerdicts } from '../../src/session/verdict-check.js';
 
 const REPO_ROOT = resolve(process.cwd());
 const VERIFIED_NAME = '2026-09-20-1500-explore-verified-example';
@@ -54,5 +55,42 @@ describe('finalize — a verdict block carries exactly one VERDICT line', () => 
       'verification/VERDICT-101.md has more than one VERDICT: line — a verdict block carries exactly one; it is not read',
     );
     expect(result.violations.some((v) => v.startsWith('bugs/BUG-101.md says Verified, but'))).toBe(true);
+  });
+});
+
+describe('finalize — one verdict backs one bug, the one with its number', () => {
+  it('refuses a bug whose Full verdict: link names another bug’s verdict', async () => {
+    const { cwd, sessionDir } = verified();
+    // BUG-103's own verdict is UNVERIFIED; it claims Verified and borrows BUG-101's CONFIRMED.
+    const bug = join(sessionDir, 'bugs', 'BUG-103.md');
+    edit(bug, '**Verification:** Unverified (judge unavailable: timeout)', '**Verification:** Verified');
+    edit(bug, '../verification/VERDICT-103.md', '../verification/VERDICT-101.md');
+
+    const result = await check(cwd);
+    expect(result.ok).toBe(false);
+    expect(result.violations).toContain(
+      'bugs/BUG-103.md links verification/VERDICT-101.md — a bug rests on its own verdict, verification/VERDICT-103.md',
+    );
+  });
+
+  it('refuses the link on an Unverified bug too', () => {
+    const { sessionDir } = verified();
+    edit(join(sessionDir, 'bugs', 'BUG-103.md'), '../verification/VERDICT-103.md', '../verification/VERDICT-102.md');
+    expect(checkVerdicts(sessionDir)).toEqual([
+      'bugs/BUG-103.md links verification/VERDICT-102.md — a bug rests on its own verdict, verification/VERDICT-103.md',
+    ]);
+  });
+
+  it('refuses two bug files resting on one verdict', () => {
+    const { sessionDir } = verified();
+    // The same number shipped and refuted at once.
+    cpSync(join(sessionDir, 'bugs', 'refuted', 'BUG-104.md'), join(sessionDir, 'bugs', 'BUG-104.md'));
+    expect(checkVerdicts(sessionDir)).toContain(
+      'bugs/BUG-104.md and bugs/refuted/BUG-104.md both rest on verification/VERDICT-104.md — one verdict backs one bug',
+    );
+  });
+
+  it('every fixture still passes', () => {
+    expect(checkVerdicts(verified().sessionDir)).toEqual([]);
   });
 });
