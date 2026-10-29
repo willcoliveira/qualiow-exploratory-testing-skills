@@ -17,6 +17,7 @@ const FILES = [
   'src/cli/commands/list.ts',
   'src/cli/commands/kb.ts',
   'src/cli/commands/session.ts',
+  'src/cli/commands/validate.ts',
 ];
 
 const tmpDirs: string[] = [];

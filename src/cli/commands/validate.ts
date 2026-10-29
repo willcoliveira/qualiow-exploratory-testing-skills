@@ -46,7 +46,7 @@ export function runValidate(options: ValidateOptions, cwd: string): number {
     options.all || (!options.targets && !options.knowledge && !options.domains && !options.kb);
 
   if (!existsSync(dataDir)) {
-    throw new Error('data/ directory not found. Run `npx qualiow init` first.');
+    throw new Error('data/ directory not found. Run `qualiow init` first.');
   }
 
   const results: ValidationResult[] = [];
