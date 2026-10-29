@@ -1,5 +1,7 @@
 # Phase 3: Live Verification
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Skip if the live lane is BLOCKED — but still write every probe command into
 `evidence/live-probes.md` so a human with credentials can run them unchanged.
 
@@ -36,7 +38,7 @@ Example write-up:
 
 ```
 AC4 — stream view type
-  probe:  aws dynamodb describe-table --table-name <config> --query 'Table.StreamSpecification'
+  probe:  aws dynamodb describe-table --table-name <config> --query 'Table.StreamSpecification' --profile <profile> --region <region>
   raw:    evidence/AC4-config-table.json
   field:  StreamViewType = "NEW_AND_OLD_IMAGES"
   verdict: FAIL — AC requires NEW_IMAGE

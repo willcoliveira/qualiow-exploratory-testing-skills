@@ -30,7 +30,6 @@ _Present only in a contract-2 session (`stats.json` has `"contract": 2`: `/qa-ex
 | Metric | Count |
 |---|---|
 | Pages explored | 0 |
-| Actions performed | 0 |
 | Bugs — Critical | 0 |
 | Bugs — High | 0 |
 | Bugs — Medium | 0 |

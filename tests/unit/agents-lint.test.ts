@@ -112,12 +112,35 @@ describe.each(agentFiles)('agent: %s', (file) => {
   });
 
   it('every Bash(<prefix>:*) entry in tools is a plain command prefix', () => {
-    // A prefix may span several words (`git show:*`, `npx playwright-cli:*`) — grants are
-    // deliberately narrow, see qa-explore/references/security-rules.md.
+    // A prefix may span several words (`git show:*`, `npx playwright-cli:*`, `git -C:*`) —
+    // grants are deliberately narrow, see qa-explore/references/security-rules.md.
     const bad = extractBashEntries(frontmatter?.tools).filter(
-      (entry) => !/^[a-z0-9][a-z0-9._/-]*( [a-z0-9-][a-z0-9._/=-]*)*:\*$/.test(entry),
+      (entry) => !/^[a-z0-9][a-z0-9._/-]*( [A-Za-z0-9-][A-Za-z0-9._/=-]*)*:\*$/.test(entry),
     );
     expect(bad, `${file}: malformed Bash tool entries: ${bad.join(', ')}`).toEqual([]);
+  });
+});
+
+// The exact Bash grants of the agents whose reach matters most: each reads text the system
+// under test wrote (page text quoted in bugs, tickets, diffs), so a grant is what that text
+// could get run. A change here is a security decision, not a convenience.
+const EXACT_BASH_GRANTS: Record<string, string[]> = {
+  'qa-reporting-agent': [
+    'qualiow session finalize:*',
+    'npx -y -p qualiow-exploratory-testing qualiow session finalize:*',
+    'wc:*',
+  ],
+  // The repository under review is rarely the working directory: both reach it by `git -C`.
+  'qa-diff-indexer-agent': ['git -C:*', 'git diff:*', 'git show:*', 'wc:*'],
+  'qa-gather-agent': ['git -C:*', 'git diff:*', 'git log:*', 'git show:*', 'wc:*'],
+  // Web only: mobile verification is deferred (ADR-013), so no mobile driver.
+  'qa-bug-judge': ['playwright-cli:*', 'npx playwright-cli:*'],
+};
+
+describe.each(Object.entries(EXACT_BASH_GRANTS))('Bash grants of %s', (name, expected) => {
+  it('are exactly the expected prefixes', () => {
+    const content = readFileSync(join(AGENTS_DIR, `${name}.md`), 'utf-8');
+    expect(extractBashEntries(parseFrontmatter(content)?.tools)).toEqual(expected);
   });
 });
 

@@ -1,5 +1,7 @@
 # Phase 6: Edge Cases, Security & Negative Testing (6 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 **Goal:** Saboteur tour: actively try to break things. Every command carries `-s=<sid>` (omitted here). In read-only mode, fill but never submit.
 
 ## Input Attacks (from error-guessing knowledge)
