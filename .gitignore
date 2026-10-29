@@ -49,6 +49,7 @@ output/context/*.md
 # (this is the dev repo: the dogfood config under qa/ stays local)
 qa/
 output/metrics.jsonl
+output/.qualiow-index.lock
 
 # Local evaluation output (never shipped, never committed)
 output/review/

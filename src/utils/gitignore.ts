@@ -16,6 +16,7 @@ export const QUALIOW_GITIGNORE_ENTRIES = [
   'output/sessions/*.tar.gz',
   '!output/sessions/INDEX.md',
   'output/metrics.jsonl',
+  'output/.qualiow-index.lock',
   'output/*.html',
   'output/*.csv',
   'output/*.json',

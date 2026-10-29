@@ -85,7 +85,7 @@ describe('mergeGitignore', () => {
 });
 
 describe('consumer .gitignore block: generated artefacts', () => {
-  it.each(['output/sessions/*.tar.gz', 'output/metrics.jsonl', 'output/*.html'])('ignores %s', (entry) => {
+  it.each(['output/sessions/*.tar.gz', 'output/metrics.jsonl', 'output/*.html', 'output/.qualiow-index.lock'])('ignores %s', (entry) => {
     expect(QUALIOW_GITIGNORE_ENTRIES).toContain(entry);
   });
 
