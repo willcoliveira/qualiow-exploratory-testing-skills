@@ -42,7 +42,7 @@ playwright-cli console error
 playwright-cli requests
 ```
 
-If the target requires auth (`storage_state` or `token`), apply it as in `${CLAUDE_SKILL_DIR}/../qa-explore/phases/01-auth.md` before continuing.
+If the target requires auth (`storage_state` or `token`), apply it as in `${CLAUDE_SKILL_DIR}/../qa-explore/phases/01-auth.md` before continuing — when a login form is typed into, its rule holds here too: clear the password field before any snapshot.
 
 ### 2. Quick Analysis (2 min)
 

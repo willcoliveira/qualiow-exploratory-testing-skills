@@ -179,6 +179,26 @@ describe('/qa-gather advertises only what it does and fences what it copies', ()
   });
 });
 
+describe('a typed password never comes back through a snapshot', () => {
+  const auth = skillFile('qa-explore', 'phases', '01-auth.md');
+
+  it('no snapshot between qualiow auth fill and the submit click', () => {
+    const fence = auth.slice(auth.indexOf('qualiow auth fill --session'), auth.indexOf('state-save'));
+    expect(fence).not.toContain('snapshot');
+    expect(auth.replace(/\s+/g, ' ')).toContain('Never snapshot between `qualiow auth fill` and the submit click');
+  });
+
+  it('clears the password field before any snapshot after a failed or multi-step login', () => {
+    expect(auth).toContain('playwright-cli fill <pass_ref> ""');
+    const steps = auth.slice(auth.indexOf('If login fails:'));
+    expect(steps.split('\n')[1]).toContain('fill <pass_ref> ""');
+  });
+
+  it('quick points at the same rule', () => {
+    expect(skillFile('qa-explore-quick', 'SKILL.md')).toContain('clear the password field before any snapshot');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
