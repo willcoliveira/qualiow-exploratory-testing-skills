@@ -180,24 +180,28 @@ export function judgeCommand(): Command {
     .option('--provider <name>', 'typesafe | laya — run only this one of the providers the target lists')
     .option('--endpoint <url>', 'Override verification.laya.endpoint (loopback only)')
     .action(async (claimFile: string, options: JudgeTriageOptions) => {
+      // process.exitCode, never process.exit(): an exit right after a write to a pipe
+      // cuts the block short.
       try {
         const result = await runJudgeTriage(claimFile, options, { cwd: process.cwd() });
         console.log(result.stdout);
         if (result.exitCode !== 0) {
           console.error(chalk.yellow(`triage: unavailable — ${result.predictedVerdict}`));
-          process.exit(result.exitCode);
+          process.exitCode = result.exitCode;
         }
       } catch (err) {
         if (err instanceof TriageNotEnabledError) {
           console.error(chalk.yellow(`triage: not enabled — ${err.message}`));
-          process.exit(EXIT_NOT_ENABLED);
+          process.exitCode = EXIT_NOT_ENABLED;
+          return;
         }
         if (err instanceof TriageRefusedError) {
           console.error(chalk.yellow(`triage: refused — ${err.message}`));
-          process.exit(err.exitCode);
+          process.exitCode = err.exitCode;
+          return;
         }
         console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 
