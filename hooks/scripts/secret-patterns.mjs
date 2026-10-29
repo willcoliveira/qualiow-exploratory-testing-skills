@@ -19,22 +19,30 @@
 // Documentation domains only, matched exactly: `x@corp.example.com` is flagged.
 const EMAIL_ALLOW = /@(?:example\.(?:com|org|net)|localhost)$/i;
 
-// A value that is nothing but a redaction placeholder (optionally quoted, optionally
-// after an auth scheme) is already clean; anything more than that is not.
+// A value that is nothing but a redaction placeholder (optionally quoted — plain, HTML
+// entity or percent escape — optionally after an auth scheme) is already clean; anything
+// more than that is not.
 const REDACTED_VALUE =
-  /^\s*\\?["']?(?:(?:bearer|basic|token|digest)\s+)?\[[A-Z0-9_]*REDACTED\]\\?["']?\s*$/i;
+  /^\s*(?:&quot;|%22|\\?["']?)(?:(?:bearer|basic|token|digest)\s+)?\[[A-Z0-9_]*REDACTED\](?:&quot;|%22|\\?["']?)\s*$/i;
 const JSON_LITERAL = /^(?:null|true|false)$/i;
 
+const KEY_CLOSE = String.raw`\\?["']|&quot;|&#0*34;|&#x0*22;|%22|\]|%5D|\*\*`;
 const QUOTED = String.raw`\\"[^"\\\n]{1,4096}\\"|"(?:[^"\\\n]|\\.){1,4096}"|'(?:[^'\\\n]|\\.){1,4096}'`;
+const ENC_QUOTED = String.raw`&quot;[^&\s]{1,4096}&quot;|%22[^%\s]{1,4096}%22`;
 const LOOSE = String.raw`["']?[^\s,}"']+`;
 const TOKENISH = String.raw`["']?[^\s,;}"'|]{8,}`;
 const LINE_REST = String.raw`[^\s|](?:[^\r\n|]*[^\s|])?`;
+const CELL_TOKEN = String.raw`(?=[^\s|]{0,255}[0-9=])[^\s|]{8,256}|[^\s|]{24,256}`;
 
 function kv(keys, value, sepOps = ':=') {
   return new RegExp(
-    String.raw`(${keys})((?:\\?["']|\*\*)?[ \t]*[${sepOps}][ \t]*(?:\*\*[ \t]*)?)(${QUOTED}|${value})`,
+    String.raw`(${keys})((?:${KEY_CLOSE})?[ \t]*(?:[${sepOps}]|%3A|%3D)[ \t]*(?:\*\*[ \t]*)?)(${QUOTED}|${ENC_QUOTED}|${value})`,
     'gi',
   );
+}
+
+function cell(keys, value) {
+  return new RegExp(String.raw`(${keys})([ \t]*\|[ \t]*)(${value})`, 'gi');
 }
 
 const PEM_HEAD = String.raw`-----BEGIN (?:[A-Z0-9]{1,20} ){0,3}PRIVATE KEY(?: BLOCK)?-----`;
@@ -89,12 +97,21 @@ export const SECRET_PATTERNS = [
   },
   {
     category: 'Cookie header',
-    re: kv('set-cookie|cookie', String.raw`[^\s|=]{1,256}=(?:[^\r\n|]*[^\s|])?`, ':=|'),
+    re: kv(
+      'set-cookie|cookie',
+      String.raw`(?:[^\s|=;]{1,64};[ \t]*){0,8}[^\s|=;]{1,256}=(?:[^\r\n|]*[^\s|])?`,
+      ':=|',
+    ),
     filter: keyValueFilter,
   },
   {
     category: 'Bearer token',
     re: /\b(bearer|basic)([ \t]+)(?:(?=[A-Za-z._~+/-]*[0-9=])[A-Za-z0-9._~+/=-]{8,}|[A-Za-z0-9._~+/=-]{24,})/gi,
+  },
+  {
+    category: 'Authorization header',
+    re: cell('authorization', String.raw`(?:bearer|basic|digest|token)[ \t]+[^\s|]{4,256}|${CELL_TOKEN}`),
+    filter: keyValueFilter,
   },
   {
     category: 'AWS secret access key',
@@ -159,8 +176,26 @@ export const SECRET_PATTERNS = [
     filter: keyValueFilter,
   },
   {
+    category: 'API key',
+    re: cell(String.raw`x-api-key|api[_-]?key`, CELL_TOKEN),
+    filter: keyValueFilter,
+  },
+  {
     category: 'Password',
-    re: kv('password|passwd|pwd', LOOSE),
+    re: kv(String.raw`(?:password|passwd|passcode|passphrase|pwd)[A-Za-z0-9_-]{0,40}`, LOOSE),
+    filter: keyValueFilter,
+  },
+  {
+    category: 'Password',
+    re: new RegExp(
+      String.raw`((?<![A-Za-z0-9])pass)((?:\]|%5D)?[ \t]*(?:=|%3D)[ \t]*|(?:\\?["']|&quot;|%22)[ \t]*(?::|%3A)[ \t]*)(?!\d{1,5}(?![^\s,;&}"']))(${QUOTED}|${ENC_QUOTED}|${LOOSE})`,
+      'gi',
+    ),
+    filter: keyValueFilter,
+  },
+  {
+    category: 'Credential element',
+    re: /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/)/gi,
     filter: keyValueFilter,
   },
   {

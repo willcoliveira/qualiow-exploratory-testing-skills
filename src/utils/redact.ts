@@ -25,25 +25,37 @@ interface RedactionRule {
 // Documentation domains only, matched exactly: `x@corp.example.com` is redacted.
 const EMAIL_ALLOW = /@(?:example\.(?:com|org|net)|localhost)$/i;
 
-// A value that is nothing but a redaction placeholder (optionally quoted, optionally
-// after an auth scheme) is already clean; anything more than that is not.
+// A value that is nothing but a redaction placeholder (optionally quoted — plain, HTML
+// entity or percent escape — optionally after an auth scheme) is already clean; anything
+// more than that is not.
 const REDACTED_VALUE =
-  /^\s*\\?["']?(?:(?:bearer|basic|token|digest)\s+)?\[[A-Z0-9_]*REDACTED\]\\?["']?\s*$/i;
+  /^\s*(?:&quot;|%22|\\?["']?)(?:(?:bearer|basic|token|digest)\s+)?\[[A-Z0-9_]*REDACTED\](?:&quot;|%22|\\?["']?)\s*$/i;
 const JSON_LITERAL = /^(?:null|true|false)$/i;
 
-// Key/value building blocks. The separator takes an optional closing quote (JSON,
-// escaped JSON, single-quoted keys) or markdown bold; a quoted value is matched
-// whole, so `password="a,b,c"` cannot leave `,b,c` behind.
+// Key/value building blocks. After the key: an optional closing quote (JSON, escaped
+// JSON, single-quoted keys, an HTML entity or percent escape), a closing `]` of a form
+// field (`user[password]=`, `user%5Bpassword%5D=`) or markdown bold; then the operator,
+// itself possibly percent-encoded. A quoted value is matched whole, so
+// `password="a,b,c"` cannot leave `,b,c` behind.
+const KEY_CLOSE = String.raw`\\?["']|&quot;|&#0*34;|&#x0*22;|%22|\]|%5D|\*\*`;
 const QUOTED = String.raw`\\"[^"\\\n]{1,4096}\\"|"(?:[^"\\\n]|\\.){1,4096}"|'(?:[^'\\\n]|\\.){1,4096}'`;
+const ENC_QUOTED = String.raw`&quot;[^&\s]{1,4096}&quot;|%22[^%\s]{1,4096}%22`;
 const LOOSE = String.raw`["']?[^\s,}"']+`;
 const TOKENISH = String.raw`["']?[^\s,;}"'|]{8,}`;
 const LINE_REST = String.raw`[^\s|](?:[^\r\n|]*[^\s|])?`;
+// A token-shaped table cell: a digit (or `=`) somewhere in it, or long.
+const CELL_TOKEN = String.raw`(?=[^\s|]{0,255}[0-9=])[^\s|]{8,256}|[^\s|]{24,256}`;
 
 function kv(keys: string, value: string, sepOps = ':='): RegExp {
   return new RegExp(
-    String.raw`(${keys})((?:\\?["']|\*\*)?[ \t]*[${sepOps}][ \t]*(?:\*\*[ \t]*)?)(${QUOTED}|${value})`,
+    String.raw`(${keys})((?:${KEY_CLOSE})?[ \t]*(?:[${sepOps}]|%3A|%3D)[ \t]*(?:\*\*[ \t]*)?)(${QUOTED}|${ENC_QUOTED}|${value})`,
     'gi',
   );
+}
+
+/** A markdown table row: `| <key> | <value> |`, for keys whose value is token-shaped. */
+function cell(keys: string, value: string): RegExp {
+  return new RegExp(String.raw`(${keys})([ \t]*\|[ \t]*)(${value})`, 'gi');
 }
 
 const PEM_HEAD = String.raw`-----BEGIN (?:[A-Z0-9]{1,20} ){0,3}PRIVATE KEY(?: BLOCK)?-----`;
@@ -75,7 +87,7 @@ function isRedactedValue(value: string): boolean {
 /** Replaces a key/value match, keeping the value's quoting so JSON stays valid. */
 function redactKeyValue(m: string, key: string, sep: string, value: string): string {
   if (isRedactedValue(value)) return m;
-  for (const q of ['\\"', '"', "'"]) {
+  for (const q of ['\\"', '"', "'", '&quot;', '%22']) {
     if (value.length > q.length * 2 && value.startsWith(q) && value.endsWith(q)) {
       return `${key}${sep}${q}[REDACTED]${q}`;
     }
@@ -107,9 +119,14 @@ const RULES: RedactionRule[] = [
     replace: redactKeyValue,
   },
   {
-    // Any position, and a markdown table cell (`| Cookie | sid=… |`); a cookie value has a `=`.
+    // Any position, and a markdown table cell (`| Cookie | sid=… |`); a cookie value has a `=`,
+    // possibly after attributes (`Set-Cookie: Secure; HttpOnly; sid=…`).
     name: 'Cookie header',
-    pattern: kv('set-cookie|cookie', String.raw`[^\s|=]{1,256}=(?:[^\r\n|]*[^\s|])?`, ':=|'),
+    pattern: kv(
+      'set-cookie|cookie',
+      String.raw`(?:[^\s|=;]{1,64};[ \t]*){0,8}[^\s|=;]{1,256}=(?:[^\r\n|]*[^\s|])?`,
+      ':=|',
+    ),
     replace: redactKeyValue,
   },
   {
@@ -118,6 +135,13 @@ const RULES: RedactionRule[] = [
     pattern:
       /\b(bearer|basic)([ \t]+)(?:(?=[A-Za-z._~+/-]*[0-9=])[A-Za-z0-9._~+/=-]{8,}|[A-Za-z0-9._~+/=-]{24,})/gi,
     replace: (_m, scheme: string, ws: string) => `${scheme}${ws}[REDACTED]`,
+  },
+  {
+    // A markdown table cell (`| Authorization | … |`): a scheme and a credential, or a token-shaped
+    // value, so `| Authorization | required |` survives. After the bearer rule, which keeps the scheme.
+    name: 'Authorization header',
+    pattern: cell('authorization', String.raw`(?:bearer|basic|digest|token)[ \t]+[^\s|]{4,256}|${CELL_TOKEN}`),
+    replace: redactKeyValue,
   },
   {
     // A bare 40-char secret only next to its key id (CSV, table row, credentials dump).
@@ -197,9 +221,35 @@ const RULES: RedactionRule[] = [
     replace: redactKeyValue,
   },
   {
-    name: 'Password',
-    pattern: kv('password|passwd|pwd', LOOSE),
+    // A markdown table cell; token-shaped, so `| API key | Required |` survives.
+    name: 'API key',
+    pattern: cell(String.raw`x-api-key|api[_-]?key`, CELL_TOKEN),
     replace: redactKeyValue,
+  },
+  {
+    // With an identifier suffix (`password_confirmation`, `passwordConfirmation`), bounded and
+    // anchored on the literal so a long run of letters is scanned once.
+    name: 'Password',
+    pattern: kv(String.raw`(?:password|passwd|passcode|passphrase|pwd)[A-Za-z0-9_-]{0,40}`, LOOSE),
+    replace: redactKeyValue,
+  },
+  {
+    // `pass` only as its own identifier (`pass=`, `QA_PASS=`, `user[pass]=`, `"pass":`): never
+    // inside a word (`bypass=`), never as prose (`Pass: 12`), never a small count (`pass=12`).
+    name: 'Password',
+    pattern: new RegExp(
+      String.raw`((?<![A-Za-z0-9])pass)((?:\]|%5D)?[ \t]*(?:=|%3D)[ \t]*|(?:\\?["']|&quot;|%22)[ \t]*(?::|%3A)[ \t]*)(?!\d{1,5}(?![^\s,;&}"']))(${QUOTED}|${ENC_QUOTED}|${LOOSE})`,
+      'gi',
+    ),
+    replace: redactKeyValue,
+  },
+  {
+    // An XML or SOAP element holding a credential, a namespace prefix and attributes allowed.
+    name: 'Credential element',
+    pattern:
+      /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/)/gi,
+    replace: (m: string, tag: string, rest: string, value: string) =>
+      isRedactedValue(value) ? m : `<${tag}${rest}[REDACTED]`,
   },
   {
     name: 'Token',
