@@ -240,6 +240,12 @@ describe('templates and the quick report match the output contract', () => {
   });
 });
 
+describe('every state-changing explore phase repeats the read-only rule', () => {
+  it.each(['04-journeys', '05-features', '06-edge-cases'])('%s says fill but never submit in read-only mode', (p) => {
+    expect(skillFile('qa-explore', 'phases', `${p}.md`)).toContain('In read-only mode, fill but never submit.');
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));
