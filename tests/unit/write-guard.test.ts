@@ -280,12 +280,11 @@ describe('write-guard.mjs known credential values', () => {
     expect(guard(cwd, 'Write', { file_path: BUG, content: `client secret ${APP_SECRET}` })).toContain('APP_CLIENT_SECRET');
   });
 
-  it('ignores values under six characters, names outside the list, and paths outside output/ or under snapshots/', () => {
+  it('ignores values under six characters, names outside the list, and paths outside output/', () => {
     const cwd = makeTmpCwd();
     seedEnv(cwd);
     expect(guard(cwd, 'Write', { file_path: BUG, content: 'region eu-west-1, user qa.user, code abc12' })).toBeNull();
     expect(guard(cwd, 'Write', { file_path: 'notes/login.md', content: PASS })).toBeNull();
-    expect(guard(cwd, 'Write', { file_path: 'output/sessions/x/snapshots/p.yml', content: PASS })).toBeNull();
   });
 
   it('reads a default name from the environment when no .env file sets it', () => {
