@@ -20,7 +20,6 @@
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import {
-  appendFileSync,
   closeSync,
   existsSync,
   lstatSync,
@@ -61,6 +60,7 @@ import {
 } from '../../utils/index-files.js';
 import { parseMarkdownTable, splitTableRow, unescapeTableCell } from '../../utils/markdown-table.js';
 import { detectEol, splitLines } from '../../utils/text-lines.js';
+import { withIndexLock, writeFileAtomic } from '../../utils/locked-write.js';
 import { appendSessionMetricsDeduped } from '../../utils/metrics.js';
 import { readContainedText } from '../../utils/session-paths.js';
 import { assessContract2, MAX_STATS_BYTES, type Contract2Assessment } from '../../session/assess.js';
@@ -423,63 +423,69 @@ export async function runSessionFinalize(
   const finalStats = stats as SessionMetrics;
   const kind = finalStats.kind ?? parsedDirName?.kind ?? '';
 
-  const indexPath = join(sessionsDir, 'INDEX.md');
-  ensureFileWithHeader(indexPath, INDEX_MD_HEADER);
-  const bugsOutputDir = resolve(cwd, 'output', 'bugs');
-  mkdirSync(bugsOutputDir, { recursive: true });
-  const allBugsPath = join(bugsOutputDir, 'all-bugs.md');
-  ensureFileWithHeader(allBugsPath, ALL_BUGS_MD_HEADER);
-
-  const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
-  let indexRowAdded = false;
-  if (tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`)).length === 0) {
-    appendIndexRow({
-      date: finalStats.date,
-      kind,
-      target: finalStats.target,
-      bugs: String(finalStats.bugs_found),
-      duration: `${finalStats.duration_min} min`,
-      status: 'complete',
-      report: `${dirName}/session-report.md`,
-    });
-    indexRowAdded = true;
-  }
-
   const bugs = [...(parsedSession ?? (await parseSession(sessionDir))).bugs].sort((a, b) => compareBugIds(a.id, b.id));
-  const existingBugRows = readAllBugsRows(allBugsPath);
-  const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
-  const bugRowsAdded: string[] = [];
-  for (const bug of bugs) {
-    const reportPath = `${dirName}/bugs/${bug.id}.md`;
-    // Either identification is enough: the id/session pair under the current columns,
-    // the report path under a layout that names them differently.
-    if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
-    if (tableRowsReferencing(allBugsPath, (ref) => ref === reportPath).length) continue;
-    const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
-    const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
-    appendBugRow({
-      id: bug.id,
-      session: dirName,
-      title,
-      severity,
-      status: 'open',
-      report: reportPath,
-    });
-    bugRowsAdded.push(bug.id);
-  }
 
-  warnSplitTable(indexPath, 'INDEX.md', log);
-  warnSplitTable(allBugsPath, 'all-bugs.md', log);
+  // Every index file is read, edited and replaced under one lock, so two runs never
+  // interleave a read-modify-write and a reader never sees half a file.
+  const { indexRowAdded, bugRowsAdded } = withIndexLock(resolve(cwd, 'output'), () => {
+    const indexPath = join(sessionsDir, 'INDEX.md');
+    ensureFileWithHeader(indexPath, INDEX_MD_HEADER);
+    const bugsOutputDir = resolve(cwd, 'output', 'bugs');
+    mkdirSync(bugsOutputDir, { recursive: true });
+    const allBugsPath = join(bugsOutputDir, 'all-bugs.md');
+    ensureFileWithHeader(allBugsPath, ALL_BUGS_MD_HEADER);
 
-  if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats, { areaTiers })) {
-    log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
-  } else {
-    log(
-      chalk.yellow(
-        `  ○ metrics.jsonl already has a line for session_id "${finalStats.session_id}" — not appended again`,
-      ),
-    );
-  }
+    const appendIndexRow = tableRowAppender(indexPath, INDEX_COLUMNS, 'INDEX.md', log);
+    let indexRowAdded = false;
+    if (tableRowsReferencing(indexPath, (ref) => ref.startsWith(`${dirName}/`)).length === 0) {
+      appendIndexRow({
+        date: finalStats.date,
+        kind,
+        target: finalStats.target,
+        bugs: String(finalStats.bugs_found),
+        duration: `${finalStats.duration_min} min`,
+        status: 'complete',
+        report: `${dirName}/session-report.md`,
+      });
+      indexRowAdded = true;
+    }
+
+    const existingBugRows = readAllBugsRows(allBugsPath);
+    const appendBugRow = tableRowAppender(allBugsPath, ALL_BUGS_COLUMNS, 'all-bugs.md', log);
+    const bugRowsAdded: string[] = [];
+    for (const bug of bugs) {
+      const reportPath = `${dirName}/bugs/${bug.id}.md`;
+      // Either identification is enough: the id/session pair under the current columns,
+      // the report path under a layout that names them differently.
+      if (existingBugRows.some((r) => r.id === bug.id && r.session === dirName)) continue;
+      if (tableRowsReferencing(allBugsPath, (ref) => ref === reportPath).length) continue;
+      const title = bug.component ? `[${bug.component}] ${bug.title}` : bug.title;
+      const severity = bug.severity.charAt(0).toUpperCase() + bug.severity.slice(1);
+      appendBugRow({
+        id: bug.id,
+        session: dirName,
+        title,
+        severity,
+        status: 'open',
+        report: reportPath,
+      });
+      bugRowsAdded.push(bug.id);
+    }
+
+    warnSplitTable(indexPath, 'INDEX.md', log);
+    warnSplitTable(allBugsPath, 'all-bugs.md', log);
+
+    if (appendSessionMetricsDeduped(resolve(cwd, 'output'), finalStats, { areaTiers })) {
+      log(chalk.green('  ✓ Metrics appended to output/metrics.jsonl'));
+    } else {
+      log(
+        chalk.yellow(
+          `  ○ metrics.jsonl already has a line for session_id "${finalStats.session_id}" — not appended again`,
+        ),
+      );
+    }
+    return { indexRowAdded, bugRowsAdded };
+  });
 
   const progressPath = join(sessionDir, 'progress.json');
   if (existsSync(progressPath)) {
@@ -1085,7 +1091,7 @@ function renderCarryForward(name: string, assessment: Contract2Assessment, disco
 function ensureFileWithHeader(path: string, header: string): void {
   if (existsSync(path)) return;
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, header);
+  writeFileAtomic(path, header);
 }
 
 // ─── index tables ───────────────────────────────────────────────────
@@ -1233,7 +1239,7 @@ function tableRowAppender(
  */
 function insertTableRow(path: string, row: string): void {
   if (!existsSync(path)) {
-    appendFileSync(path, `${row}\n`);
+    writeFileAtomic(path, `${row}\n`);
     return;
   }
   const content = readFileSync(path, 'utf-8');
@@ -1248,13 +1254,13 @@ function insertTableRow(path: string, row: string): void {
   if (last === -1) {
     // Appended to a file that does not end in a newline, the row would join its last line.
     const lead = content === '' || content.endsWith('\n') ? '' : eol;
-    appendFileSync(path, `${lead}${row}${eol}`);
+    writeFileAtomic(path, `${content}${lead}${row}${eol}`);
     return;
   }
   lines.splice(last + 1, 0, row);
   // A table that ran to the end of a file with no final newline: the row is now last, so end it.
   if (last + 1 === lines.length - 1) lines.push('');
-  writeFileSync(path, lines.join(eol));
+  writeFileAtomic(path, lines.join(eol));
 }
 
 // ─── split tables ───────────────────────────────────────────────────
@@ -1353,38 +1359,43 @@ export function runSessionRepairIndex(
   ];
 
   const files: RepairedIndexFile[] = [];
-  for (const { path, label } of targets) {
-    if (!existsSync(path)) continue;
-    const content = readFileSync(path, 'utf-8');
-    const report = analyseTable(content);
-    const hiddenRows = Math.max(report.total - report.visible, 0);
-    const blankLines = report.blankLines.length;
+  const scan = (): void => {
+    for (const { path, label } of targets) {
+      if (!existsSync(path)) continue;
+      const content = readFileSync(path, 'utf-8');
+      const report = analyseTable(content);
+      const hiddenRows = Math.max(report.total - report.visible, 0);
+      const blankLines = report.blankLines.length;
 
-    if (blankLines === 0) {
-      log(chalk.green(`  ✓ ${label}: nothing to repair`));
-      files.push({ file: label, blankLines, hiddenRows: 0, repaired: false });
-      continue;
-    }
+      if (blankLines === 0) {
+        log(chalk.green(`  ✓ ${label}: nothing to repair`));
+        files.push({ file: label, blankLines, hiddenRows: 0, repaired: false });
+        continue;
+      }
 
-    if (!options.yes) {
+      if (!options.yes) {
+        log(
+          chalk.cyan(
+            `  ${label}: ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) would become visible`,
+          ),
+        );
+        files.push({ file: label, blankLines, hiddenRows, repaired: false });
+        continue;
+      }
+
+      const drop = new Set(report.blankLines);
+      writeFileAtomic(path, splitLines(content).filter((_, i) => !drop.has(i)).join(detectEol(content)));
       log(
-        chalk.cyan(
-          `  ${label}: ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) would become visible`,
+        chalk.green(
+          `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
         ),
       );
-      files.push({ file: label, blankLines, hiddenRows, repaired: false });
-      continue;
+      files.push({ file: label, blankLines, hiddenRows, repaired: true });
     }
-
-    const drop = new Set(report.blankLines);
-    writeFileSync(path, splitLines(content).filter((_, i) => !drop.has(i)).join(detectEol(content)));
-    log(
-      chalk.green(
-        `  ✓ ${label}: removed ${blankLines} blank line(s) between table rows; ${hiddenRows} row(s) now visible`,
-      ),
-    );
-    files.push({ file: label, blankLines, hiddenRows, repaired: true });
-  }
+  };
+  // A rewrite reads and writes under the index lock; a dry run only reads, and creates nothing.
+  if (options.yes && targets.some((t) => existsSync(t.path))) withIndexLock(resolve(cwd, 'output'), scan);
+  else scan();
 
   if (files.length === 0) {
     log(chalk.yellow('  No output/sessions/INDEX.md or output/bugs/all-bugs.md found.'));
@@ -1572,10 +1583,12 @@ export function runSessionArchive(
   let removed = false;
   if (options.remove) {
     rmSync(sessionDir, { recursive: true, force: true });
-    setIndexRowStatus(join(sessionsDir, 'INDEX.md'), dirName, 'archived');
-    // The bug reports these rows link to left with the directory; the INDEX.md row
-    // stays, marked archived, and names the session the archive holds.
-    removeTableRows(resolve(cwd, 'output', 'bugs', 'all-bugs.md'), sessionRowMatchers(dirName).bugs);
+    withIndexLock(resolve(cwd, 'output'), () => {
+      setIndexRowStatus(join(sessionsDir, 'INDEX.md'), dirName, 'archived');
+      // The bug reports these rows link to left with the directory; the INDEX.md row
+      // stays, marked archived, and names the session the archive holds.
+      removeTableRows(resolve(cwd, 'output', 'bugs', 'all-bugs.md'), sessionRowMatchers(dirName).bugs);
+    });
     removed = true;
     log(chalk.green(`  ✓ Removed ${dirName} (INDEX.md row marked archived, all-bugs.md rows removed)`));
   }
@@ -1601,7 +1614,7 @@ function setIndexRowStatus(indexPath: string, dirName: string, status: string): 
     inner[statusIdx] = status;
     return `| ${inner.join(' | ')} |`;
   });
-  writeFileSync(indexPath, updated.join(detectEol(content)));
+  writeFileAtomic(indexPath, updated.join(detectEol(content)));
 }
 
 // ─── delete ─────────────────────────────────────────────────────────
@@ -1678,8 +1691,10 @@ function performDelete(cwd: string, sessionDir: string): void {
   const indexPath = join(cwd, 'output', 'sessions', 'INDEX.md');
   const allBugsPath = join(cwd, 'output', 'bugs', 'all-bugs.md');
   const rows = sessionRowMatchers(dirName);
-  removeTableRows(indexPath, rows.index);
-  removeTableRows(allBugsPath, rows.bugs);
+  withIndexLock(join(cwd, 'output'), () => {
+    removeTableRows(indexPath, rows.index);
+    removeTableRows(allBugsPath, rows.bugs);
+  });
 }
 
 /** Which index rows belong to a session: its INDEX.md row and its all-bugs.md rows, by Report path. */
@@ -1702,7 +1717,7 @@ function removeTableRows(filePath: string, matches: (ref: string) => boolean): v
   const isMatch = referenceMatcher(filePath, matches);
   const drop = new Set(tableRowLines(lines).filter((r) => isMatch(r.text)).map((r) => r.index));
   if (drop.size === 0) return;
-  writeFileSync(filePath, lines.filter((_, i) => !drop.has(i)).join(detectEol(content)));
+  writeFileAtomic(filePath, lines.filter((_, i) => !drop.has(i)).join(detectEol(content)));
 }
 
 function dirStats(dir: string): { fileCount: number; totalBytes: number } {
