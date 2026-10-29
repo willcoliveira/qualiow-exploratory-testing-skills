@@ -958,9 +958,46 @@ function safePath(path: string): string {
   return cleaned.length > MAX_PATH_CHARS ? `${cleaned.slice(0, MAX_PATH_CHARS - 1)}…` : cleaned;
 }
 
-/** The fence markers, wherever they appear inside the data, so data cannot imitate one. */
+/** Cyrillic and Greek letters that read as Latin ones, mapped to the letter they imitate. */
+const CONFUSABLES: Readonly<Record<string, string>> = {
+  // Cyrillic capitals and small letters
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', У: 'Y', Х: 'X',
+  Ѕ: 'S', І: 'I', Ј: 'J', Ү: 'Y',
+  а: 'a', е: 'e', к: 'k', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', ѕ: 's', і: 'i', ј: 'j', һ: 'h',
+  ԁ: 'd', ԛ: 'q', ԝ: 'w',
+  // Greek capitals and small letters
+  Α: 'A', Β: 'B', Ε: 'E', Ζ: 'Z', Η: 'H', Ι: 'I', Κ: 'K', Μ: 'M', Ν: 'N', Ο: 'O', Ρ: 'P', Τ: 'T',
+  Υ: 'Y', Χ: 'X',
+  α: 'a', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', υ: 'u', χ: 'x',
+  // Latin look-alikes NFKC keeps
+  ı: 'i', ȷ: 'j',
+};
+const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLES).join('')}]`, 'gu');
+
+/**
+ * `text` as a reader sees it: compatibility forms folded (NFKC — fullwidth and
+ * mathematical letters), combining marks dropped, Cyrillic and Greek look-alikes mapped to
+ * the Latin letters they imitate.
+ */
+function foldConfusables(text: string): string {
+  return text
+    .normalize('NFKC')
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .replace(CONFUSABLE_RE, (c) => CONFUSABLES[c] ?? c);
+}
+
+/**
+ * Data cannot imitate a fence marker: a line that, folded, says UNTRUSTED or
+ * PRIOR-SESSION (any case, any dash or spacing between the two words, or the shared
+ * phrase with its letters split apart) is replaced whole.
+ */
 function neutraliseMarkers(line: string): string {
-  return line.replaceAll(UNTRUSTED_CLOSE, '[marker removed]').replaceAll(UNTRUSTED_OPEN, '[marker removed]');
+  const folded = foldConfusables(line).toUpperCase();
+  const letters = folded.replace(/[^A-Z]/g, '');
+  const imitates =
+    /UNTRUSTED|PRIOR[\s\p{Pd}_.]*SESSION/u.test(folded) || letters.includes('UNTRUSTEDPRIORSESSION');
+  return imitates ? '[marker removed]' : line;
 }
 
 /**
