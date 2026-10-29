@@ -209,6 +209,9 @@ Every passing `finalize`, of any kind, writes `evidence-manifest.json`: each fil
 live re-run ends with `REPRO_COMMANDS:` (the judge's own commands, `-s=<sid>`, no credential),
 and the shipped bug's `## Verification` points at it with a `Replay:` line.
 
+A passing contract-2 explore `finalize` also writes `carry-forward.json` (CLI-written, never by
+hand): the SHA-256 of the files `--continue` carries forward — tamper detection, not a signature.
+
 The row in `output/sessions/INDEX.md`
 (`| Date | Kind | Target | Bugs | Duration | Status | Report |`), the entries in
 `output/bugs/all-bugs.md` and the `output/metrics.jsonl` line are written by
