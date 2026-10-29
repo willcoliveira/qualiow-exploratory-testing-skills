@@ -112,6 +112,8 @@ export type JudgeVerdict =
 export interface ParsedVerdict {
   verdict: JudgeVerdict | 'UNKNOWN';
   verdictRaw: string;
+  /** Set when the file has more than one `VERDICT:` line; `verdict` is then `UNKNOWN`. */
+  duplicateVerdict?: true;
   /** True when the block was fenced; the one-line `VERDICT: UNVERIFIED (…)` form is not. */
   fenced: boolean;
   method?: string;

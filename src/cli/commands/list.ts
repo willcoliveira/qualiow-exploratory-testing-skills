@@ -8,7 +8,8 @@ import type { TargetConfig, DomainConfig } from '../../types/index.js';
 import { parseMarkdownTable } from '../../utils/markdown-table.js';
 import { INDEX_COLUMNS } from '../../utils/index-files.js';
 import { describeSessionDir, type DiscoveredSessionDir } from '../../utils/session-dir.js';
-import { resolveDataDir } from '../../utils/paths.js';
+import { resolveDataDir, resolveCustomEntryFiles } from '../../utils/paths.js';
+import { loadCustomEntries, parseCustomEntry } from './kb.js';
 import { KnowledgeManifestSchema } from '../../schemas/knowledge-manifest.schema.js';
 import { KnowledgeChangelogSchema } from '../../schemas/knowledge-changelog.schema.js';
 
@@ -123,7 +124,7 @@ function listSessions(cwd: string, log: (line: string) => void): void {
   const sessionsDir = resolve(cwd, 'output', 'sessions');
   const indexPath = join(sessionsDir, 'INDEX.md');
   if (!existsSync(sessionsDir)) {
-    log(chalk.yellow('No sessions directory. Run `npx qualiow init` first, then start a session.'));
+    log(chalk.yellow('No sessions directory. Run `qualiow init` first, then start a session.'));
     return;
   }
 
@@ -169,7 +170,7 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   const knowledgeDir = join(dataDir, 'knowledge');
   const manifestPath = join(knowledgeDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
-    log(chalk.yellow(`No knowledge base at ${manifestPath}. Run \`npx qualiow init\` first.`));
+    log(chalk.yellow(`No knowledge base at ${manifestPath}. Run \`qualiow init\` first.`));
     return;
   }
 
@@ -177,8 +178,10 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
     parseYaml(readFileSync(manifestPath, 'utf-8')),
   );
 
+  const customFiles = resolveCustomEntryFiles(cwd, dataDir);
+
   if (options.entry) {
-    log(readEntryFile(knowledgeDir, manifest.entries, options.entry));
+    log(readEntryFile(knowledgeDir, manifest.entries, options.entry, customFiles));
     return;
   }
 
@@ -199,7 +202,7 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   if (filesOnDisk !== manifest.entries.length || manifest.stats.total_entries !== filesOnDisk) {
     log(
       chalk.yellow(
-        `  ⚠ Registry (${manifest.entries.length}) / stats (${manifest.stats.total_entries}) disagree with ${filesOnDisk} entry files — run: npx qualiow kb sync`,
+        `  ⚠ Registry (${manifest.entries.length}) / stats (${manifest.stats.total_entries}) disagree with ${filesOnDisk} entry files — run: qualiow kb sync`,
       ),
     );
   }
@@ -210,33 +213,40 @@ function listKnowledge(cwd: string, options: ListOptions, log: (line: string) =>
   if (options.type) filters.push(`type ${options.type}`);
 
   // `domains: [all]` marks an entry that applies to every domain.
-  const entries = manifest.entries.filter(
-    (e) =>
-      (!options.domain || e.domains.includes(options.domain) || e.domains.includes('all')) &&
-      (!options.tag || e.tags.includes(options.tag)) &&
-      (!options.type || e.type === options.type),
-  );
+  const matches = (e: { domains: string[]; tags: string[]; type: string }): boolean =>
+    (!options.domain || e.domains.includes(options.domain) || e.domains.includes('all')) &&
+    (!options.tag || e.tags.includes(options.tag)) &&
+    (!options.type || e.type === options.type);
+  const entries = manifest.entries.filter(matches);
+
+  // Custom entries: the project's own (`/qa-knowledge-add`), listed under the same filters.
+  // One that fails the entry schema is skipped with a warning on stderr.
+  const custom = loadCustomEntries(customFiles)
+    .map(({ entry }) => entry)
+    .filter((e) => matches(e));
 
   if (filters.length) {
-    log(chalk.white(`  Filter: ${filters.join(', ')} → ${entries.length} entries`));
+    log(chalk.white(`  Filter: ${filters.join(', ')} → ${entries.length + custom.length} entries`));
   }
   log('');
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && custom.length === 0) {
     log(chalk.yellow('  No entries match that filter.'));
     log('');
     return;
   }
 
-  const grouped = new Map<string, typeof entries>();
+  const grouped = new Map<string, { id: string; priority: string; tags: string[] }[]>();
   for (const entry of entries) {
-    const list = grouped.get(entry.type) ?? [];
+    const label = `${entry.type.charAt(0).toUpperCase() + entry.type.slice(1)}s`;
+    const list = grouped.get(label) ?? [];
     list.push(entry);
-    grouped.set(entry.type, list);
+    grouped.set(label, list);
   }
+  if (custom.length) grouped.set('Custom entries', custom);
 
-  for (const [type, group] of grouped) {
-    log(chalk.cyan(`  ${type.charAt(0).toUpperCase() + type.slice(1)}s (${group.length}):`));
+  for (const [label, group] of grouped) {
+    log(chalk.cyan(`  ${label} (${group.length}):`));
     for (const entry of group) {
       const priorityColor =
         entry.priority === 'high' ? chalk.red : entry.priority === 'medium' ? chalk.yellow : chalk.white;
@@ -252,17 +262,16 @@ function readEntryFile(
   knowledgeDir: string,
   entries: { id: string; file: string }[],
   id: string,
+  customFiles: { id: string; file: string }[],
 ): string {
   const meta = entries.find((e) => e.id === id);
-  // An id outside the manifest becomes a file name under custom/ — keep it one plain name so
+  // An id outside the manifest is looked up among the custom files by exact name, so
   // `--entry ../../x` cannot read a .yml file elsewhere on disk.
-  if (!meta && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+  const path = meta ? join(knowledgeDir, meta.file) : customFiles.find((c) => c.id === id)?.file;
+  if (!path || !existsSync(path)) {
     throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
   }
-  const path = meta ? join(knowledgeDir, meta.file) : join(knowledgeDir, 'custom', `${id}.yml`);
-  if (!existsSync(path)) {
-    throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
-  }
+  if (!meta) parseCustomEntry(path); // a custom entry asked for by name is held to the schema
   return readFileSync(path, 'utf-8').trimEnd();
 }
 
@@ -323,7 +332,7 @@ function printKnowledgeStats(manifest: ParsedManifest, log: (line: string) => vo
 function listTargets(cwd: string): void {
   const targetsDir = resolve(cwd, 'data', 'targets');
   if (!existsSync(targetsDir)) {
-    console.log(chalk.yellow('No targets found. Run `npx qualiow init` first.'));
+    console.log(chalk.yellow('No targets found. Run `qualiow init` first.'));
     return;
   }
 
@@ -363,7 +372,7 @@ function listTargets(cwd: string): void {
 function listDomains(cwd: string): void {
   const domainsDir = resolve(cwd, 'data', 'domains');
   if (!existsSync(domainsDir)) {
-    console.log(chalk.yellow('No domain configs found. Run `npx qualiow init` first.'));
+    console.log(chalk.yellow('No domain configs found. Run `qualiow init` first.'));
     return;
   }
 

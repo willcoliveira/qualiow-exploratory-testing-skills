@@ -6,6 +6,15 @@ artefact uses the format in
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/output-contract.md` (confidentiality header
 first). The mobile differences (both modes):
 
+## Verification is off on mobile (ADR-013)
+
+Run that phase in its **`off` mode** whatever the target or the command line says: the bug
+judge is web-only and mobile verification is deferred. Write each bug straight to
+`bugs/BUG-NNN.md`, skip **Verify Bugs** and **Finalize Bug Reports**, create no
+`verification/` or `bugs/refuted/`, and leave the `**Verification:**` line,
+`## Refuted Findings` and `coverage.verification` out. Log
+`[<timestamp>] [VERIFY] verification off (mobile) — bugs ship unverified`.
+
 ## Stop recording
 
 Replace `video-stop` / `tracing-stop` with:

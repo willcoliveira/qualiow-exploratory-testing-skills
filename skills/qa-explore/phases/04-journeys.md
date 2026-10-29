@@ -1,6 +1,8 @@
 # Phase 4: End-to-End User Journeys (10 min)
 
-**Goal:** Test the critical user journeys you defined in the charter -- end to end, crossing multiple features.
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
+**Goal:** Test the critical user journeys you defined in the charter -- end to end, crossing multiple features. In read-only mode, fill but never submit.
 
 This is NOT feature-by-feature testing. This is "walk through the app as a real user would."
 
@@ -8,7 +10,8 @@ This is NOT feature-by-feature testing. This is "walk through the app as a real 
 
 ### 1. Execute the Happy Path First
 
-Complete the full journey with valid data.
+Complete the full journey with valid data. In read-only mode, walk it up to the first
+state-changing submit and verify the data the app already shows instead.
 
 ### 2. Verify Data at Every Step
 

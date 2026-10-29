@@ -69,6 +69,39 @@ const REDACT_CASES: [string, string][] = [
   ['Authorization: Basic dXNlcjpzdXBlcnNlY3JldA== (see [JWT_REDACTED])', 'Authorization: [REDACTED]'],
   ['password=hunter2[REDACTED]', 'password=[REDACTED]'],
   ['Cookie: sid=abc123 [REDACTED]', 'Cookie: [REDACTED]'],
+  // 9. Form fields: a bracketed key, raw or percent-encoded, and a credential suffix
+  ['user[password]=hunter2', 'user[password]=[REDACTED]'],
+  ['user%5Bpassword%5D=hunter2&next=1', 'user%5Bpassword%5D=[REDACTED]'],
+  ['password_confirmation=hunter2', 'password_confirmation=[REDACTED]'],
+  ['{"passwordConfirmation":"hunter2"}', '{"passwordConfirmation":"[REDACTED]"}'],
+  ['user[password_confirm]=hunter2', 'user[password_confirm]=[REDACTED]'],
+  ['{"passwordAgain":"hunter2"}', '{"passwordAgain":"[REDACTED]"}'],
+  ['password-repeat: hunter2', 'password-repeat: [REDACTED]'],
+  ['"password_new": "hunter2"', '"password_new": "[REDACTED]"'],
+  ['passwordOld=hunter2', 'passwordOld=[REDACTED]'],
+  ['current_password=x1&password_current=hunter2', 'current_password=[REDACTED]'],
+  ['"pwd_hash": "5f4dcc3b5aa765d6"', '"pwd_hash": "[REDACTED]"'],
+  ['password2=hunter2', 'password2=[REDACTED]'],
+  ['pass=hunter2&remember=1', 'pass=[REDACTED]'],
+  ['QA_PASS=hunter22', 'QA_PASS=[REDACTED]'],
+  ['{"user":"qa","pass":"hunter2"}', '{"user":"qa","pass":"[REDACTED]"}'],
+  ['pass=482916', 'pass=[REDACTED]'],
+  ['passcode: 482916', 'passcode: [REDACTED]'],
+  ['passphrase="correct horse"', 'passphrase="[REDACTED]"'],
+  // 10. Encoded quotes and separators: HTML entities, percent-encoded JSON
+  ['&quot;password&quot;:&quot;hunter2&quot;', '&quot;password&quot;:&quot;[REDACTED]&quot;'],
+  ['%22password%22%3A%22hunter2%22', '%22password%22%3A%22[REDACTED]%22'],
+  ['next%3D%2Flogin%3Fpassword%3Dhunter2', 'next%3D%2Flogin%3Fpassword%3D[REDACTED]'],
+  // 11. An XML element
+  ['<password>hunter2</password>', '<password>[REDACTED]</password>'],
+  ['<ns:Password type="text">correct horse</ns:Password>', '<ns:Password type="text">[REDACTED]</ns:Password>'],
+  ['<api_key>abcd1234efgh</api_key>', '<api_key>[REDACTED]</api_key>'],
+  // 12. A markdown table cell, and cookie attributes before the pair
+  ['| x-api-key | abcd1234efgh |', '| x-api-key | [REDACTED] |'],
+  ['| Authorization | Basic dXNlcjpwYXNz |', '| Authorization | [REDACTED] |'],
+  ['| authorization | tok_abc123def |', '| authorization | [REDACTED] |'],
+  ['Set-Cookie: Secure; sid=abc123', 'Set-Cookie: [REDACTED]'],
+  ['Set-Cookie: Secure; HttpOnly; Path=/; sid=abc123', 'Set-Cookie: [REDACTED]'],
 ];
 
 // Prose, placeholders and benign key/values that must come through untouched.
@@ -92,6 +125,36 @@ const CLEAN_CASES = [
   'contact support@example.com for help',
   'the secret sauce of exploratory testing',
   'secret_question: what is your pet',
+  // Words that contain or sit next to the new keys, and their placeholders
+  'the password field is masked',
+  'the passcode screen appears after login',
+  'the token was rejected',
+  'a passwordless login flow',
+  // A password-related setting is not a password
+  '"password_min_length": 8',
+  'password_policy: strong',
+  '{"passwordStrength":"weak"}',
+  'password_reset_url: https://example.com/reset',
+  'bypass=true',
+  'compass: north',
+  'trespass=no',
+  'Pass: 12, Fail: 3',
+  'pass=12 fail=0',
+  '| Pass | 12 |',
+  '| API key | Required |',
+  '| Authorization | required |',
+  '| Authorization | missing (401) |',
+  'user[password]=[REDACTED]',
+  'user%5Bpassword%5D=[REDACTED]',
+  '&quot;password&quot;:&quot;[REDACTED]&quot;',
+  '%22password%22%3A%22[REDACTED]%22',
+  '<password>[REDACTED]</password>',
+  'type the <token> placeholder',
+  'send the <token> header with every call\n\n</details>',
+  'the <password> field</p>',
+  '<li>paste the <api_key> you were given</li>',
+  '| x-api-key | [REDACTED] |',
+  'Set-Cookie: [REDACTED]',
 ];
 
 describe('redact hardening', () => {
@@ -170,10 +233,29 @@ describe('patterns stay linear on adversarial input', () => {
     'Bearer '.repeat(28000),
     '-----BEGIN PRIVATE KEY-----'.repeat(7000),
     '-----BEGIN PRIVATE KEY-----\n' + 'A'.repeat(200000),
+    'password'.repeat(25000),
+    'passwordConfirmation'.repeat(10000),
+    'password' + 'a'.repeat(200000),
+    'pass='.repeat(40000),
+    'QA_PASS="'.repeat(22000),
+    'user[password]='.repeat(13000),
+    'user%5Bpassword%5D='.repeat(10000),
+    '&quot;password&quot;:'.repeat(9000),
+    '%22password%22%3A'.repeat(11000),
+    '<password>'.repeat(20000),
+    '<password ' + 'a'.repeat(200000),
+    '<password>' + 'a'.repeat(200000),
+    '| x-api-key | '.repeat(14000),
+    '| x-api-key | ' + '1'.repeat(200000),
+    '| authorization | '.repeat(11000),
+    'Set-Cookie: a; '.repeat(13000),
+    'cookie: ' + 'a;'.repeat(100000),
   ];
 
-  // Generous enough for a loaded CI box; a quadratic pattern takes seconds on these.
-  const BUDGET_MS = 100;
+  // A loaded CI runner is several times slower than a laptop (a 20 ms rule has taken
+  // 128 ms there); a quadratic pattern takes 4–16 s on these inputs, so 1 s still tells
+  // the two apart.
+  const BUDGET_MS = 1000;
 
   it.each(REDACTION_PATTERNS.map((r, i) => [i, r.name] as const))('rule %i (%s)', (i) => {
     const { pattern } = REDACTION_PATTERNS[i];
@@ -190,7 +272,7 @@ describe('patterns stay linear on adversarial input', () => {
       const t = performance.now();
       redact(input);
       findSecretCategories(input);
-      expect(performance.now() - t).toBeLessThan(BUDGET_MS * 5);
+      expect(performance.now() - t).toBeLessThan(BUDGET_MS * 3);
     }
   });
 });

@@ -26,8 +26,15 @@ commands and their read-only forms (`playwright-cli`, `npx playwright-cli`,
 `node` are not granted — anything else prompts. `playwright-cli run-code` runs its code in the
 Playwright node process, not the browser sandbox: the plugin's bash guard has the user confirm
 every call, and the code must never contain text taken from page content (use `eval` for
-in-page reads). The same guard denies `npx -c` and `npx -y`/`-p` of an unlisted package, and
-asks before `git -c`, `--upload-pack` or `--output` (`QUALIOW_HOOKS=off` disables it).
+in-page reads). The same guard asks before `playwright-cli upload` of anything but synthetic
+fixtures under `output/sessions/<session>/evidence/fixtures/`, before `state-save` outside
+`.auth/`, before a subcommand or command name built by shell expansion, before git options that
+run a program (`-c`, `-O`, `--upload-pack`, `--output`, …), an environment assignment next to
+git, or a `git -C` subcommand outside the read-only ones; it denies `npx -c`, `npx` of an
+unlisted package that is not already installed, and alias, git, file and URL package specs.
+The write guard asks before a change to `qa/target.yml`, `data/targets/`, `qa/hooks/`,
+`.claude/settings*.json` or `.mcp.json` and keeps each sub-agent to its own output directory;
+the read guard keeps `qa-bug-judge` to its claim card and evidence.
 
 ## Production Detection (one rule)
 

@@ -1,5 +1,7 @@
 # Phase 4: End-to-End Trigger
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Covers the "verified in environment" style of AC: a real change through the real write
 path, then re-probe the data layer.
 

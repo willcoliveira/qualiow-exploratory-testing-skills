@@ -6,6 +6,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { normalizeEol, splitLines } from './text-lines.js';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -72,6 +73,38 @@ function normalizeSeverity(raw: string): ParsedBug['severity'] {
   return 'medium';
 }
 
+// ─── Bug ids ────────────────────────────────────────────────────────
+
+/** A run of digits without its zero padding, for comparing by value. */
+function digitValue(run: string): string {
+  return run.replace(/^0+(?=\d)/, '');
+}
+
+/**
+ * Orders bug ids the way they are numbered: `BUG-999` before `BUG-1000`,
+ * `BUG-R2-002` before `BUG-R2-010`. Runs of digits compare by value, everything
+ * else by code point — never by locale, so the order is the same on every machine.
+ */
+export function compareBugIds(a: string, b: string): number {
+  const pa = a.match(/\d+|\D+/g) ?? [];
+  const pb = b.match(/\d+|\D+/g) ?? [];
+  for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+    const x = pa[i];
+    const y = pb[i];
+    if (x === y) continue;
+    if (/^\d/.test(x) && /^\d/.test(y)) {
+      const vx = digitValue(x);
+      const vy = digitValue(y);
+      if (vx.length !== vy.length) return vx.length - vy.length;
+      if (vx !== vy) return vx < vy ? -1 : 1;
+      // Same value, different padding: the shorter spelling first.
+      return x.length - y.length;
+    }
+    return x < y ? -1 : 1;
+  }
+  return pa.length - pb.length;
+}
+
 // ─── Section extraction ─────────────────────────────────────────────
 
 /**
@@ -79,7 +112,7 @@ function normalizeSeverity(raw: string): ParsedBug['severity'] {
  * given prefix. Searches for both ## and ### level headings.
  */
 export function extractSection(content: string, headingPrefix: string): string {
-  const lines = content.split('\n');
+  const lines = splitLines(content);
   let capturing = false;
   let capturedLevel = 0;
   const captured: string[] = [];
@@ -117,7 +150,7 @@ export function extractSection(content: string, headingPrefix: string): string {
  */
 export function extractNumberedList(text: string): string[] {
   const steps: string[] = [];
-  const lines = text.split('\n');
+  const lines = splitLines(text);
 
   for (const line of lines) {
     const match = line.match(/^\d+\.\s+(.+)$/);
@@ -156,7 +189,7 @@ function extractEvidence(content: string): ParsedBug['evidence'] {
   const evidenceText = extractSection(content, 'Evidence');
   if (!evidenceText) return evidence;
 
-  for (const line of evidenceText.split('\n')) {
+  for (const line of splitLines(evidenceText)) {
     const trimmed = line.replace(/^[-*]\s*/, '').trim();
     const value = () => {
       const m = trimmed.match(/:\s*(.+)/);
@@ -191,7 +224,8 @@ function extractEvidence(content: string): ParsedBug['evidence'] {
  * Parses a single bug report markdown file into structured data.
  */
 export async function parseBugReport(filePath: string): Promise<ParsedBug> {
-  const content = readFileSync(filePath, 'utf-8');
+  // Normalised on read: the field patterns below assume LF line ends.
+  const content = normalizeEol(readFileSync(filePath, 'utf-8'));
   const filename = basename(filePath, '.md');
 
   // Extract ID from filename (e.g. BUG-R2-001, BUG-001)
@@ -313,14 +347,14 @@ export async function parseSession(sessionDir: string): Promise<ParsedSession> {
   let charter: string | undefined;
   const charterPath = join(sessionDir, 'charter.md');
   if (existsSync(charterPath)) {
-    charter = readFileSync(charterPath, 'utf-8');
+    charter = normalizeEol(readFileSync(charterPath, 'utf-8'));
   }
 
   // Read session report if present
   let report: string | undefined;
   const reportPath = join(sessionDir, 'session-report.md');
   if (existsSync(reportPath)) {
-    report = readFileSync(reportPath, 'utf-8');
+    report = normalizeEol(readFileSync(reportPath, 'utf-8'));
   }
 
   // Read phase files
@@ -329,7 +363,7 @@ export async function parseSession(sessionDir: string): Promise<ParsedSession> {
     const files = readdirSync(sessionDir);
     const phaseFiles = files.filter((f) => /^phase-\d+/i.test(f)).sort();
     for (const file of phaseFiles) {
-      const content = readFileSync(join(sessionDir, file), 'utf-8');
+      const content = normalizeEol(readFileSync(join(sessionDir, file), 'utf-8'));
       const name = file.replace(/\.md$/, '');
       phases.push({ name, content });
     }
@@ -342,7 +376,7 @@ export async function parseSession(sessionDir: string): Promise<ParsedSession> {
   if (existsSync(bugsDir)) {
     const bugFiles = readdirSync(bugsDir)
       .filter((f) => /^BUG-.*\.md$/i.test(f))
-      .sort();
+      .sort(compareBugIds);
 
     for (const file of bugFiles) {
       const bug = await parseBugReport(join(bugsDir, file));

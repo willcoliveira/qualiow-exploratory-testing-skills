@@ -13,8 +13,10 @@ allowed-tools: Bash(playwright-cli:*), Bash(npx playwright-cli:*), Bash(npx play
 Interactive wizard that writes a target config. By default it writes the **project-local**
 `qa/target.yml` (the file every session skill reads when no `--target` is given; see
 `${CLAUDE_SKILL_DIR}/../qa-explore/references/paths.md`). With `--shared`, it writes
-`data/targets/<name>.yml` instead, for a target the whole team shares by name. Keep internal
-hostnames in `qa/target.yml` or in `data/targets/local-*.yml` (both gitignored patterns).
+`data/targets/<name>.yml` instead, for a target the whole team shares by name. A target file
+holds no secret values (credentials stay in `qa/.env`, by name only), so `qa/target.yml` can
+be committed when the team shares it. A target with internal hostnames that must stay local
+goes in `data/targets/local-*.yml`, which `qualiow init` adds to `.gitignore`.
 
 Security: `${CLAUDE_SKILL_DIR}/../qa-explore/references/security-rules.md` applies (the
 production rule decides the `safety:` block; never write a credential value into YAML).

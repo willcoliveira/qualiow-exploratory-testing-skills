@@ -76,7 +76,7 @@ To write it by hand instead, this is the whole of it:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs\"" }
         ]
@@ -485,7 +485,10 @@ qualiow session prune --older-than 30        # dry-run; add --yes to remove
 
 `qualiow explore [url]` is **pre-flight only**: it validates the inputs, creates the session
 directory, and prints the `/qa-explore … --session <dir>` command to run inside Claude Code.
-It does not drive a browser itself.
+It does not drive a browser itself. It also warns — without a network call — when
+`playwright-cli` is not installed, no Google Chrome or Playwright Chromium is found, the guard
+hooks are not registered, or the `permissions.allow` rules `qualiow init --hooks` adds are
+missing. It refuses a session directory that already exists.
 
 There is no `qualiow gather` — it was removed in 2.0.0. Use the `/qa-gather` skill.
 

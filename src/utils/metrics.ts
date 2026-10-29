@@ -1,5 +1,7 @@
-import { readFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { splitLines } from './text-lines.js';
+import { withIndexLock, writeFileAtomic } from './locked-write.js';
 import {
   AREA_STATUSES,
   RISK_TIERS,
@@ -69,6 +71,7 @@ export function reduceForMetrics(
  * Appends a single session metrics record to the JSONL file.
  * Creates the output directory and file if they do not exist.
  * A contract-2 record is reduced first (`reduceForMetrics`).
+ * The file is rewritten whole — a temporary file renamed over it — under the index lock.
  */
 export function appendSessionMetrics(
   outputDir: string,
@@ -82,14 +85,13 @@ export function appendSessionMetrics(
   SessionMetricsRecordSchema.parse(record);
 
   const filePath = join(outputDir, METRICS_FILENAME);
-  const dir = dirname(filePath);
-
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-
   const line = JSON.stringify(record) + '\n';
-  appendFileSync(filePath, line, 'utf-8');
+  withIndexLock(dirname(filePath), () => {
+    const existing = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '';
+    // A last line without its newline would otherwise run into this one.
+    const lead = existing === '' || existing.endsWith('\n') ? '' : '\n';
+    writeFileAtomic(filePath, `${existing}${lead}${line}`);
+  });
 }
 
 /**
@@ -108,7 +110,7 @@ export function readAllMetrics(outputDir: string): SessionMetricsRecord[] {
     return [];
   }
 
-  const lines = content.split('\n');
+  const lines = splitLines(content);
   const results: SessionMetricsRecord[] = [];
 
   for (const line of lines) {
@@ -127,16 +129,21 @@ export function readAllMetrics(outputDir: string): SessionMetricsRecord[] {
   return results;
 }
 
-/** Appends metrics only when the session_id has not been recorded yet. */
+/**
+ * Appends metrics only when the session_id has not been recorded yet. The check and
+ * the append happen under one lock, so two runs cannot both find the id missing.
+ */
 export function appendSessionMetricsDeduped(
   outputDir: string,
   metrics: SessionMetrics,
   opts: { areaTiers?: Record<string, RiskTier> } = {},
 ): boolean {
-  const existing = readAllMetrics(outputDir);
-  if (existing.some((m) => m.session_id === metrics.session_id)) {
-    return false;
-  }
-  appendSessionMetrics(outputDir, metrics, opts);
-  return true;
+  return withIndexLock(outputDir, () => {
+    const existing = readAllMetrics(outputDir);
+    if (existing.some((m) => m.session_id === metrics.session_id)) {
+      return false;
+    }
+    appendSessionMetrics(outputDir, metrics, opts);
+    return true;
+  });
 }

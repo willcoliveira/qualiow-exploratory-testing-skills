@@ -1,5 +1,7 @@
 # Phase 1: Authentication (mode-aware)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 In both modes there is **NO transferable `storage_state` you can inject** — auth happens on
 the device. Pick the branch by the target's `auth.strategy`:
 

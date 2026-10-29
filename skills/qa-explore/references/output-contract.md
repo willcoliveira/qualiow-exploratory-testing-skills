@@ -37,7 +37,9 @@ session report, coverage map, AC matrix, expected-behaviour spec):
 | `evidence-level.md` | contract 2 only — written by `qualiow session level <dir> --write`, never by hand: the coverage level overall and per risk tier, the findings line, the gaps and the "To raise this level" list. Its body is copied verbatim into the report's `## Coverage Level` |
 | `backlog.md` | contract 2 only — rendered by the same command from the `coverage.areas` entries that are not `tested`; never hand-written. The only part of a session `--continue` carries forward, through `qualiow session continue-check` |
 | `evidence-manifest.json` | every session kind — written by `qualiow session finalize` on each passing run, never by hand: `{ "generated_by": "qualiow session finalize", "files": [{ "path", "size", "sha256", "scan" }] }`, one entry per file under `screenshots/`, `videos/`, `traces/`, `logs/` and `evidence/`, sorted by path. `scan` is `text-clean` (a text file that passed the secret scan) or `binary-not-scanned` (images, video, archives such as a trace — nobody has vouched for their contents). A record of what was there and what was checked, not a signature |
+| `carry-forward.json` | contract-2 explore only — written by `qualiow session finalize` on each passing run, never by hand: the SHA-256 of `charter.md`, `phase-3-discovery.md` and `stats.json`, the files `qualiow session continue-check` carries forward; `finalize --check` refuses a session whose files no longer match it. Tamper detection, not a signature |
 | mobile: `logs/BUG-NNN.log` · backend: `ac-matrix.md`, `evidence/`, `probes/`, `expected-behaviour.md` | as produced |
+| `feedback.md` | `/qa-explore-feedback`, after the session — the reviewer's severity changes, false positives and missed bugs. The only file written into a finalized session, whose other files are never edited |
 
 The coverage map lives inside `session-report.md`. There is no separate session-level
 `coverage-map.md`; `/qa-explore-report` can export one on request.
@@ -162,7 +164,6 @@ and never renumbered: a gap in `bugs/` means that candidate moved to `bugs/refut
 | Metric | Count |
 |---|---|
 | Pages explored | |
-| Actions performed | |
 | Bugs — Critical | |
 | Bugs — High | |
 | Bugs — Medium | |

@@ -1,11 +1,11 @@
 import { Command } from 'commander';
 import { resolve, join } from 'node:path';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import chalk from 'chalk';
 import { parse as parseYaml } from 'yaml';
 import type { z } from 'zod';
 import { syncKnowledgeManifest } from '../../utils/kb-sync.js';
-import { resolveDataDir } from '../../utils/paths.js';
+import { resolveDataDir, resolveCustomEntryFiles } from '../../utils/paths.js';
 import { KnowledgeManifestSchema } from '../../schemas/knowledge-manifest.schema.js';
 import { KnowledgeEntrySchema } from '../../schemas/knowledge-entry.schema.js';
 
@@ -43,7 +43,7 @@ export function kbCommand(): Command {
       try {
         const result = runKb('check', process.cwd());
         if (result.changed) {
-          console.error(chalk.red('  ✗ manifest.yml is out of sync — run: npx qualiow kb sync'));
+          console.error(chalk.red('  ✗ manifest.yml is out of sync — run: qualiow kb sync'));
           process.exit(1);
         }
         console.log(chalk.green(`  ✓ manifest.yml in sync (${result.entryCount} entries)`));
@@ -77,7 +77,7 @@ export function kbCommand(): Command {
 export function runKb(mode: 'sync' | 'check', cwd: string) {
   const dataDir = resolve(cwd, 'data');
   if (!existsSync(resolve(dataDir, 'knowledge', 'manifest.yml'))) {
-    throw new Error('data/knowledge/manifest.yml not found. Run `npx qualiow init` first.');
+    throw new Error('data/knowledge/manifest.yml not found. Run `qualiow init` first.');
   }
   return syncKnowledgeManifest(dataDir, { check: mode === 'check' });
 }
@@ -107,7 +107,7 @@ export function runKbDigest(options: KbDigestOptions, cwd: string): string {
   const manifestPath = join(knowledgeDir, 'manifest.yml');
   if (!existsSync(manifestPath)) {
     throw new Error(
-      `No knowledge manifest at ${manifestPath}. Pass --data <dir>, or run \`npx qualiow init\` first.`,
+      `No knowledge manifest at ${manifestPath}. Pass --data <dir>, or run \`qualiow init\` first.`,
     );
   }
 
@@ -117,8 +117,10 @@ export function runKbDigest(options: KbDigestOptions, cwd: string): string {
   const byId = new Map<string, ManifestEntry>(manifest.entries.map((e) => [e.id, e]));
   const maxLines = Math.max(1, options.maxLines ?? DEFAULT_MAX_LINES);
 
+  const customFiles = resolveCustomEntryFiles(cwd, dataDir);
+
   if (options.entry) {
-    return readWholeEntry(knowledgeDir, byId, options.entry);
+    return readWholeEntry(knowledgeDir, byId, options.entry, customFiles);
   }
 
   const ls = manifest.loading_strategy;
@@ -179,7 +181,7 @@ export function runKbDigest(options: KbDigestOptions, cwd: string): string {
     lines.push(...entryBlock(join(knowledgeDir, meta.file), meta, maxLines));
   }
 
-  lines.push(...customSection(knowledgeDir, maxLines));
+  lines.push(...customSection(customFiles, maxLines));
   lines.push(...learnedPatternsSection(cwd, knowledgeDir));
 
   return lines.join('\n');
@@ -190,21 +192,20 @@ function readWholeEntry(
   knowledgeDir: string,
   byId: Map<string, ManifestEntry>,
   id: string,
+  customFiles: { id: string; file: string }[],
 ): string {
   const meta = byId.get(id);
-  // An id outside the manifest becomes a file name under custom/ — keep it one plain name so
+  // An id outside the manifest is looked up among the custom files by exact name, so
   // `--entry ../../x` cannot read a .yml file elsewhere on disk.
-  if (!meta && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
-    throw new Error(`Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`);
-  }
-  const path = meta
-    ? join(knowledgeDir, meta.file)
-    : join(knowledgeDir, 'custom', `${id}.yml`);
-  if (!existsSync(path)) {
+  const path = meta ? join(knowledgeDir, meta.file) : customFiles.find((c) => c.id === id)?.file;
+  if (!path || !existsSync(path)) {
     throw new Error(
       `Unknown entry "${id}". Run \`qualiow list knowledge\` to see the available ids.`,
     );
   }
+  // A custom entry asked for by name is held to the schema: the digest skipped it, so
+  // printing it here would be the only place it reaches a session unchecked.
+  if (!meta) parseCustomEntry(path);
   return readFileSync(path, 'utf-8').trimEnd();
 }
 
@@ -251,39 +252,63 @@ function entryBlock(file: string, meta: EntryHeading, maxLines: number, custom =
   return capLines(out, maxLines);
 }
 
-/** `<data>/knowledge/custom/*.yml`, rendered like registry entries. */
-function customSection(knowledgeDir: string, maxLines: number): string[] {
-  const customDir = join(knowledgeDir, 'custom');
-  if (!existsSync(customDir)) return [];
-  const files = readdirSync(customDir)
-    .filter((f) => f.endsWith('.yml'))
-    .sort();
-  if (!files.length) return [];
+/**
+ * The project's custom entries (`resolveCustomEntryFiles`), rendered like registry
+ * entries. Each is held to the registry's entry schema; one that fails it is skipped
+ * with a warning, so a bad file never stops a session's setup.
+ */
+function customSection(customFiles: { id: string; file: string }[], maxLines: number): string[] {
+  const entries = loadCustomEntries(customFiles);
+  if (!entries.length) return [];
 
   const lines = ['', '## Custom entries'];
-  for (const file of files) {
-    const path = join(customDir, file);
-    const parsed = parseYaml(readFileSync(path, 'utf-8')) as {
-      id?: string;
-      type?: string;
-      priority?: string;
-      tags?: string[];
-    };
+  for (const { file, entry } of entries) {
     lines.push(
       ...entryBlock(
-        path,
-        {
-          id: parsed.id ?? file.replace(/\.yml$/, ''),
-          type: parsed.type ?? 'custom',
-          priority: parsed.priority ?? 'medium',
-          tags: parsed.tags ?? [],
-        },
+        file,
+        { id: entry.id, type: entry.type, priority: entry.priority, tags: entry.tags },
         maxLines,
         true,
       ),
     );
   }
   return lines;
+}
+
+/**
+ * The custom entries that pass the entry schema. Each one that does not is skipped
+ * with one warning on stderr naming the file and its first validation problem.
+ */
+export function loadCustomEntries(
+  customFiles: { id: string; file: string }[],
+  warn: (message: string) => void = (message) => console.error(chalk.yellow(message)),
+): { file: string; entry: z.infer<typeof KnowledgeEntrySchema> }[] {
+  const out: { file: string; entry: z.infer<typeof KnowledgeEntrySchema> }[] = [];
+  for (const { file } of customFiles) {
+    try {
+      out.push({ file, entry: parseCustomEntry(file) });
+    } catch (err) {
+      warn(`  ⚠ Skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return out;
+}
+
+/** A custom entry file parsed against the knowledge-entry schema; throws naming the file. */
+export function parseCustomEntry(file: string): z.infer<typeof KnowledgeEntrySchema> {
+  let raw: unknown;
+  try {
+    raw = parseYaml(readFileSync(file, 'utf-8'));
+  } catch (err) {
+    throw new Error(`Custom entry ${file} is not valid YAML: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const result = KnowledgeEntrySchema.safeParse(raw);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const where = issue.path.length ? issue.path.join('.') : '(root)';
+    throw new Error(`Custom entry ${file} does not match the knowledge-entry schema: ${where} — ${issue.message}`);
+  }
+  return result.data;
 }
 
 /**
