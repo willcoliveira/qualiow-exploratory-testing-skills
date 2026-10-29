@@ -112,7 +112,9 @@ export function checkVerdicts(sessionDir: string): string[] {
         continue;
       }
       const parsed = parseVerdictBlock(text);
-      if (parsed.verdict === 'UNKNOWN') {
+      if (parsed.duplicateVerdict) {
+        violations.push(`${rel} has more than one VERDICT: line — a verdict block carries exactly one; it is not read`);
+      } else if (parsed.verdict === 'UNKNOWN') {
         violations.push(
           `${rel} has no recognisable VERDICT line (CONFIRMED, CONFIRMED-ADJUSTED, REFUTED, UNREPRODUCIBLE or UNVERIFIED)`,
         );
