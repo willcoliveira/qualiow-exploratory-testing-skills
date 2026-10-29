@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runExplore } from '../../src/cli/commands/explore.js';
+import { mergeQualiowHookSettings, QUALIOW_PERMISSION_ALLOW } from '../../src/utils/settings-merge.js';
 
 const tmpDirs: string[] = [];
 function makeTmpCwd(): string {
@@ -56,5 +57,95 @@ describe('runExplore — charter date', () => {
       if (previous === undefined) delete process.env.TZ;
       else process.env.TZ = previous;
     }
+  });
+});
+
+describe('runExplore — web pre-flight', () => {
+  /** A machine with nothing installed: an empty PATH, an empty home, Windows env vars pointing nowhere. */
+  function bare() {
+    const cwd = makeTmpCwd();
+    const home = makeTmpCwd();
+    const env = { PATH: join(home, 'bin'), LOCALAPPDATA: join(home, 'AppData', 'Local') };
+    return { cwd, home, env, platform: 'win32' as const };
+  }
+
+  function touch(path: string, content = ''): void {
+    mkdirSync(join(path, '..'), { recursive: true });
+    writeFileSync(path, content);
+  }
+
+  /** What `qualiow init --hooks` leaves in a project. */
+  function initHooks(cwd: string): void {
+    for (const f of ['read-guard.mjs', 'write-guard.mjs', 'bash-guard.mjs']) touch(join(cwd, 'qa', 'hooks', f));
+    touch(join(cwd, '.claude', 'settings.json'), JSON.stringify(mergeQualiowHookSettings({}).settings, null, 2));
+  }
+
+  it('warns about each missing piece on a bare machine, and still creates the session', async () => {
+    const ctx = bare();
+    const lines: string[] = [];
+    const result = await runExplore('https://example.com', { timeBox: '45m', dryRun: false }, { ...ctx, log: (l) => void lines.push(l) });
+    expect(existsSync(result.sessionDir)).toBe(true);
+    expect(result.preflight.map((c) => [c.name, c.ok])).toEqual([
+      ['playwright-cli', false],
+      ['browser', false],
+      ['hooks', false],
+      ['permissions', false],
+    ]);
+    const text = lines.join('\n');
+    expect(text).toContain('npm install -g @playwright/cli');
+    expect(text).toContain('playwright-cli install-browser');
+    expect(text).toContain('qualiow init --hooks');
+    for (const rule of QUALIOW_PERMISSION_ALLOW) expect(text).toContain(rule);
+  });
+
+  it('passes on a set-up project: playwright-cli on PATH, a Playwright Chromium, init --hooks', async () => {
+    const ctx = bare();
+    touch(join(ctx.home, 'bin', 'playwright-cli.cmd'));
+    mkdirSync(join(ctx.env.LOCALAPPDATA, 'ms-playwright', 'chromium-1200'), { recursive: true });
+    initHooks(ctx.cwd);
+    const result = await runExplore('https://example.com', { timeBox: '45m', dryRun: true }, { ...ctx, log: silentLog });
+    expect(result.preflight.filter((c) => !c.ok)).toEqual([]);
+  });
+
+  it('finds the playwright-cli the project installed, and Google Chrome', async () => {
+    const ctx = bare();
+    touch(join(ctx.cwd, 'node_modules', '.bin', 'playwright-cli'));
+    touch(join(ctx.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'));
+    const result = await runExplore('https://example.com', { timeBox: '45m', dryRun: true }, { ...ctx, log: silentLog });
+    expect(result.preflight.find((c) => c.name === 'playwright-cli')?.ok).toBe(true);
+    expect(result.preflight.find((c) => c.name === 'browser')?.message).toContain('Google Chrome');
+  });
+
+  it('a plugin install counts as hooks registered; allow rules may sit in settings.local.json', async () => {
+    const ctx = bare();
+    const plugin = makeTmpCwd();
+    touch(join(plugin, 'hooks', 'hooks.json'), '{}');
+    touch(join(ctx.cwd, '.claude', 'settings.local.json'), JSON.stringify({ permissions: { allow: QUALIOW_PERMISSION_ALLOW } }));
+    const result = await runExplore(
+      'https://example.com',
+      { timeBox: '45m', dryRun: true },
+      { ...ctx, env: { ...ctx.env, CLAUDE_PLUGIN_ROOT: plugin }, log: silentLog },
+    );
+    expect(result.preflight.find((c) => c.name === 'hooks')?.ok).toBe(true);
+    expect(result.preflight.find((c) => c.name === 'permissions')?.ok).toBe(true);
+  });
+
+  it('names a guard that is not registered, and QUALIOW_HOOKS=off', async () => {
+    const ctx = bare();
+    initHooks(ctx.cwd);
+    rmSync(join(ctx.cwd, 'qa', 'hooks', 'bash-guard.mjs'));
+    const partial = await runExplore('https://example.com', { timeBox: '45m', dryRun: true }, { ...ctx, log: silentLog });
+    expect(partial.preflight.find((c) => c.name === 'hooks')?.message).toContain('bash-guard.mjs');
+
+    const off = await runExplore(
+      'https://example.com',
+      { timeBox: '45m', dryRun: true },
+      { ...ctx, env: { ...ctx.env, QUALIOW_HOOKS: 'off' }, log: silentLog },
+    );
+    expect(off.preflight.find((c) => c.name === 'hooks')).toEqual({
+      name: 'hooks',
+      ok: false,
+      message: 'the guard hooks are switched off (QUALIOW_HOOKS=off)',
+    });
   });
 });

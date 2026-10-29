@@ -1,11 +1,13 @@
 import { Command } from 'commander';
 import { resolve, join, relative, dirname } from 'node:path';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import chalk from 'chalk';
 import { validateTargetConfig } from '../../utils/validate.js';
 import { resolveTargetPath } from '../../utils/paths.js';
 import { sessionDirName, sessionTimestamp, slugify } from '../../utils/session-dir.js';
 import { CONFIDENTIALITY_HEADER_MD } from '../../utils/confidentiality.js';
+import { runWebPreflight, type PreflightCheck } from '../../utils/web-preflight.js';
 
 export interface ExploreOptions {
   target?: string;
@@ -49,8 +51,16 @@ export function parseTimeBox(value: string): number {
 export async function runExplore(
   url: string | undefined,
   options: ExploreOptions,
-  ctx: { cwd: string; now?: Date; log?: (line: string) => void },
-): Promise<{ sessionDir: string }> {
+  ctx: {
+    cwd: string;
+    now?: Date;
+    log?: (line: string) => void;
+    /** For the web pre-flight checks; default to this process's own. */
+    env?: NodeJS.ProcessEnv;
+    platform?: NodeJS.Platform;
+    home?: string;
+  },
+): Promise<{ sessionDir: string; preflight: PreflightCheck[] }> {
   const cwd = ctx.cwd;
   const now = ctx.now ?? new Date();
   const log = ctx.log ?? ((line: string) => console.log(line));
@@ -104,6 +114,20 @@ export async function runExplore(
     `Session directory ${relative(cwd, sessionDir)} already exists — refusing to overwrite it. ` +
     `Continue that session with --session output/sessions/${sessionName}, or start a new one in the next minute.`;
 
+  // What the browser session will need, checked without a network call or a browser. Warnings
+  // only: a session can still run, and a setup these checks do not know may be fine.
+  const preflight = runWebPreflight({
+    cwd,
+    env: ctx.env ?? process.env,
+    platform: ctx.platform ?? process.platform,
+    home: ctx.home ?? homedir(),
+  });
+  log('');
+  log(chalk.cyan.bold('Web pre-flight'));
+  for (const check of preflight) {
+    log(check.ok ? chalk.green(`  ✓ ${check.message}`) : chalk.yellow(`  ⚠ ${check.message}`));
+  }
+
   if (options.dryRun) {
     log('');
     log(chalk.cyan.bold('Dry run — no files created'));
@@ -113,7 +137,7 @@ export async function runExplore(
     log(chalk.white(`  Target:    ${options.target ?? relative(cwd, targetPath)}`));
     log(chalk.white(`  Context:   ${options.context ?? '(none)'}`));
     log(chalk.white(`  Time box:  ${minutes} min`));
-    return { sessionDir };
+    return { sessionDir, preflight };
   }
 
   if (alreadyThere) throw new Error(existsMessage);
@@ -178,5 +202,5 @@ export async function runExplore(
   log(chalk.white(`    /qa-explore ${args} --session output/sessions/${sessionName}`));
   log('');
 
-  return { sessionDir };
+  return { sessionDir, preflight };
 }
