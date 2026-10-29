@@ -1,5 +1,7 @@
 # Phase 1: AC Decomposition
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Turn prose acceptance criteria into falsifiable checks **before** you look at the
 implementation. Doing this first is what stops you from rationalising whatever the
 code happens to do.

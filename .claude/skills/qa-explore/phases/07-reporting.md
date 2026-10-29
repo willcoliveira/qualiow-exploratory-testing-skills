@@ -1,5 +1,7 @@
 # Phase 7: Reflection & Reporting (4 min + up to 15 min verification)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed before the judge runs and its data is deleted in the last step.
 
 **Verification mode** was resolved in setup: `judge` unless the run carried `--no-judge` or
@@ -404,10 +406,13 @@ qualiow session finalize output/sessions/<session-dir> --check
 `--check` writes nothing and prints a numbered list of violations naming each file. A
 violation that ends "re-run `qualiow session level <dir> --write`" means the level is missing
 or stale: fix the cause, run that command, then finalize again. Resolve
-the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/references/paths.md`; if the CLI is unavailable,
-write the index rows by hand in the column order defined there — and since no level can be
-computed by hand, leave `contract`, `continues` and `coverage.areas` out of `stats.json` and
-say in the notes that the session has no coverage level.
+the `qualiow` prefix per `${CLAUDE_SKILL_DIR}/references/paths.md`. If the CLI is unavailable,
+keep the session on contract 2 exactly as written and write **no** index rows: a hand-written
+`INDEX.md` row marks the session finalized, and `qualiow session level --write` then refuses
+it for good. `## Coverage Level` reads `_Missing from evidence-level.md_` until the level
+exists. Tell the user to run, once the CLI is back: `qualiow session level <dir> --write`,
+then `/qa-explore-report <dir> --overwrite` to copy the level into the report, then
+`qualiow session finalize <dir>`.
 
 If sub-agents are unavailable, do the step yourself as in 2.1.0: write `session-report.md`
 from the notes in the contract's format (with `## Coverage Level` copied from

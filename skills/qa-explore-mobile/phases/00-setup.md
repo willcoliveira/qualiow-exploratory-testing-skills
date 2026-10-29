@@ -3,7 +3,8 @@
 Follow `${CLAUDE_SKILL_DIR}/../qa-explore/phases/00-setup.md` for the general structure (parse
 input, load context, load knowledge, create the session dir, init progress.json). The mobile
 differences, and the native-vs-web branch, are below. There is no playwright-cli session and
-therefore no `-s=<sid>` on mobile.
+therefore no `-s=<sid>` on mobile, and the verification mode is always `off`: the phase-7 bug
+judge does not run on mobile (ADR-013).
 
 ## Step 0 — Resolve the driver, then preflight (fail fast on a fresh machine)
 
@@ -188,8 +189,9 @@ does not exist.
 
 ## Step 6 — progress.json additions (shared)
 
-Same base schema as qa-explore with `"kind": "mobile"`. Add a `platform` key including the
-resolved `mode`:
+Same base schema as qa-explore with `"kind": "mobile"`, `"sid": null` and
+`"verification": "off"`; add `"driver"` (the mcli prefix you resolved) and `"state"` (the
+`--state` file, or null). Add a `platform` key including the resolved `mode`:
 
 ```json
 "platform": {

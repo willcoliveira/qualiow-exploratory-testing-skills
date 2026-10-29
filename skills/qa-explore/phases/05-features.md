@@ -1,6 +1,8 @@
 # Phase 5: Deep Feature Testing (10 min)
 
-**Goal:** Go deep on P0 and P1 features. Spend time proportional to risk. Every command carries `-s=<sid>` (omitted here).
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
+**Goal:** Go deep on P0 and P1 features. Spend time proportional to risk. Every command carries `-s=<sid>` (omitted here). In read-only mode, fill but never submit.
 
 Focus on the features your risk ranking identified as P0/P1. Apply SFDIPOT, but only the
 dimensions you selected in the charter.
