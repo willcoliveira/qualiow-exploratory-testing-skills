@@ -124,7 +124,9 @@ needed a probe becomes `BLOCKED` with the exact command attached.
 ticket id, else the target id) containing:
 `charter.md`, `ac-matrix.md`, `evidence/`, `bugs/`, `probes/`, `session-log.md`, `progress.json`
 (`"kind": "backend"`). Every markdown file starts with the confidentiality header from
-`output-contract.md`.
+`output-contract.md`. `progress.json` also records what a later phase needs after a
+compaction: `"sid"` (or null with no browser), `"read_only"`, `"data_dir"`, `"lanes"` (each
+lane GO / BLOCKED / SKIPPED) and the AWS `"profile"` and `"region"` names.
 
 `probes/` holds the probe scripts and case files, so the run is repeatable by someone
 else — and by you, against the next environment.

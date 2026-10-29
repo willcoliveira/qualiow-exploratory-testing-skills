@@ -1,5 +1,7 @@
 # Phase 3: Live Verification
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 Skip if the live lane is BLOCKED — but still write every probe command into
 `evidence/live-probes.md` so a human with credentials can run them unchanged.
 

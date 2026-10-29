@@ -1,5 +1,7 @@
 # Phase 3: Discovery & Mapping (6 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 **Goal:** Map the app structure and refine your risk ranking. Every command carries `-s=<sid>` (omitted here).
 
 ## Site Mapping

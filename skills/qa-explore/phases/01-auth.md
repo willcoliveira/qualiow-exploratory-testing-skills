@@ -1,5 +1,7 @@
 # Phase 1: Authentication (2 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 Skip if `auth.strategy: none`. Every command below carries the session id `-s=<sid>` (omitted here).
 
 ## Storage State (fastest)

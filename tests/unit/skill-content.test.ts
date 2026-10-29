@@ -117,6 +117,38 @@ describe('/qa-verify-backend credentials never ride on a shell variable', () => 
   });
 });
 
+describe('a session survives compaction: parameters on disk, one resume rule', () => {
+  const RESUME = 'session-rules.md` § After Compaction or Resume';
+
+  it('session-rules.md carries the resume rule once', () => {
+    const rules = skillFile('qa-explore', 'references', 'session-rules.md');
+    expect(rules.match(/^## After Compaction or Resume$/gm)).toHaveLength(1);
+    expect(rules).toContain('progress.json');
+  });
+
+  it('explore setup persists sid, read_only, verification and data_dir in progress.json', () => {
+    const setup = skillFile('qa-explore', 'phases', '00-setup.md');
+    for (const key of ['"sid"', '"read_only"', '"verification"', '"data_dir"']) expect(setup).toContain(key);
+  });
+
+  it('backend setup persists them too', () => {
+    const setup = skillFile('qa-verify-backend', 'phases', '00-setup.md');
+    for (const key of ['"sid"', '"read_only"', '"data_dir"']) expect(setup).toContain(key);
+  });
+
+  const phases = [
+    ...['01-auth', '02-charter', '03-discovery', '04-journeys', '05-features', '06-edge-cases', '07-reporting']
+      .map((p) => ['qa-explore', 'phases', `${p}.md`]),
+    ['qa-explore-mobile', 'phases', '01-auth.md'],
+    ...['01-ac-decomposition', '02-static-review', '03-live-verification', '03b-api-verification', '04-e2e-trigger', '05-reporting']
+      .map((p) => ['qa-verify-backend', 'phases', `${p}.md`]),
+  ];
+
+  it.each(phases.map((p) => [p.join('/'), p]))('%s points at the resume rule', (_label, parts) => {
+    expect(skillFile(...(parts as string[]))).toContain(RESUME);
+  });
+});
+
 describe('/qa-explore-feedback never edits a finalized session', () => {
   const content = skillFile('qa-explore-feedback', 'SKILL.md');
   const feedbackTemplate = markdownFences(content).find((f) => f.includes('# Feedback — '));

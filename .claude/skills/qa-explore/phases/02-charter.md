@@ -1,5 +1,7 @@
 # Phase 2: Business Context & Charter (5 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 **This is the most important phase. Skip it and everything else is shallow.**
 
 ## Step 1: Use the App as a Real User

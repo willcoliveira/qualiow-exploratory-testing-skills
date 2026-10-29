@@ -132,13 +132,19 @@ call in this session carries `-s=<sid>`; the examples in the phase files omit th
 
 ## Step 5: Initialize Progress Tracking
 
-Write `output/sessions/<session-dir>/progress.json`:
+Write `output/sessions/<session-dir>/progress.json` — it holds every value a later phase
+needs after a compaction (`${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction
+or Resume):
 ```json
 {
   "session_id": "<session-dir>",
   "kind": "explore",
   "target": "<target_url>",
   "domain": "<domain>",
+  "sid": "<sid>",
+  "read_only": <true|false>,
+  "verification": "<judge|off|triage-shadow>",
+  "data_dir": "<the resolved <data> directory>",
   "started_at": "<ISO timestamp>",
   "status": "in_progress",
   "current_phase": "setup",

@@ -1,5 +1,7 @@
 # Phase 5: Reporting
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/../qa-explore/references/session-rules.md` § After Compaction or Resume.
+
 ## Step 1: The AC Traceability Matrix
 
 `ac-matrix.md` is the headline deliverable. One row per AC:

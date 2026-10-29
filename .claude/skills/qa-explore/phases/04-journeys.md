@@ -1,5 +1,7 @@
 # Phase 4: End-to-End User Journeys (10 min)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 **Goal:** Test the critical user journeys you defined in the charter -- end to end, crossing multiple features.
 
 This is NOT feature-by-feature testing. This is "walk through the app as a real user would."

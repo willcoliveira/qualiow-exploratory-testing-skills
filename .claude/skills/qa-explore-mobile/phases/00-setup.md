@@ -189,8 +189,9 @@ does not exist.
 
 ## Step 6 — progress.json additions (shared)
 
-Same base schema as qa-explore with `"kind": "mobile"`. Add a `platform` key including the
-resolved `mode`:
+Same base schema as qa-explore with `"kind": "mobile"`, `"sid": null` and
+`"verification": "off"`; add `"driver"` (the mcli prefix you resolved) and `"state"` (the
+`--state` file, or null). Add a `platform` key including the resolved `mode`:
 
 ```json
 "platform": {

@@ -1,5 +1,7 @@
 # Phase 7: Reflection & Reporting (4 min + up to 15 min verification)
 
+**Resuming, or after a compaction?** Re-read the session state first: `${CLAUDE_SKILL_DIR}/references/session-rules.md` § After Compaction or Resume.
+
 Every command carries `-s=<sid>` (omitted here). The browser stays open until the evidence is captured; it is closed before the judge runs and its data is deleted in the last step.
 
 **Verification mode** was resolved in setup: `judge` unless the run carried `--no-judge` or
