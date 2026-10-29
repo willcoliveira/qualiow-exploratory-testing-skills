@@ -47,6 +47,124 @@ function guard(
   return d.permissionDecisionReason as string;
 }
 
+interface Decision {
+  decision: string;
+  reason: string;
+}
+
+function decision(
+  cwd: string,
+  tool_name: string,
+  tool_input: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+  env: Record<string, string> = {},
+): Decision | null {
+  const base: Record<string, string | undefined> = { ...process.env, ...env };
+  delete base.QUALIOW_HOOKS;
+  if (!('CLAUDE_PROJECT_DIR' in env)) delete base.CLAUDE_PROJECT_DIR;
+  const stdout = execFileSync('node', [WRITE_GUARD], {
+    input: JSON.stringify({ session_id: 't', cwd, hook_event_name: 'PreToolUse', tool_name, tool_input, ...extra }),
+    env: base,
+    encoding: 'utf-8',
+  });
+  if (!stdout.trim()) return null;
+  const d = JSON.parse(stdout).hookSpecificOutput;
+  return { decision: d.permissionDecision, reason: d.permissionDecisionReason };
+}
+
+describe('write-guard.mjs — files that steer qualiow itself', () => {
+  it.each([
+    'qa/target.yml',
+    'QA/Target.yml',
+    'data/targets/parabank.yml',
+    'data/targets/client/acme.yaml',
+    'qa/hooks/bash-guard.mjs',
+    'qa/hooks/new-file.mjs',
+    '.claude/settings.json',
+    '.claude/settings.local.json',
+    '.mcp.json',
+    'output/../qa/target.yml',
+    'src/../.claude/./settings.local.json',
+  ])('asks before writing %s', (rel) => {
+    const cwd = makeTmpCwd();
+    for (const [tool, input] of [
+      ['Write', { file_path: rel, content: 'safety:\n  read_only: false\n' }],
+      ['Edit', { file_path: rel, old_string: 'a', new_string: 'b' }],
+      ['MultiEdit', { file_path: join(cwd, rel), edits: [{ old_string: 'a', new_string: 'b' }] }],
+      ['NotebookEdit', { notebook_path: rel, new_source: 'x' }],
+    ] as const) {
+      const d = decision(cwd, tool, input);
+      expect(d?.decision).toBe('ask');
+      expect(d?.reason).not.toContain('QUALIOW_HOOKS');
+    }
+  });
+
+  it('resolves against CLAUDE_PROJECT_DIR as well as the cwd', () => {
+    const project = makeTmpCwd();
+    const cwd = join(project, 'src');
+    mkdirSync(cwd);
+    expect(decision(cwd, 'Write', { file_path: '../qa/target.yml', content: 'x' }, {}, { CLAUDE_PROJECT_DIR: project })?.decision).toBe('ask');
+  });
+
+  it.each([
+    '.claude/skills/qa-explore/SKILL.md',
+    'qa/.env.example',
+    'qa/target.yml.bak',
+    'data/targets/README.md',
+    'data/knowledge/custom/x.yml',
+    'src/settings.json',
+  ])('leaves %s alone', (rel) => {
+    const cwd = makeTmpCwd();
+    expect(decision(cwd, 'Write', { file_path: rel, content: 'plain text' })).toBeNull();
+  });
+});
+
+describe('write-guard.mjs — sub-agent write scope (agent_type)', () => {
+  const CONTEXT = 'output/context/TICKET-1-context.md';
+  const REPORT = 'output/sessions/2026-10-28-1200-explore-x/session-report.md';
+
+  it.each(['qa-gather-agent', 'qualiow:qa-gather-agent'])('%s writes only under output/context/', (agent_type) => {
+    const cwd = makeTmpCwd();
+    expect(decision(cwd, 'Write', { file_path: CONTEXT, content: 'context' }, { agent_type })).toBeNull();
+    for (const file_path of [REPORT, 'notes.md', 'output/context/../../qa/target.yml', 'qa/hooks/read-guard.mjs']) {
+      const d = decision(cwd, 'Write', { file_path, content: 'x' }, { agent_type });
+      expect(d?.decision).toBe('deny');
+      expect(d?.reason).toContain('output/context/');
+    }
+  });
+
+  it.each(['qa-reporting-agent', 'qualiow:qa-reporting-agent'])('%s writes only under output/sessions/', (agent_type) => {
+    const cwd = makeTmpCwd();
+    expect(decision(cwd, 'Write', { file_path: REPORT, content: 'report' }, { agent_type })).toBeNull();
+    for (const file_path of [CONTEXT, 'README.md', '.claude/settings.json']) {
+      expect(decision(cwd, 'Edit', { file_path, old_string: 'a', new_string: 'b' }, { agent_type })?.decision).toBe('deny');
+    }
+    // Inside its scope the secret check still applies.
+    expect(decision(cwd, 'Write', { file_path: REPORT, content: 'password=hunter2' }, { agent_type })?.reason).toContain('Password');
+  });
+
+  it.each([
+    'qa-bug-judge',
+    'qualiow:qa-bug-judge',
+    'qa-page-mapper-agent',
+    'qualiow:qa-page-mapper-agent',
+    'qa-diff-indexer-agent',
+  ])('%s may not write at all', (agent_type) => {
+    const cwd = makeTmpCwd();
+    for (const file_path of ['output/sessions/x/verification/VERDICT-001.md', CONTEXT, 'notes.md']) {
+      const d = decision(cwd, 'Write', { file_path, content: 'x' }, { agent_type });
+      expect(d?.decision).toBe('deny');
+      expect(d?.reason).toContain(agent_type.replace(/^qualiow:/, ''));
+    }
+  });
+
+  it('other agents and the main session keep the ordinary rules', () => {
+    const cwd = makeTmpCwd();
+    expect(decision(cwd, 'Write', { file_path: 'notes.md', content: 'x' }, { agent_type: 'general-purpose' })).toBeNull();
+    expect(decision(cwd, 'Write', { file_path: 'qa/target.yml', content: 'x' }, { agent_type: 'general-purpose' })?.decision).toBe('ask');
+  });
+});
+
 describe('write-guard.mjs hardening', () => {
   it('judges an Edit on the file as it would read afterwards', () => {
     const cwd = makeTmpCwd();
@@ -139,6 +257,16 @@ describe('write-guard.mjs known credential values', () => {
     expect(reason).not.toContain(PASS);
   });
 
+  it('denies a credential value under snapshots/ too, while the pattern exemption there stays', () => {
+    const cwd = makeTmpCwd();
+    seedEnv(cwd);
+    const snap = 'output/sessions/x/snapshots/login.yml';
+    const reason = guard(cwd, 'Write', { file_path: snap, content: `- textbox "Password" [ref=e6]: ${PASS}\n` });
+    expect(reason).toContain('QA_PASS');
+    expect(reason).not.toContain(PASS);
+    expect(guard(cwd, 'Write', { file_path: snap, content: 'password=hunter2\n' })).toBeNull();
+  });
+
   it('catches the value URL-encoded, JSON-escaped and base64-encoded, and a .env value by name pattern', () => {
     const cwd = makeTmpCwd();
     seedEnv(cwd);
@@ -152,12 +280,11 @@ describe('write-guard.mjs known credential values', () => {
     expect(guard(cwd, 'Write', { file_path: BUG, content: `client secret ${APP_SECRET}` })).toContain('APP_CLIENT_SECRET');
   });
 
-  it('ignores values under six characters, names outside the list, and paths outside output/ or under snapshots/', () => {
+  it('ignores values under six characters, names outside the list, and paths outside output/', () => {
     const cwd = makeTmpCwd();
     seedEnv(cwd);
     expect(guard(cwd, 'Write', { file_path: BUG, content: 'region eu-west-1, user qa.user, code abc12' })).toBeNull();
     expect(guard(cwd, 'Write', { file_path: 'notes/login.md', content: PASS })).toBeNull();
-    expect(guard(cwd, 'Write', { file_path: 'output/sessions/x/snapshots/p.yml', content: PASS })).toBeNull();
   });
 
   it('reads a default name from the environment when no .env file sets it', () => {
@@ -181,6 +308,14 @@ describe('write-guard.mjs known credential values', () => {
 
     seed(cwd, BUG, `Password: ${PASS}\nmore\n`);
     expect(guard(cwd, 'Edit', { file_path: BUG, old_string: PASS, new_string: '[REDACTED]' })).toBeNull();
+  });
+
+  it('reads the first key of a .env saved with a UTF-8 byte-order mark', () => {
+    const cwd = makeTmpCwd();
+    seed(cwd, 'qa/.env', `﻿QA_PASS=${PASS}\nQA_USER=qa.user\n`);
+    const reason = guard(cwd, 'Write', { file_path: BUG, content: `typed ${PASS}` });
+    expect(reason).toContain('value of QA_PASS');
+    expect(reason).not.toContain('﻿');
   });
 
   it('fails open on an unreadable .env', () => {

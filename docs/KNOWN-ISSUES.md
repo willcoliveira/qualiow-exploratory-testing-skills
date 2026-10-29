@@ -266,8 +266,8 @@ dangerous paths already go through the bash guard or a prompt. Revisit only on a
 | `Bash(curl:*)` in `qa-verify-backend` | Can send data to any host; rule 7 is the control, not the grant |
 | `Bash(aws:*)` | Also matches mutating calls; read-only rests on `safety-rules.md` |
 | `Bash(python3:*)` (mobile), `Bash(node --env-file=qa/.env:*)` (backend) | Arbitrary code; the backend lane runs probe scripts the model writes |
-| `Bash(git -C:*)` | Nearly as broad as `git:*`; the bash guard asks on `-c`, `--upload-pack`, `--ext-diff` and friends |
-| Bash guard does not cover `npm exec`, `pnpm dlx`, `yarn dlx` | A safety net, not a sandbox |
+| `Bash(git -C:*)` | The bash guard asks on `-c`, `--config-env`, `--upload-pack`, `--receive-pack`, `--exec`, `--exec-path=`, `--ext-diff`, `--output` and `-O`/`--open-files-in-pager` (bundled or abbreviated) for any subcommand, on any environment assignment or `export` next to git, and on any `git -C` subcommand outside the read-only list (`diff`, `show`, `log`, `grep`, `status`, …; `branch`/`tag`/`remote` only in their listing forms). Left: a repository's own config (`core.fsmonitor`, textconv and diff drivers) still runs for read-only subcommands; `-O<orderfile>` and stuck values containing `O` (`-SOrder`) ask too; `git -C <repo> fetch` in mobile setup now asks |
+| Bash guard does not cover `npm exec`, `pnpm dlx`, `yarn dlx`, `bunx` | `npx` itself is covered: only the allowlisted names, as `name` or `name@<semver\|dist-tag>`, with or without `-y`, plus a bare name whose bin is already in `node_modules/.bin` (cwd up to `CLAUDE_PROJECT_DIR`) — a bin written there by the session would pass too. Not followed: wrappers other than `env`/`command`/`exec`/`time`/`nohup` (`xargs`, `find -exec`, `sudo`), and file-writing playwright-cli subcommands other than `state-save` (`screenshot --filename`, `video-start`, `pdf`). A safety net, not a sandbox |
 | An `Edit` swapping one secret for another of the same kind in an already-dirty file passes the write guard | The price of allowing one-at-a-time redaction; `finalize` still catches it |
 
 ### Not verified on hardware

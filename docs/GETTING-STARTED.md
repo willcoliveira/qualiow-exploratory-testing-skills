@@ -76,7 +76,7 @@ To write it by hand instead, this is the whole of it:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "Read|Grep|Glob",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/qa/hooks/read-guard.mjs\"" }
         ]
