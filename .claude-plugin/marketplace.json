@@ -10,7 +10,12 @@
   "plugins": [
     {
       "name": "qualiow",
-      "source": "./",
+      "source": {
+        "source": "github",
+        "repo": "willcoliveira/qualiow-exploratory-testing-skills",
+        "ref": "v2.5.0",
+        "sha": "d79d03ccf566984972e32de8fe4c4c15f6322422"
+      },
       "description": "AI-driven exploratory testing for Claude Code: web (playwright-cli), iOS/Android simulators (Maestro via mobile-cli), and backend/API acceptance-criteria verification — with a versioned QA knowledge base.",
       "version": "2.5.0",
       "category": "testing",

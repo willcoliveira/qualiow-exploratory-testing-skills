@@ -7,8 +7,8 @@
 # directly; otherwise fall through to the published npm package via `npx`, pinned
 # to this checkout's own `.claude-plugin/plugin.json` version so the shim and the
 # skills it ships alongside stay in lockstep. Release order matters for that pin:
-# `npm publish` must land before this version becomes the current git tag, or the
-# pinned `npx` fetch 404s — see docs/ARCHITECTURE-DECISIONS.md ADR-012.
+# plugin users must only reach a version npm already has, so the marketplace pin
+# moves after `npm publish` — see docs/ARCHITECTURE-DECISIONS.md ADR-012 and ADR-017.
 set -euo pipefail
 
 SELF="${BASH_SOURCE[0]}"
