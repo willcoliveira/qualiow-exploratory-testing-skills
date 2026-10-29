@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,12 +35,18 @@ interface Call {
   command: string;
   args: string[];
   cwd: string;
+  verbatim?: boolean;
 }
 
 function stub(result: Partial<SpawnResult> = {}): { spawn: Spawner; calls: Call[] } {
   const calls: Call[] = [];
   const spawn: Spawner = async (command, args, opts) => {
-    calls.push({ command, args, cwd: opts.cwd });
+    calls.push({
+      command,
+      args,
+      cwd: opts.cwd,
+      ...(opts.windowsVerbatimArguments === undefined ? {} : { verbatim: opts.windowsVerbatimArguments }),
+    });
     return { code: 0, stdout: '', stderr: '', ...result };
   };
   return { spawn, calls };
@@ -210,6 +216,89 @@ describe('resolvePlaywrightCli', () => {
   });
 });
 
+describe('resolvePlaywrightCli and auth fill on Windows (mocked platform)', () => {
+  const WIN = { platform: 'win32' as NodeJS.Platform };
+  afterEach(() => vi.unstubAllEnvs());
+
+  function winBin(cwd: string, ...names: string[]): string {
+    const dir = join(cwd, 'win-bin');
+    mkdirSync(dir, { recursive: true });
+    for (const n of names) writeFileSync(join(dir, n), '@ECHO off\r\n');
+    return dir;
+  }
+
+  it('finds npm’s .cmd shim on PATH, never the extensionless sh script', () => {
+    const cwd = makeCwd();
+    const dir = winBin(cwd, 'playwright-cli', 'playwright-cli.cmd');
+    expect(resolvePlaywrightCli(cwd, dir, 'win32')).toEqual({ command: join(dir, 'playwright-cli.cmd'), args: [] });
+    writeFileSync(join(dir, 'playwright-cli.exe'), 'MZ');
+    expect(resolvePlaywrightCli(cwd, dir, 'win32')).toEqual({ command: join(dir, 'playwright-cli.exe'), args: [] });
+  });
+
+  it('PATH is split on ; and the project’s node_modules/.bin shim comes next, then npx.cmd', () => {
+    const cwd = makeCwd();
+    const dir = winBin(cwd, 'playwright-cli');
+    expect(resolvePlaywrightCli(cwd, `C:\\nowhere;${dir}`, 'win32')).toEqual({ command: 'npx.cmd', args: ['playwright-cli'] });
+    const npxDir = winBin(join(cwd, 'node'), 'npx.cmd');
+    expect(resolvePlaywrightCli(cwd, `${dir};${npxDir}`, 'win32')).toEqual({
+      command: join(npxDir, 'npx.cmd'),
+      args: ['playwright-cli'],
+    });
+    const localBin = join(cwd, 'node_modules', '.bin');
+    mkdirSync(localBin, { recursive: true });
+    writeFileSync(join(localBin, 'playwright-cli.cmd'), '@ECHO off\r\n');
+    expect(resolvePlaywrightCli(cwd, dir, 'win32')).toEqual({ command: join(localBin, 'playwright-cli.cmd'), args: [] });
+  });
+
+  it('runs a .cmd shim through cmd.exe /d /s /c with every argument quoted, passed verbatim', async () => {
+    vi.stubEnv('ComSpec', 'C:\\Windows\\System32\\cmd.exe');
+    const cwd = makeCwd(`${NAME}=Fake pass & more <x>\\\n`);
+    const dir = winBin(cwd, 'playwright-cli.cmd');
+    const { spawn, calls } = stub();
+    expect((await runAuthFill({ session: 's1', ref: 'e7', env: NAME }, { cwd, spawn, pathEnv: dir, ...WIN })).exitCode).toBe(0);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].command).toBe('C:\\Windows\\System32\\cmd.exe');
+    expect(calls[0].verbatim).toBe(true);
+    // A trailing backslash is doubled so it cannot escape the closing quote.
+    expect(calls[0].args).toEqual([
+      '/d',
+      '/s',
+      '/v:off',
+      '/c',
+      `""${join(dir, 'playwright-cli.cmd')}" "-s=s1" "fill" "e7" "--" "Fake pass & more <x>\\\\""`,
+    ]);
+  });
+
+  it.each([
+    ['a double quote', 'Fake"pass'],
+    ['a percent sign', 'Fake%PATH%pass'],
+    ['an exclamation mark', 'Fake!pass!'],
+    ['a caret', 'Fake^pass'],
+    ['a line break', 'Fake\rpass'],
+  ])('refuses a value with %s that cmd.exe would re-parse, before spawning', async (_label, value) => {
+    const cwd = makeCwd();
+    process.env[NAME] = value;
+    const dir = winBin(cwd, 'playwright-cli.cmd');
+    const { spawn, calls } = stub();
+    const err = await runAuthFill({ session: 's1', ref: 'e7', env: NAME }, { cwd, spawn, pathEnv: dir, ...WIN }).catch((e) => e);
+    expect(err).toBeInstanceOf(AuthFillUsageError);
+    expect(err.message).toContain('cmd.exe');
+    expect(err.message).not.toContain(value);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('spawns a real .exe directly, with no shell, whatever the value holds', async () => {
+    const cwd = makeCwd();
+    process.env[NAME] = 'Fake"%pass!^';
+    const dir = winBin(cwd, 'playwright-cli.exe');
+    const { spawn, calls } = stub();
+    await runAuthFill({ session: 's1', ref: 'e7', env: NAME }, { cwd, spawn, pathEnv: dir, ...WIN });
+    expect(calls[0].command).toBe(join(dir, 'playwright-cli.exe'));
+    expect(calls[0].args).toEqual(['-s=s1', 'fill', 'e7', '--', 'Fake"%pass!^']);
+    expect(calls[0].verbatim).toBeUndefined();
+  });
+});
+
 describe('qualiow auth fill with a real child process', () => {
   it('spawns without a shell and redacts what the child prints', async () => {
     if (process.platform === 'win32') return;
@@ -231,5 +320,64 @@ describe('qualiow auth fill with a real child process', () => {
     expect(result.stdout).toContain('args=-s=s1|fill|e7|--|');
     expect(result.stdout).not.toContain(tricky);
     expect(result.stdout).not.toContain('pwned');
+  });
+});
+
+describe('qualiow auth fill — target ids and non-login names', () => {
+  // A cloud-shaped name no real environment sets; the value is obviously fake.
+  const CLOUD = 'AWS_QUALIOW_TEST_SECRET';
+  const CLOUD_VALUE = 'not-a-real-cloud-secret-0000';
+
+  it('refuses a --target that walks out of data/targets/, before reading or spawning anything', async () => {
+    const cwd = makeCwd(`${CLOUD}=${CLOUD_VALUE}\n`);
+    // A YAML planted outside data/targets/ that declares the cloud key as its login token.
+    writeFileSync(join(cwd, 'planted.yml'), `id: planted\nauth:\n  strategy: token\n  token: ${CLOUD}\n`);
+    const { spawn, calls } = stub();
+    for (const target of ['../../planted', '../planted', 'sub/../../../planted', '/tmp/planted', '..']) {
+      const err = await runAuthFill({ session: 's1', ref: 'e1', env: CLOUD, target }, { cwd, spawn, ...NO_PATH }).catch((e) => e);
+      expect(err, target).toBeInstanceOf(AuthFillUsageError);
+      expect(err.message).toContain('--target');
+      expect(err.message).not.toContain(CLOUD_VALUE);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['a cloud key declared as the login token', `auth:\n  strategy: token\n  token: ${CLOUD}\n`, CLOUD],
+    ['an *_API_KEY declared as the password', 'auth:\n  strategy: credentials\n  credentials:\n    password: SHOP_API_KEY\n', 'SHOP_API_KEY'],
+    ['a TYPESAFE_* name declared as the token', 'auth:\n  strategy: token\n  token: TYPESAFE_QUALIOW_TEST\n', 'TYPESAFE_QUALIOW_TEST'],
+    [
+      "the target's own api.token_env declared as the password",
+      'auth:\n  strategy: credentials\n  credentials:\n    password: SVC_TOKEN\napi:\n  auth: api-key-env\n  token_env: SVC_TOKEN\n',
+      'SVC_TOKEN',
+    ],
+    [
+      'the triage key declared as the token',
+      'auth:\n  strategy: token\n  token: TRIAGE_KEY\nverification:\n  mode: triage-shadow\n  triage_api_key_env: TRIAGE_KEY\n',
+      'TRIAGE_KEY',
+    ],
+    [
+      'the local triage server key declared as the password',
+      'auth:\n  strategy: credentials\n  credentials:\n    password: LAYA_LOCAL_KEY\nverification:\n  laya:\n    api_key_env: LAYA_LOCAL_KEY\n',
+      'LAYA_LOCAL_KEY',
+    ],
+    [
+      'a default login name the target uses as its API key',
+      'auth:\n  strategy: none\napi:\n  auth: api-key-env\n  token_env: QA_TOKEN\n',
+      'QA_TOKEN',
+    ],
+  ])('refuses %s', async (_label, body, name) => {
+    const cwd = makeCwd(`${name}=not-a-real-key-value-0000\n`, `id: test-target\n${body}`);
+    const { spawn, calls } = stub();
+    const saved = process.env[name];
+    delete process.env[name];
+    try {
+      const err = await runAuthFill({ session: 's1', ref: 'e1', env: name }, { cwd, spawn, ...NO_PATH }).catch((e) => e);
+      expect(err).toBeInstanceOf(AuthFillUsageError);
+      expect(err.message).not.toContain('not-a-real-key-value-0000');
+    } finally {
+      if (saved !== undefined) process.env[name] = saved;
+    }
+    expect(calls).toHaveLength(0);
   });
 });

@@ -26,10 +26,10 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+  # Dependabot rejects the semver-*-days keys for github-actions; default-days only.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
-      semver-major-days: 14

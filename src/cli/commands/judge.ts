@@ -17,7 +17,8 @@
  *
  * Exit codes: 0 triaged (or --dry-run) · 1 usage / unparseable card ·
  * 2 not enabled for this target or key missing (nothing sent) ·
- * 3 every provider unavailable after retries (files written with `UNAVAILABLE`).
+ * 3 every provider unavailable after retries (files written with `UNAVAILABLE`), or
+ * refused because the state carries a credential value (nothing sent, nothing written).
  */
 
 import { Command } from 'commander';
@@ -27,6 +28,7 @@ import chalk from 'chalk';
 import { parse as parseYaml } from 'yaml';
 import { TargetConfigSchema } from '../../schemas/target.schema.js';
 import { readEnvVar, resolveTargetPath } from '../../utils/paths.js';
+import { collectSecretValues, findSecretValueNames } from '../../utils/secret-values.js';
 import { CONFIDENTIALITY_HEADER_MD } from '../../utils/confidentiality.js';
 import { parseClaimCard } from '../../triage/claim-parser.js';
 import {
@@ -81,6 +83,22 @@ export class TriageNotEnabledError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TriageNotEnabledError';
+  }
+}
+
+/**
+ * What would be sent carries the value of a credential variable. Nothing was sent and
+ * nothing written. Exit 3, like a provider that is unavailable: the claim goes to the
+ * judge untriaged. The message names the variables, never a value.
+ */
+export class TriageRefusedError extends Error {
+  readonly exitCode = EXIT_UNAVAILABLE;
+  constructor(names: string[]) {
+    super(
+      `the state to be sent carries the value of ${names.join(', ')} — refusing to send it; ` +
+        'nothing left the machine and nothing was written. Take the value out of the claim card and its evidence',
+    );
+    this.name = 'TriageRefusedError';
   }
 }
 
@@ -162,20 +180,28 @@ export function judgeCommand(): Command {
     .option('--provider <name>', 'typesafe | laya — run only this one of the providers the target lists')
     .option('--endpoint <url>', 'Override verification.laya.endpoint (loopback only)')
     .action(async (claimFile: string, options: JudgeTriageOptions) => {
+      // process.exitCode, never process.exit(): an exit right after a write to a pipe
+      // cuts the block short.
       try {
         const result = await runJudgeTriage(claimFile, options, { cwd: process.cwd() });
         console.log(result.stdout);
         if (result.exitCode !== 0) {
           console.error(chalk.yellow(`triage: unavailable — ${result.predictedVerdict}`));
-          process.exit(result.exitCode);
+          process.exitCode = result.exitCode;
         }
       } catch (err) {
         if (err instanceof TriageNotEnabledError) {
           console.error(chalk.yellow(`triage: not enabled — ${err.message}`));
-          process.exit(EXIT_NOT_ENABLED);
+          process.exitCode = EXIT_NOT_ENABLED;
+          return;
+        }
+        if (err instanceof TriageRefusedError) {
+          console.error(chalk.yellow(`triage: refused — ${err.message}`));
+          process.exitCode = err.exitCode;
+          return;
         }
         console.error(chalk.red('Error:'), err instanceof Error ? err.message : err);
-        process.exit(1);
+        process.exitCode = 1;
       }
     });
 
@@ -399,11 +425,37 @@ export async function runJudgeTriage(
   const redactions = [...new Set([...built.redactions, ...questionSet.redactions])];
   const stateChars = JSON.stringify(state).length;
 
+  // No credential value leaves, in any encoding the finalize scan knows. The scrub's
+  // pattern rules are not enough: a typed password has no shape, and a rule that cuts a
+  // value at a space or `&` would send the rest. So the raw fields, evidence and patterns
+  // the state is built from are checked as well as the body itself, before anything is
+  // sent — or written, since the request is saved into the session.
+  const carried = findSecretValueNames(
+    [
+      claim.title,
+      claim.url,
+      claim.claimedSeverity,
+      claim.environment,
+      claim.reproductionRate,
+      claim.expected,
+      claim.actual,
+      ...claim.steps,
+      claim.evidenceInline,
+      ...evidence.sent.map((f) => f.text),
+      ...patterns,
+      JSON.stringify({ state, questions }),
+    ].join('\n'),
+    collectSecretValues(cwd, options.target),
+  );
+
   if (options.dryRun) {
     const lines = [
       'DRY-RUN — nothing sent, nothing written',
       `claim: ${claim.id} (${claim.claimedSeverity || 'no severity'})`,
       liveRunVerdict(cwd, options),
+      carried.length
+        ? `credential values: the state carries ${carried.join(', ')} — a live run refuses and sends nothing (exit 3)`
+        : 'credential values: none in the state',
       `providers (as built here): ${gate.providers.map((g) => `${g.provider} (${g.endpoint})`).join(', ')}`,
       ...gate.skipped.map((sk) => `skipped: ${sk.provider} — ${sk.reason}`),
       `state: ${stateChars.toLocaleString('en-US')} chars (~${Math.ceil(stateChars / 4).toLocaleString('en-US')} tokens est.)`,
@@ -427,6 +479,8 @@ export async function runJudgeTriage(
       stateChars,
     };
   }
+
+  if (carried.length) throw new TriageRefusedError(carried);
 
   const runs: ProviderRun[] = [];
   for (const pg of gate.providers) {

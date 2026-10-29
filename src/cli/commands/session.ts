@@ -68,11 +68,15 @@ import { backlogCell, levelFacts } from '../../session/coverage-level.js';
 import { pathOfUrl, scrubForTransmission } from '../../triage/scrub.js';
 import { checkVerdicts } from '../../session/verdict-check.js';
 import {
+  CARRY_FORWARD_FILE,
+  CARRY_FORWARD_SOURCES,
   EVIDENCE_MANIFEST_FILE,
+  buildCarryForwardRecord,
   buildEvidenceManifest,
+  renderCarryForwardRecord,
   renderEvidenceManifest,
 } from '../../session/evidence-manifest.js';
-import { collectSecretValues } from '../../utils/secret-values.js';
+import { resolveSecretValues } from '../../utils/secret-values.js';
 import type { CoverageLevel, RiskTier, SessionMetrics } from '../../types/index.js';
 
 type Log = (line: string) => void;
@@ -295,9 +299,20 @@ export async function runSessionFinalize(
 
   // The target's own credential values, resolved once from the env var NAMES its config
   // declares. A typed password has no shape the pattern rules could catch. Values stay
-  // in memory: a violation names the category, never the variable or the value.
+  // in memory: a violation names the category, never the variable or the value. A
+  // target that does not resolve (the URL of an ad-hoc run) fails closed: every
+  // secret-named .env variable is scanned for. The target itself is never echoed.
   const targetId = stats?.target ?? (typeof raw?.target === 'string' ? raw.target : undefined);
-  const secretValues = collectSecretValues(cwd, targetId);
+  const secretScan = resolveSecretValues(cwd, targetId);
+  const secretValues = secretScan.values;
+  if (!secretScan.targetResolved) {
+    log(
+      chalk.yellow(
+        '  ⚠ stats.json target does not resolve to a target config — scanning for the value of every ' +
+          'secret-named variable in qa/.env and .env (…PASS, …PASSWORD, …TOKEN, …SECRET, …API_KEY, …_KEY)',
+      ),
+    );
+  }
 
   // 2. every *.md under the session dir must start with the confidentiality header.
   const walk = walkSession(sessionDir);
@@ -310,21 +325,30 @@ export async function runSessionFinalize(
     }
   }
 
-  // 3. no secrets in any text file, whatever its extension, except under the
-  // session's own top-level snapshots/ (raw page trees, never shipped). Text is told
-  // from binary by content, so renaming a file does not take it out of the scan.
-  // evidence-manifest.json is finalize's own output — paths and hashes, where a 13-digit
-  // timestamp in a file name reads as a card number — and is held to the exact content
-  // finalize would write instead (step 6).
+  // 3. no secrets in any text file, whatever its extension. Under the session's own
+  // top-level snapshots/ (raw page trees, never shipped) only the credential values are
+  // looked for, not the patterns: a snapshot taken while a password field is filled
+  // carries the typed value, while the page text around it is full of shapes the rules
+  // would flag. Text is told from binary by content, so renaming a file does not take it
+  // out of the scan. evidence-manifest.json is finalize's own output — paths and hashes,
+  // where a 13-digit timestamp in a file name reads as a card number — and is held to the
+  // exact content finalize would write instead (step 6). So is carry-forward.json, in the
+  // one kind of session that has it (below).
+  const continuable = raw?.contract === 2 && (stats?.kind ?? parsedDirName?.kind) === 'explore';
   const textFiles = new Set<string>();
   for (const { path: file, rel } of walk.files) {
-    if (rel.split(sep)[0] === 'snapshots') continue;
-    if (rel === EVIDENCE_MANIFEST_FILE) continue;
+    const snapshot = rel.split(sep)[0] === 'snapshots';
+    if (snapshot && secretValues.length === 0) continue;
+    if (rel === EVIDENCE_MANIFEST_FILE || (continuable && rel === CARRY_FORWARD_FILE)) continue;
     const size = statSync(file).size;
-    const encoding = sniffTextEncoding(file);
-    if (encoding === null) continue;
-    textFiles.add(file);
+    const sniffed = sniffTextEncoding(file);
+    if (sniffed === null) continue;
+    if (!snapshot) textFiles.add(file);
     if (size > MAX_SCAN_BYTES) {
+      if (snapshot) {
+        log(chalk.yellow(`  ⚠ ${rel} is over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — not scanned for credential values`));
+        continue;
+      }
       violations.push(
         `${rel} is a ${formatBytes(size)} text file, over the ${formatBytes(MAX_SCAN_BYTES)} scan limit — ` +
           'not scanned; remove it, split it, or move it under snapshots/',
@@ -332,10 +356,12 @@ export async function runSessionFinalize(
       continue;
     }
     const raw = readFileSync(file);
+    const encoding = textEncodingOf(raw, sniffed);
     const content = decodeText(raw, encoding);
-    if (!containsSecrets(content, { values: secretValues })) continue;
+    const scan = snapshot ? { values: secretValues, patterns: false } : { values: secretValues };
+    if (!containsSecrets(content, scan)) continue;
 
-    const { text, redactions } = redact(content, { values: secretValues });
+    const { text, redactions } = redact(content, scan);
     if (options.redact) {
       writeFileSync(file, encodeText(text, encoding, raw));
       redactedFiles.push({ file: rel, categories: redactions });
@@ -343,6 +369,27 @@ export async function runSessionFinalize(
     } else {
       violations.push(`${rel} contains a secret: ${redactions.join(', ')} (run with --redact to fix)`);
     }
+  }
+
+  // carry-forward.json — CLI-written, for a contract-2 explore session only: the SHA-256 of
+  // each file continue-check carries forward, taken after any --redact rewrite. Under
+  // --check an existing record must be exactly what this run would write, so a carried
+  // file edited after finalize — a discovery heading is in no digest — is caught.
+  const carryPath = join(sessionDir, CARRY_FORWARD_FILE);
+  const carryText = continuable ? renderCarryForwardRecord(buildCarryForwardRecord(sessionDir)) : undefined;
+  const carryState = regularFileState(carryPath);
+  if (carryText !== undefined && carryState === 'other') {
+    violations.push(`${CARRY_FORWARD_FILE} is not a regular file — remove it; finalize writes it`);
+  } else if (
+    options.check &&
+    carryText !== undefined &&
+    carryState === 'file' &&
+    readFileSync(carryPath, 'utf-8') !== carryText
+  ) {
+    violations.push(
+      `${CARRY_FORWARD_FILE} does not match the files it hashes (${CARRY_FORWARD_SOURCES.join(', ')}) — ` +
+        `one changed after finalize; re-run \`qualiow session finalize ${dirName}\` if the change is meant`,
+    );
   }
 
   // 4. verdict cross-check — only in a session that ran the bug judge (a verification/
@@ -418,6 +465,7 @@ export async function runSessionFinalize(
 
   // Written before any index row, so a refused write leaves the indexes untouched.
   writeFileGuarded(manifestPath, manifestText);
+  if (carryText !== undefined) writeFileGuarded(carryPath, carryText);
 
   // stats is guaranteed defined here: an undefined stats always pushes a violation above.
   const finalStats = stats as SessionMetrics;
@@ -905,6 +953,8 @@ export interface SessionContinueCheckResult {
   sessionName?: string;
   /** The fenced block, as printed. */
   output?: string;
+  /** Printed before the block: a session finalized before carry-forward hashes existed. */
+  warnings?: string[];
 }
 
 /**
@@ -912,7 +962,9 @@ export interface SessionContinueCheckResult {
  * path by which a prior session reaches a new one under `--continue` [H2]: the candidate
  * must be a real directory directly under the real `output/sessions/`, an `explore`
  * session under contract 2, finalized, of exactly the same `stats.target`, and still
- * pass `finalize --check` (which catches an edit made after it was finalized). What is
+ * pass `finalize --check` (which catches an edit made after it was finalized, the
+ * carried files included through `carry-forward.json`; a session finalized before that
+ * record existed is carried with a warning). What is
  * printed is the only carry-forward: the charter's risk rows, the backlog rows, the
  * discovery `##` headings and the site-map URL paths — scrubbed, redacted, capped, and
  * fenced as untrusted data. `latest` is the newest finalized contract-2 explore session
@@ -998,9 +1050,20 @@ export async function runSessionContinueCheck(
     return refuse(`${chosen} fails the contract-2 checks`, ...assessment.violations);
   }
 
+  // finalize --check above held an existing carry-forward.json to the files; one finalized
+  // before the record existed has none, and its carried files are taken on trust.
+  const warnings: string[] = [];
+  if (!existsSync(join(candidate, CARRY_FORWARD_FILE))) {
+    warnings.push(
+      `${chosen} was finalized before ${CARRY_FORWARD_FILE} existed — its carried-forward files are not ` +
+        `tamper-checked; re-run \`qualiow session finalize ${chosen}\` to record them`,
+    );
+  }
+  for (const w of warnings) log(chalk.yellow(`⚠ ${w}`));
+
   const output = renderCarryForward(chosen, assessment, readContainedText(candidate, 'phase-3-discovery.md', MAX_DISCOVERY_BYTES));
   log(output);
-  return { ok: true, violations: [], sessionName: chosen, output };
+  return { ok: true, violations: [], sessionName: chosen, output, ...(warnings.length ? { warnings } : {}) };
 }
 
 /** `latest`'s filter: a readable, capped `stats.json` with `contract: 2` and exactly this target. */
@@ -1033,9 +1096,46 @@ function safePath(path: string): string {
   return cleaned.length > MAX_PATH_CHARS ? `${cleaned.slice(0, MAX_PATH_CHARS - 1)}…` : cleaned;
 }
 
-/** The fence markers, wherever they appear inside the data, so data cannot imitate one. */
+/** Cyrillic and Greek letters that read as Latin ones, mapped to the letter they imitate. */
+const CONFUSABLES: Readonly<Record<string, string>> = {
+  // Cyrillic capitals and small letters
+  А: 'A', В: 'B', Е: 'E', К: 'K', М: 'M', Н: 'H', О: 'O', Р: 'P', С: 'C', Т: 'T', У: 'Y', Х: 'X',
+  Ѕ: 'S', І: 'I', Ј: 'J', Ү: 'Y',
+  а: 'a', е: 'e', к: 'k', о: 'o', р: 'p', с: 'c', у: 'y', х: 'x', ѕ: 's', і: 'i', ј: 'j', һ: 'h',
+  ԁ: 'd', ԛ: 'q', ԝ: 'w',
+  // Greek capitals and small letters
+  Α: 'A', Β: 'B', Ε: 'E', Ζ: 'Z', Η: 'H', Ι: 'I', Κ: 'K', Μ: 'M', Ν: 'N', Ο: 'O', Ρ: 'P', Τ: 'T',
+  Υ: 'Y', Χ: 'X',
+  α: 'a', ι: 'i', κ: 'k', ν: 'v', ο: 'o', ρ: 'p', υ: 'u', χ: 'x',
+  // Latin look-alikes NFKC keeps
+  ı: 'i', ȷ: 'j',
+};
+const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLES).join('')}]`, 'gu');
+
+/**
+ * `text` as a reader sees it: compatibility forms folded (NFKC — fullwidth and
+ * mathematical letters), combining marks dropped, Cyrillic and Greek look-alikes mapped to
+ * the Latin letters they imitate.
+ */
+function foldConfusables(text: string): string {
+  return text
+    .normalize('NFKC')
+    .normalize('NFD')
+    .replace(/\p{M}+/gu, '')
+    .replace(CONFUSABLE_RE, (c) => CONFUSABLES[c] ?? c);
+}
+
+/**
+ * Data cannot imitate a fence marker: a line that, folded, says UNTRUSTED or
+ * PRIOR-SESSION (any case, any dash or spacing between the two words, or the shared
+ * phrase with its letters split apart) is replaced whole.
+ */
 function neutraliseMarkers(line: string): string {
-  return line.replaceAll(UNTRUSTED_CLOSE, '[marker removed]').replaceAll(UNTRUSTED_OPEN, '[marker removed]');
+  const folded = foldConfusables(line).toUpperCase();
+  const letters = folded.replace(/[^A-Z]/g, '');
+  const imitates =
+    /UNTRUSTED|PRIOR[\s\p{Pd}_.]*SESSION/u.test(folded) || letters.includes('UNTRUSTEDPRIORSESSION');
+  return imitates ? '[marker removed]' : line;
 }
 
 /**
@@ -1455,7 +1555,7 @@ function listFilesRecursive(dir: string): string[] {
 /** Text files larger than this are refused rather than scanned in part. */
 const MAX_SCAN_BYTES = 32 * 1024 * 1024;
 
-/** How much of a file is inspected for a NUL byte to tell binary from text. */
+/** How much of a file is inspected for a file signature and for UTF-16. */
 const BINARY_SNIFF_BYTES = 8 * 1024;
 
 interface SessionFile {
@@ -1500,12 +1600,41 @@ function walkSession(sessionDir: string): { files: SessionFile[]; violations: st
   return { files, violations };
 }
 
-type TextEncoding = 'utf8' | 'utf16le' | 'utf16be';
+type TextEncoding = 'utf8' | 'utf16le' | 'utf16be' | 'latin1';
+
+/** `bytes` (a byte list or an ASCII string) at `offset` of `buf`. */
+function bytesAt(buf: Buffer, offset: number, bytes: readonly number[] | string): boolean {
+  const want = typeof bytes === 'string' ? Buffer.from(bytes, 'latin1') : Buffer.from(bytes);
+  return buf.length >= offset + want.length && buf.subarray(offset, offset + want.length).equals(want);
+}
 
 /**
- * How to read `file` as text, or null for binary. A NUL byte in the first few KB means binary
- * — except UTF-16, which is text full of NULs: a byte-order mark, or NULs in nearly every
- * other byte, reads it as UTF-16 so a secret cannot hide from the scan by re-encoding.
+ * The file signatures of the binary evidence a session holds: PNG, JPEG, GIF, WebP,
+ * WebM/Matroska, MP4 and other ISO-BMFF (`ftyp`), ZIP (a Playwright trace is one), gzip, PDF.
+ */
+function hasBinarySignature(buf: Buffer): boolean {
+  return (
+    bytesAt(buf, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
+    bytesAt(buf, 0, [0xff, 0xd8, 0xff]) ||
+    bytesAt(buf, 0, 'GIF87a') ||
+    bytesAt(buf, 0, 'GIF89a') ||
+    (bytesAt(buf, 0, 'RIFF') && bytesAt(buf, 8, 'WEBP')) ||
+    bytesAt(buf, 0, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    bytesAt(buf, 4, 'ftyp') ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x03, 0x04]) ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x05, 0x06]) ||
+    bytesAt(buf, 0, [0x50, 0x4b, 0x07, 0x08]) ||
+    bytesAt(buf, 0, [0x1f, 0x8b]) ||
+    bytesAt(buf, 0, '%PDF-')
+  );
+}
+
+/**
+ * How to read `file` as text, or null for binary. Binary means a known file signature
+ * (`hasBinarySignature`) and nothing less: a NUL byte does not take a text file out of the
+ * scan. UTF-16 — a byte-order mark, or NULs in nearly every other byte — is read as UTF-16
+ * so a secret cannot hide by re-encoding; anything else is UTF-8, or latin1 when it is not
+ * valid UTF-8 (`textEncodingOf`).
  */
 function sniffTextEncoding(file: string): TextEncoding | null {
   const fd = openSync(file, 'r');
@@ -1516,11 +1645,12 @@ function sniffTextEncoding(file: string): TextEncoding | null {
   } finally {
     closeSync(fd);
   }
+  if (hasBinarySignature(buf)) return null;
   if (buf[0] === 0xff && buf[1] === 0xfe) return 'utf16le';
   if (buf[0] === 0xfe && buf[1] === 0xff) return 'utf16be';
   if (!buf.includes(0)) return 'utf8';
   const pairs = Math.floor(buf.length / 2);
-  if (pairs < 2) return null;
+  if (pairs < 2) return 'utf8';
   let evenNul = 0;
   let oddNul = 0;
   for (let i = 0; i + 1 < buf.length; i += 2) {
@@ -1529,7 +1659,22 @@ function sniffTextEncoding(file: string): TextEncoding | null {
   }
   if (oddNul >= pairs * 0.9 && evenNul <= pairs * 0.1) return 'utf16le';
   if (evenNul >= pairs * 0.9 && oddNul <= pairs * 0.1) return 'utf16be';
-  return null;
+  return 'utf8';
+}
+
+/**
+ * The sniffed encoding checked against the whole file: text that is not valid UTF-8 is
+ * read as latin1, one character per byte, so the scan sees every ASCII run and
+ * `--redact` writes back every byte it did not replace.
+ */
+function textEncodingOf(raw: Buffer, sniffed: TextEncoding): TextEncoding {
+  if (sniffed !== 'utf8') return sniffed;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(raw);
+    return 'utf8';
+  } catch {
+    return 'latin1';
+  }
 }
 
 function swapBytes16(buf: Buffer): Buffer {
@@ -1539,6 +1684,7 @@ function swapBytes16(buf: Buffer): Buffer {
 
 function decodeText(raw: Buffer, encoding: TextEncoding): string {
   if (encoding === 'utf8') return raw.toString('utf-8');
+  if (encoding === 'latin1') return raw.toString('latin1');
   const le = encoding === 'utf16le' ? raw : swapBytes16(raw);
   return le.toString('utf16le').replace(/^\uFEFF/, '');
 }
@@ -1546,6 +1692,7 @@ function decodeText(raw: Buffer, encoding: TextEncoding): string {
 /** Write redacted text back in the encoding it came in, keeping a byte-order mark it had. */
 function encodeText(text: string, encoding: TextEncoding, original: Buffer): Buffer {
   if (encoding === 'utf8') return Buffer.from(text, 'utf-8');
+  if (encoding === 'latin1') return Buffer.from(text, 'latin1');
   const hadBom =
     (original[0] === 0xff && original[1] === 0xfe) || (original[0] === 0xfe && original[1] === 0xff);
   const le = Buffer.from((hadBom ? '\uFEFF' : '') + text, 'utf16le');
