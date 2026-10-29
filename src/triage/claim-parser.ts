@@ -118,6 +118,15 @@ function multiLineField(body: string, key: string): string[] | undefined {
   return out;
 }
 
+/**
+ * A verdict file carries exactly one `VERDICT:` line, counted over the whole file rather
+ * than the fence alone: page text the judge quotes in its reasoning can imitate a verdict
+ * line, or close the fence early and put one after it. A block with two is not read —
+ * its verdict is `UNKNOWN` and `duplicateVerdict` is set. A line quoted with `> ` or
+ * indented is not a verdict line.
+ */
+const VERDICT_LINE_RE = /^VERDICT:/gm;
+
 export function parseVerdictBlock(content: string): ParsedVerdict {
   const fence = /```[a-z]*\r?\n([\s\S]*?)```/.exec(content);
   const body = fence ? fence[1] : content;
@@ -125,12 +134,14 @@ export function parseVerdictBlock(content: string): ParsedVerdict {
     const m = new RegExp(`^${key}:\\s*(.*)$`, 'm').exec(body);
     return m ? m[1].trim() : undefined;
   };
+  const duplicateVerdict = (content.match(VERDICT_LINE_RE) ?? []).length > 1;
   const verdictRaw = get('VERDICT') ?? '';
   const severityRaw = get('SEVERITY');
   const reproCommands = multiLineField(body, 'REPRO_COMMANDS');
   return {
-    verdict: normaliseJudgeVerdict(verdictRaw),
+    verdict: duplicateVerdict ? 'UNKNOWN' : normaliseJudgeVerdict(verdictRaw),
     verdictRaw,
+    ...(duplicateVerdict ? { duplicateVerdict } : {}),
     fenced: Boolean(fence),
     method: get('METHOD'),
     confidence: get('CONFIDENCE'),
