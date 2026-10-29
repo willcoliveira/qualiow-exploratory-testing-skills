@@ -137,6 +137,9 @@ const CLEAN_CASES = [
   '%22password%22%3A%22[REDACTED]%22',
   '<password>[REDACTED]</password>',
   'type the <token> placeholder',
+  'send the <token> header with every call\n\n</details>',
+  'the <password> field</p>',
+  '<li>paste the <api_key> you were given</li>',
   '| x-api-key | [REDACTED] |',
   'Set-Cookie: [REDACTED]',
 ];

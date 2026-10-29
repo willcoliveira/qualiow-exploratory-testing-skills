@@ -195,7 +195,7 @@ export const SECRET_PATTERNS = [
   },
   {
     category: 'Credential element',
-    re: /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/)/gi,
+    re: /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/\1\s*>)/gi,
     filter: keyValueFilter,
   },
   {

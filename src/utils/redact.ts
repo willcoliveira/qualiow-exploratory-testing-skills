@@ -244,10 +244,11 @@ const RULES: RedactionRule[] = [
     replace: redactKeyValue,
   },
   {
-    // An XML or SOAP element holding a credential, a namespace prefix and attributes allowed.
+    // An XML or SOAP element holding a credential, closed by the same element (so `<token>` in
+    // prose before some other closing tag is left alone); a namespace prefix and attributes allowed.
     name: 'Credential element',
     pattern:
-      /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/)/gi,
+      /<((?:[A-Za-z][\w-]{0,31}:)?(?:password|passwd|passcode|passphrase|pwd|secret|client_?secret|api_?key|access_?token|refresh_?token|token))((?:\s[^<>]{0,256})?>)([^<]{1,4096})(?=<\/\1\s*>)/gi,
     replace: (m: string, tag: string, rest: string, value: string) =>
       isRedactedValue(value) ? m : `<${tag}${rest}[REDACTED]`,
   },
