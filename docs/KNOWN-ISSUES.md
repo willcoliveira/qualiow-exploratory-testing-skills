@@ -245,7 +245,6 @@ dangerous paths already go through the bash guard or a prompt. Revisit only on a
 | `Bash(git -C:*)` | Nearly as broad as `git:*`; the bash guard asks on `-c`, `--upload-pack`, `--ext-diff` and friends |
 | Bash guard does not cover `npm exec`, `pnpm dlx`, `yarn dlx` | A safety net, not a sandbox |
 | An `Edit` swapping one secret for another of the same kind in an already-dirty file passes the write guard | The price of allowing one-at-a-time redaction; `finalize` still catches it |
-| esbuild low advisory | Dev-only, Windows dev server; fix needs a tsup/esbuild bump |
 
 ### Not verified on hardware
 
@@ -269,7 +268,6 @@ the CHANGELOG.
 | **Rate-limit browser actions** | Nothing stops a session from firing thousands of requests at a target. A cap per session (and a warning threshold) keeps an exploratory run from looking like a load test — or an attack — to the team that owns the app |
 | **Signed session reports** | A session report is evidence. Nothing currently proves an artefact was not edited after the session ended, which is the first question anyone auditing it will ask |
 | **SBOM generation** | **Addressed by the release workflow** (`.github/workflows/release.yml`, ADR-017): `verify` writes a CycloneDX SBOM of the installed dependency tree, development-only components flagged, and `github-release` attaches it to each GitHub release from the first release cut through the workflow. Releases up to 2.5.0 have none. It records the lockfile's versions; without a shrinkwrap a consumer's install can resolve newer ones |
-| **`SECURITY.md` vulnerability-disclosure policy** | The repo is public and has no stated way to report a vulnerability privately |
 | **Secret-scanning pre-commit hook** | Tracked files are clean today (verified), but nothing enforces that. A private target config or a live token is one `git add -A` away |
 | **Benchmark suite** | See ISSUE-003. There is no repeatable way to tell whether a skill change made sessions better or worse |
 
