@@ -1,0 +1,15 @@
+name: Bug report
+description: Something in qualiow (skills, CLI, mobile driver) does not work
+labels: [bug]
+body:
+  - type: textarea
+    attributes: {label: What happened, description: "Expected vs actual. Never paste credentials or confidential session output."}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Steps to reproduce}
+    validations: {required: true}
+  - type: input
+    attributes: {label: Version, description: "qualiow --version, and install path (npm / plugin / git)"}
+    validations: {required: true}
+  - type: dropdown
+    attributes: {label: Surface, options: [Web, Mobile, Backend/API, CLI, Other]}

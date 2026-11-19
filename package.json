@@ -1,7 +1,7 @@
 {
   "name": "qualiow-exploratory-testing",
   "version": "2.5.0",
-  "description": "qualiow — AI-powered exploratory testing skills for Claude Code: web via playwright-cli, iOS/Android simulators via Maestro/mobile-cli, and backend/API acceptance-criteria verification",
+  "description": "qualiow — AI exploratory testing for Claude Code that has to prove its bugs: web (playwright-cli), iOS/Android simulators (Maestro), and backend/API acceptance-criteria verification",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -69,7 +69,15 @@
     "skills",
     "plugin",
     "heuristics",
-    "bug-detection"
+    "bug-detection",
+    "ai-testing",
+    "test-automation",
+    "qa-automation",
+    "agentic-testing",
+    "ai-agents",
+    "claude-skills",
+    "claude-code-plugin",
+    "software-testing"
   ],
   "author": "William Oliveira",
   "license": "MIT",

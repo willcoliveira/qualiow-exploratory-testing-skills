@@ -1,10 +1,38 @@
-# qualiow-exploratory-testing
+# qualiow — AI exploratory testing for Claude Code
 
-AI-powered exploratory testing for **web**, **mobile** and **backend/API** — Claude Code skills, a QA knowledge base, and the CLI that wires them into a project.
+**The AI exploratory tester that has to prove its bugs.**
 
-Claude acts as a Principal QA Engineer: it understands the business first, risk-ranks what
-matters, explores systematically, and writes bug reports an executive can act on. No test
-scripts and no framework — AI reasoning, browser/device commands, and QA heuristics.
+[![npm](https://img.shields.io/npm/v/qualiow-exploratory-testing)](https://www.npmjs.com/package/qualiow-exploratory-testing)
+[![npm downloads](https://img.shields.io/npm/dm/qualiow-exploratory-testing)](https://www.npmjs.com/package/qualiow-exploratory-testing)
+[![CI](https://github.com/willcoliveira/qualiow-exploratory-testing-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/willcoliveira/qualiow-exploratory-testing-skills/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+Point it at a web app, an iOS/Android app or an API. Claude explores it the way a Principal QA
+Engineer would — business first, risk-ranked, heuristic-driven — and writes bug reports an
+executive can act on. Then a second, adversarial agent tries to **refute every bug** before it
+ships. No test scripts, no framework.
+
+```bash
+claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
+claude plugin install qualiow@qualiow
+/qualiow:qa-explore --target saucedemo     # a demo target ships with it
+```
+
+### Why teams trust it
+
+- **Every bug is challenged.** The `qa-bug-judge` re-reproduces each candidate in a fresh
+  browser and returns CONFIRMED or REFUTED. Refuted findings are listed, not hidden.
+- **Coverage is computed, not claimed.** `qualiow session level` derives the coverage level from
+  the evidence on disk — never a "ship probability" invented by the model.
+- **People keep the judgement.** Severity, business impact and the ship decision stay with you.
+- **Credentials never reach the model.** Passwords are typed from env vars by the CLI; every
+  artefact is scanned for secrets before it is written.
+- **One tester, three surfaces.** Web (Playwright), real iOS/Android simulators (Maestro), and
+  backend/API acceptance criteria with an AC traceability matrix.
+
+Built by a QA Lead who wanted an AI tester that experienced testers would actually believe.
+
+## What it covers
 
 | Surface | Driver | Skill |
 |---------|--------|-------|

@@ -17,6 +17,10 @@
     "maestro",
     "mobile-testing",
     "api-testing",
-    "acceptance-criteria"
+    "acceptance-criteria",
+    "ai-testing",
+    "test-automation",
+    "agentic-testing",
+    "bug-detection"
   ]
 }

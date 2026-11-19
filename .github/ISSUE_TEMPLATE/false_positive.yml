@@ -1,0 +1,12 @@
+name: False positive / missed bug
+description: The agent reported a bug that was not real, or missed one it should have found
+labels: [false-positive]
+body:
+  - type: textarea
+    attributes: {label: What the agent reported (or missed), description: "Redact anything confidential."}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Why it is wrong}
+    validations: {required: true}
+  - type: dropdown
+    attributes: {label: Did the judge run?, options: ["Yes — it confirmed", "Yes — it refuted", "No (--no-judge)", "Not sure"]}
