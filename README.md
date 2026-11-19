@@ -5,30 +5,41 @@
 [![npm](https://img.shields.io/npm/v/qualiow-exploratory-testing)](https://www.npmjs.com/package/qualiow-exploratory-testing)
 [![npm downloads](https://img.shields.io/npm/dm/qualiow-exploratory-testing)](https://www.npmjs.com/package/qualiow-exploratory-testing)
 [![CI](https://github.com/willcoliveira/qualiow-exploratory-testing-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/willcoliveira/qualiow-exploratory-testing-skills/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/willcoliveira/qualiow-exploratory-testing-skills/blob/main/LICENSE)
 
 Point it at a web app, an iOS/Android app or an API. Claude explores it the way a Principal QA
 Engineer would — business first, risk-ranked, heuristic-driven — and writes bug reports an
 executive can act on. Then a second, adversarial agent tries to **refute every bug** before it
 ships. No test scripts, no framework.
 
+Requires Node >= 22.12 and Claude Code. Install the plugin from your shell:
+
 ```bash
 claude plugin marketplace add willcoliveira/qualiow-exploratory-testing-skills
 claude plugin install qualiow@qualiow
-/qualiow:qa-explore --target saucedemo     # a demo target ships with it
 ```
 
-### Why teams trust it
+Then, inside Claude Code, run a session against the bundled demo target:
 
-- **Every bug is challenged.** The `qa-bug-judge` re-reproduces each candidate in a fresh
-  browser and returns CONFIRMED or REFUTED. Refuted findings are listed, not hidden.
-- **Coverage is computed, not claimed.** `qualiow session level` derives the coverage level from
-  the evidence on disk — never a "ship probability" invented by the model.
+```text
+/qualiow:qa-explore --target saucedemo
+```
+
+(The npm path — `npm i -g qualiow-exploratory-testing && qualiow init` — is in [Install](#install).)
+
+### What makes it different
+
+- **Bugs have to survive a second opinion.** In a full `/qa-explore` session an adversarial
+  judge (on by default) tries to refute each candidate bug in its own browser session. Bugs it
+  cannot reach ship as `Unverified`; refuted findings are listed, not hidden.
+- **Coverage is computed, not claimed.** For web sessions, `qualiow session level` derives the
+  coverage level from the evidence on disk — never a "ship probability" invented by the model.
 - **People keep the judgement.** Severity, business impact and the ship decision stay with you.
-- **Credentials never reach the model.** Passwords are typed from env vars by the CLI; every
-  artefact is scanned for secrets before it is written.
-- **One tester, three surfaces.** Web (Playwright), real iOS/Android simulators (Maestro), and
-  backend/API acceptance criteria with an AC traceability matrix.
+- **Secrets stay out of the output.** On the web, login passwords are typed from env vars by the
+  CLI and never pass through the model; every artefact is scanned for secrets before it is written.
+- **One tester, three surfaces.** Web apps (Playwright), iOS/Android simulators and emulators —
+  native apps or the device browser (Maestro), and backend/API acceptance criteria with an AC
+  traceability matrix.
 
 Built by a QA Lead who wanted an AI tester that experienced testers would actually believe.
 

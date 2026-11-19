@@ -15,7 +15,8 @@ Thanks for helping make AI exploratory testing better.
 git clone https://github.com/willcoliveira/qualiow-exploratory-testing-skills
 cd qualiow-exploratory-testing-skills
 npm ci
-npm test
+npm run build
+npm test          # full gate before a PR: npm run lint && npm run check:mirror
 ```
 
 - Skills and agents are edited in `.claude/skills/` and `.claude/agents/` only; run
