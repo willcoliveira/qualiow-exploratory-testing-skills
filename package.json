@@ -1,6 +1,6 @@
 {
   "name": "qualiow-exploratory-testing",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "qualiow — AI exploratory testing for Claude Code that has to prove its bugs: web (playwright-cli), iOS/Android simulators (Maestro), and backend/API acceptance-criteria verification",
   "type": "module",
   "main": "dist/index.js",
