@@ -24,6 +24,10 @@ npm test          # full gate before a PR: npm run lint && npm run check:mirror
 - Never commit credentials, session output or `.auth/`.
 - Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`).
 
+## Code of conduct
+
+By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Security
 
 Please report vulnerabilities privately — see [SECURITY.md](SECURITY.md).

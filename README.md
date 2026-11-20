@@ -43,6 +43,14 @@ Then, inside Claude Code, run a session against the bundled demo target:
 
 Built by a QA Lead who wanted an AI tester that experienced testers would actually believe.
 
+## Contents
+
+[What it covers](#what-it-covers) · [Requirements](#requirements) · [Install](#install) ·
+[CLI](#cli) · [Running sessions](#running-sessions) · [Mobile sessions](#mobile-sessions) ·
+[Backend, API and infrastructure verification](#backend-api-and-infrastructure-verification) ·
+[Reports](#reports) · [Skills](#skills) · [Project structure](#project-structure) ·
+[Security](#security) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+
 ## What it covers
 
 | Surface | Driver | Skill |

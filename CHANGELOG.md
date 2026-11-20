@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.5.1] - 2026-11-20
+
+Hardening and correctness since 2.5.0, a tag-triggered release with npm provenance, a pinned
+plugin source, and a rewritten README front page.
+
+**Upgrading**
+
+- npm projects: run `npx qualiow init --force` for the updated skills and agents, and
+  `npx qualiow init --hooks` again so the read guard is registered for `Read|Grep|Glob`.
+  Plugin installs update as a whole once the marketplace pin moves to v2.5.1.
+- Node `>= 22.12.0` is now the floor (`commander@15` already required it).
+
+### Security
+
+- Bash guard: closes `git -O`/pager, env-override and `--exec-path` bypasses; `git -C` limited to
+  read-only subcommands; shell-expansion and non-allowlisted `npx` specs denied; `upload` and
+  `state-save` confined to session fixtures and `.auth/` (#43).
+- Write guard asks before writes to qualiow control files and confines each sub-agent's writes;
+  read guard isolates the bug judge to its claim card and evidence (#43).
+- Target ids confined to `data/targets/`; `auth fill` refuses API and cloud keys; finalize fails
+  closed on an unresolved target and scans `snapshots/` for credential values; the triage send
+  refuses a claim carrying a credential value; broader, linear-time redaction; a verdict file with
+  more than one `VERDICT:` line is refused (#44).
+- Tighter dependency floors, publish gates and CI hygiene; new `SECURITY.md` (#39).
+
+### Fixed
+
+- Session lifecycle: no silent overwrite of an existing session directory, finalize requires the
+  report and cross-checks bug counts, atomic locked writes to the index files, CRLF handled
+  everywhere, numeric bug-id ordering (#41).
+- Skills: the feedback learning loop now reaches later sessions, finalized sessions stay frozen,
+  gathered source text is fenced as untrusted, narrower agent grants (#42).
+- Timing budgets in regex tests widened for loaded CI runners (#47).
+
+### Changed
+
+- Releases publish from `.github/workflows/release.yml` with npm provenance and an SBOM; the
+  plugin marketplace entry is pinned to a release tag and commit (#40, ADR-017).
+- README front page, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue forms and a PR template;
+  npm, plugin and marketplace descriptions unified (#56).
+- Dependency updates (#30–#32, #34, #35, #37, #38, #46, #49, #52).
+
 ## [2.5.0] - 2026-10-06
 
 Fewer places where the session's word is taken for something the CLI can check. The ideas came

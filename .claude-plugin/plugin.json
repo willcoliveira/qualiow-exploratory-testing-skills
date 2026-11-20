@@ -1,7 +1,7 @@
 {
   "name": "qualiow",
   "displayName": "Qualiow Exploratory Testing",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "qualiow — AI exploratory testing for Claude Code that has to prove its bugs: web (playwright-cli), iOS/Android simulators (Maestro via mobile-cli), and backend/API acceptance-criteria verification, with a versioned QA knowledge base.",
   "author": {
     "name": "William Oliveira",
